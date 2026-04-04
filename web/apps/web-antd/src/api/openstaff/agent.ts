@@ -218,3 +218,34 @@ export async function getMessagesApi(projectId: string) {
   const resp = await requestClient.get(`/projects/${projectId}/messages`);
   return (resp as any)?.data ?? resp;
 }
+
+// ===== 群聊相关 API =====
+
+/** 向已有 Session 发送消息（群聊追加） */
+export async function sendSessionMessageApi(
+  sessionId: string,
+  input: string,
+) {
+  const resp = await requestClient.post(`/sessions/${sessionId}/messages`, {
+    input,
+  });
+  return (resp as any)?.data ?? resp;
+}
+
+/** 获取群聊消息历史（分页） */
+export async function getChatMessagesApi(
+  sessionId: string,
+  skip = 0,
+  take = 50,
+) {
+  const resp = await requestClient.get(
+    `/sessions/${sessionId}/chat-messages?skip=${skip}&take=${take}`,
+  );
+  return (resp as any)?.data ?? resp;
+}
+
+/** 获取会话事件列表 */
+export async function getSessionEventsApi(sessionId: string) {
+  const resp = await requestClient.get(`/sessions/${sessionId}/events`);
+  return (resp as any)?.data ?? resp;
+}

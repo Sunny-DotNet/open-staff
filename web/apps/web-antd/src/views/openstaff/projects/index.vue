@@ -25,6 +25,7 @@ import {
   createProjectApi,
   deleteProjectApi,
   getProjectsApi,
+  initializeProjectApi,
 } from '#/api/openstaff/project';
 
 const router = useRouter();
@@ -40,6 +41,9 @@ const statusMap: Record<string, { color: string; label: string }> = {
   active: { color: 'green', label: '活跃' },
   archived: { color: 'default', label: '已归档' },
   created: { color: 'blue', label: '新建' },
+  initializing: { color: 'processing', label: '初始化中' },
+  paused: { color: 'warning', label: '已暂停' },
+  completed: { color: 'success', label: '已完成' },
 };
 
 async function fetchProjects() {
@@ -97,6 +101,21 @@ function goToProject(project: ProjectApi.Project) {
   router.push(`/projects/${project.id}/chat`);
 }
 
+const initializingIds = ref(new Set<string>());
+
+async function handleInitialize(project: ProjectApi.Project) {
+  initializingIds.value.add(project.id);
+  try {
+    await initializeProjectApi(project.id);
+    message.success('项目初始化成功');
+    await fetchProjects();
+  } catch (e: any) {
+    message.error('初始化失败: ' + (e?.message || e));
+  } finally {
+    initializingIds.value.delete(project.id);
+  }
+}
+
 function formatDate(isoStr: string): string {
   return new Date(isoStr).toLocaleDateString('zh-CN', {
     year: 'numeric',
@@ -151,14 +170,33 @@ onMounted(fetchProjects);
               <Typography.Text type="secondary" style="font-size: 12px">
                 创建于 {{ formatDate(project.createdAt) }}
               </Typography.Text>
-              <Button
-                danger
-                size="small"
-                type="text"
-                @click.stop="handleDelete(project)"
-              >
-                删除
-              </Button>
+              <Space size="small">
+                <Button
+                  v-if="project.status === 'created'"
+                  type="primary"
+                  size="small"
+                  :loading="initializingIds.has(project.id)"
+                  @click.stop="handleInitialize(project)"
+                >
+                  🚀 初始化
+                </Button>
+                <Button
+                  v-if="project.status === 'active'"
+                  size="small"
+                  type="link"
+                  @click.stop="goToProject(project)"
+                >
+                  💬 进入群聊
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  type="text"
+                  @click.stop="handleDelete(project)"
+                >
+                  删除
+                </Button>
+              </Space>
             </div>
           </Card>
         </Col>

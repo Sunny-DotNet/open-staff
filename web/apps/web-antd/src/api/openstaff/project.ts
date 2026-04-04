@@ -6,6 +6,8 @@ export namespace ProjectApi {
     name: string;
     description: string;
     status: string;
+    mainSessionId?: string;
+    workspacePath?: string;
     createdAt: string;
     updatedAt: string;
   }
@@ -47,4 +49,11 @@ export async function updateProjectApi(
 /** 删除项目 */
 export async function deleteProjectApi(id: string) {
   return requestClient.delete(`/projects/${id}`);
+}
+
+/** 初始化项目（创建工作目录 + Git + 群聊 Session） */
+export async function initializeProjectApi(id: string) {
+  return requestClient.post<ProjectApi.Project>(
+    `/projects/${id}/initialize`,
+  );
 }

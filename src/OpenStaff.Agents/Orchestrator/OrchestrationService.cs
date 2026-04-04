@@ -20,7 +20,10 @@ public class OrchestrationService : IOrchestrator
     private readonly ILogger<OrchestrationService> _logger;
 
     // 每个项目的智能体实例池 / Agent instance pool per project
-    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, IAgent>> _projectAgents = new();
+    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, (IAgent agent, DateTime lastUsed)>> _projectAgents = new();
+
+    // 清理间隔 (1小时)
+    private readonly TimeSpan _cleanupInterval = TimeSpan.FromHours(1);
 
     public OrchestrationService(
         AgentFactory agentFactory,
@@ -92,7 +95,7 @@ public class OrchestrationService : IOrchestrator
     {
         _logger.LogInformation("Initializing agents for project {ProjectId}", projectId);
 
-        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, IAgent>());
+        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (IAgent, DateTime)>());
 
         foreach (var roleType in _agentFactory.RegisteredRoleTypes)
         {
@@ -104,6 +107,9 @@ public class OrchestrationService : IOrchestrator
         {
             content = $"已初始化 {agents.Count} 个智能体角色"
         }, cancellationToken);
+
+        // 触发清理
+        _ = Task.Run(() => CleanupInactiveAgentsAsync(cancellationToken));
     }
 
     public Task<IReadOnlyList<AgentStatusInfo>> GetAgentStatusesAsync(Guid projectId, CancellationToken cancellationToken = default)
@@ -112,14 +118,15 @@ public class OrchestrationService : IOrchestrator
 
         if (_projectAgents.TryGetValue(projectId, out var agents))
         {
-            foreach (var (roleType, agent) in agents)
+            foreach (var (roleType, agentData) in agents)
             {
                 var config = _agentFactory.GetRoleConfig(roleType);
                 result.Add(new AgentStatusInfo
                 {
                     RoleType = roleType,
                     RoleName = config?.Name ?? roleType,
-                    Status = agent.Status
+                    Status = agentData.agent.Status,
+                    LastUsed = agentData.lastUsed
                 });
             }
         }
@@ -130,15 +137,32 @@ public class OrchestrationService : IOrchestrator
     private async Task<IAgent?> GetOrCreateAgentAsync(Guid projectId, string roleType)
     {
         if (!_agentFactory.IsRegistered(roleType))
+        {
+            _logger.LogWarning("Role type {RoleType} is not registered", roleType);
             return null;
+        }
 
-        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, IAgent>());
+        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (IAgent, DateTime)>());
 
-        if (agents.TryGetValue(roleType, out var existing))
-            return existing;
+        if (agents.TryGetValue(roleType, out var existingData))
+        {
+            // 更新最后使用时间
+            agents.TryUpdate(roleType, existingData, (existingData.agent, DateTime.UtcNow));
+            return existingData.agent;
+        }
 
         var agent = _agentFactory.CreateAgent(roleType);
+        if (agent == null)
+        {
+            _logger.LogError("Failed to create agent for role type {RoleType}", roleType);
+            return null;
+        }
+
         var config = _agentFactory.GetRoleConfig(roleType);
+        if (config == null)
+        {
+            _logger.LogWarning("Configuration not found for role type {RoleType}", roleType);
+        }
 
         // 解析供应商和 API Key / Resolve provider and API key
         ModelProvider? provider = null;
@@ -171,10 +195,18 @@ public class OrchestrationService : IOrchestrator
             Language = "zh-CN"
         };
 
-        await agent.InitializeAsync(context);
-        agents.TryAdd(roleType, agent);
-        _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", roleType, projectId);
-        return agent;
+        try
+        {
+            await agent.InitializeAsync(context);
+            agents.TryAdd(roleType, (agent, DateTime.UtcNow));
+            _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", roleType, projectId);
+            return agent;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize agent {RoleType} for project {ProjectId}", roleType, projectId);
+            return null;
+        }
     }
 
     private string? ParseRoutingTarget(string? content)
@@ -202,5 +234,47 @@ public class OrchestrationService : IOrchestrator
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 清理不活跃的智能体实例
+    /// </summary>
+    private async Task CleanupInactiveAgentsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var now = DateTime.UtcNow;
+            var cutoffTime = now - _cleanupInterval;
+
+            foreach (var (projectId, agents) in _projectAgents)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                var toRemove = new List<string>();
+
+                foreach (var (roleType, agentData) in agents)
+                {
+                    if (agentData.lastUsed < cutoffTime)
+                    {
+                        toRemove.Add(roleType);
+                        _logger.LogDebug("Cleaning up inactive agent {RoleType} for project {ProjectId}", roleType, projectId);
+                    }
+                }
+
+                foreach (var roleType in toRemove)
+                {
+                    if (agents.TryRemove(roleType, out var removedAgent))
+                    {
+                        // 这里可以添加智能体的清理逻辑
+                        _logger.LogInformation("Removed inactive agent {RoleType} for project {ProjectId}", roleType, projectId);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during agent cleanup");
+        }
     }
 }

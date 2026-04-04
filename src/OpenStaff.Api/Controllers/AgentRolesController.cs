@@ -5,6 +5,7 @@ using OpenStaff.Api.Services;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using OpenStaff.Infrastructure.Persistence;
+using System.Text;
 
 namespace OpenStaff.Api.Controllers;
 
@@ -106,14 +107,59 @@ public class AgentRolesController : ControllerBase
         }
         else
         {
+
+            var stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("以下是你的身份信息");
             // 自定义角色允许修改所有字段
-            if (request.Name != null) role.Name = request.Name;
-            if (request.Description != null) role.Description = request.Description;
-            if (request.SystemPrompt != null) role.SystemPrompt = request.SystemPrompt;
+            if (request.Name != null) {
+                role.Name = request.Name;
+                stringBuilder.AppendLine($"名称:```{role.Name}```");
+            }
+            if (request.Description != null)
+            {
+                role.Description = request.Description;
+                stringBuilder.AppendLine($"职务说明:```{role.Description}```");
+            }
             if (request.ModelProviderId.HasValue)
                 role.ModelProviderId = request.ModelProviderId.Value == Guid.Empty ? null : request.ModelProviderId;
             if (request.ModelName != null) role.ModelName = request.ModelName;
-            if (request.Config != null) role.Config = request.Config;
+
+
+            // 解析 config JSON 中的 modelParameters 和 tools
+            if (!string.IsNullOrEmpty(request.Config))
+            {
+                try
+                {
+                        role.Config = request.Config;
+                        using var doc = System.Text.Json.JsonDocument.Parse(request.Config);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("soul", out var soul))
+                    {
+                        if (soul.TryGetProperty("traits", out var traits)&& traits.ValueKind== System.Text.Json.JsonValueKind.Array) {
+                            var traitString = string.Join(',', traits.EnumerateArray().Select(x => $"```{x.GetString()}```"));
+
+                            stringBuilder.AppendLine($"性格特征:{traitString}");
+                        }
+                        if (soul.TryGetProperty("style", out var style) && style.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+
+                            stringBuilder.AppendLine($"沟通风格:```{style}```");
+                        }
+                        if (soul.TryGetProperty("attitudes", out var attitudes) && attitudes.ValueKind == System.Text.Json.JsonValueKind.Array)
+                        {
+                            var attitudeString = string.Join(',', attitudes.EnumerateArray().Select(x => $"```{x.GetString()}```"));
+                            stringBuilder.AppendLine($"工作态度:{attitudeString}");
+                        }
+                        if (soul.TryGetProperty("custom", out var custom) && custom.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            stringBuilder.AppendLine($"其它补充:```{custom}```");
+                        }
+                    }
+                }
+                catch { /* ignore parse errors */ }
+            }
+            role.SystemPrompt = stringBuilder.ToString();
         }
 
         role.UpdatedAt = DateTime.UtcNow;
