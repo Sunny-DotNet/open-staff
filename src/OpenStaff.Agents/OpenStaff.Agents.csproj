@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Roles\*.json" />
-    <EmbeddedResource Include="Prompts\*.txt" />
+    <EmbeddedResource Include="Prompts\*.txt" WithCulture="false" />
   </ItemGroup>
 
 </Project>
