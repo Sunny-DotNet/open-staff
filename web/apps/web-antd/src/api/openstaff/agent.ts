@@ -37,12 +37,27 @@ export namespace AgentApi {
     systemPrompt?: string;
   }
 
-  export interface TestChatMessage {
-    content: string;
-    errors?: string[];
-    model: string;
-    provider: string;
-    success: boolean;
+  // Session-based conversation interfaces
+  export interface CreateSessionParams {
+    projectId: string;
+    input: string;
+    contextStrategy?: 'full' | 'hybrid' | 'summary';
+  }
+
+  export interface SessionInfo {
+    sessionId: string;
+    status: string;
+    createdAt: string;
+  }
+
+  export interface SessionEvent {
+    id: string;
+    sessionId: string;
+    frameId: string | null;
+    eventType: string;
+    payload: string | null;
+    sequenceNo: number;
+    createdAt: string;
   }
 
   // Legacy interfaces for project agent instances
@@ -101,14 +116,95 @@ export async function updateAgentRoleApi(
   return (resp as any)?.data ?? resp;
 }
 
-/** 对话测试 */
-export async function testChatApi(
-  roleId: string,
-  message: string,
-): Promise<AgentApi.TestChatMessage> {
-  const resp = await requestClient.post(`/agent-roles/${roleId}/test-chat`, {
-    message,
+/** 创建会话（异步启动，返回 sessionId） */
+export async function createSessionApi(
+  params: AgentApi.CreateSessionParams,
+): Promise<AgentApi.SessionInfo> {
+  const resp = await requestClient.post('/sessions', params);
+  return (resp as any)?.data ?? resp;
+}
+
+/** 订阅会话事件流（SSE） */
+export function subscribeSessionStream(
+  sessionId: string,
+  onEvent: (event: AgentApi.SessionEvent) => void,
+  onDone?: () => void,
+  onError?: (error: Event) => void,
+): EventSource {
+  const baseUrl =
+    (requestClient as any).defaults?.baseURL ?? '/api';
+  const es = new EventSource(`${baseUrl}/sessions/${sessionId}/stream`);
+
+  // 监听所有已知事件类型
+  const eventTypes = [
+    'session_created',
+    'session_completed',
+    'session_cancelled',
+    'session_error',
+    'frame_pushed',
+    'frame_completed',
+    'frame_popped',
+    'thought',
+    'decision',
+    'message',
+    'action',
+    'tool_call',
+    'tool_result',
+    'error',
+    'routing',
+    'user_input',
+  ];
+
+  for (const type of eventTypes) {
+    es.addEventListener(type, (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        onEvent(data);
+      } catch {
+        // ignore parse errors
+      }
+    });
+  }
+
+  es.addEventListener('done', () => {
+    es.close();
+    onDone?.();
   });
+
+  es.onerror = (e) => {
+    onError?.(e);
+    es.close();
+  };
+
+  return es;
+}
+
+/** 取消会话 */
+export async function cancelSessionApi(sessionId: string) {
+  const resp = await requestClient.post(`/sessions/${sessionId}/cancel`);
+  return (resp as any)?.data ?? resp;
+}
+
+/** Pop 当前帧 */
+export async function popSessionFrameApi(sessionId: string) {
+  const resp = await requestClient.post(`/sessions/${sessionId}/pop`);
+  return (resp as any)?.data ?? resp;
+}
+
+/** 获取会话详情 */
+export async function getSessionApi(sessionId: string) {
+  const resp = await requestClient.get(`/sessions/${sessionId}`);
+  return (resp as any)?.data ?? resp;
+}
+
+/** 获取项目会话列表 */
+export async function getProjectSessionsApi(
+  projectId: string,
+  limit = 20,
+) {
+  const resp = await requestClient.get(
+    `/sessions/by-project/${projectId}?limit=${limit}`,
+  );
   return (resp as any)?.data ?? resp;
 }
 

@@ -20,6 +20,12 @@ public class AppDbContext : DbContext
     public DbSet<Checkpoint> Checkpoints => Set<Checkpoint>();
     public DbSet<Plugin> Plugins => Set<Plugin>();
 
+    // 对话系统
+    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+    public DbSet<ChatFrame> ChatFrames => Set<ChatFrame>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<SessionEvent> SessionEvents => Set<SessionEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

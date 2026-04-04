@@ -33,7 +33,9 @@ import {
 
 import {
   getAgentRolesApi,
-  testChatApi,
+  createSessionApi,
+  subscribeSessionStream,
+  cancelSessionApi,
   updateAgentRoleApi,
 } from '#/api/openstaff/agent';
 import { getModelProvidersApi, getProviderModelsApi } from '#/api/openstaff/settings';
@@ -213,7 +215,9 @@ async function saveConfig() {
   }
 }
 
-// ===== 对话测试 =====
+// ===== 对话测试（基于 Session + SSE） =====
+const activeEventSource = ref<EventSource | null>(null);
+
 async function sendTestMessage() {
   const role = selectedRole.value;
   if (!role || !chatInput.value.trim()) return;
@@ -226,20 +230,81 @@ async function sendTestMessage() {
   await nextTick();
   scrollToBottom();
 
+  // 关闭之前的 SSE 连接
+  if (activeEventSource.value) {
+    activeEventSource.value.close();
+    activeEventSource.value = null;
+  }
+
   try {
-    const response = await testChatApi(role.id, userMsg);
-    chatMessages.value.push({
-      role: 'assistant',
-      content: response.success
-        ? response.content
-        : `❌ ${response.errors?.join(', ') || '未知错误'}`,
+    // 创建一个测试项目 ID（agent-config 没有项目上下文，用空 GUID）
+    const session = await createSessionApi({
+      projectId: '00000000-0000-0000-0000-000000000000',
+      input: userMsg,
     });
+
+    // 订阅 SSE 事件流
+    let assistantContent = '';
+    activeEventSource.value = subscribeSessionStream(
+      session.sessionId,
+      (event) => {
+        if (event.eventType === 'message' && event.payload) {
+          try {
+            const payload = JSON.parse(event.payload);
+            if (payload.content) {
+              assistantContent = payload.content;
+              // 更新或追加助手消息
+              const lastMsg = chatMessages.value[chatMessages.value.length - 1];
+              if (lastMsg && lastMsg.role === 'assistant' && lastMsg.streaming) {
+                lastMsg.content = assistantContent;
+              } else {
+                chatMessages.value.push({
+                  role: 'assistant',
+                  content: assistantContent,
+                  streaming: true,
+                });
+              }
+              nextTick(() => scrollToBottom());
+            }
+          } catch {
+            // ignore
+          }
+        } else if (event.eventType === 'session_error' || event.eventType === 'error') {
+          chatMessages.value.push({
+            role: 'assistant',
+            content: `❌ ${event.payload || '未知错误'}`,
+          });
+        }
+      },
+      () => {
+        // SSE done
+        chatLoading.value = false;
+        // 标记最后一条消息为非流式
+        const lastMsg = chatMessages.value[chatMessages.value.length - 1];
+        if (lastMsg?.streaming) lastMsg.streaming = false;
+        if (!assistantContent) {
+          chatMessages.value.push({
+            role: 'assistant',
+            content: '（无响应）',
+          });
+        }
+        nextTick(() => scrollToBottom());
+      },
+      () => {
+        // SSE error
+        chatLoading.value = false;
+        chatMessages.value.push({
+          role: 'assistant',
+          content: '❌ SSE 连接失败',
+        });
+        nextTick(() => scrollToBottom());
+      },
+    );
   } catch (err: any) {
     chatMessages.value.push({
       role: 'assistant',
       content: `❌ 请求失败: ${err?.message || '网络错误'}`,
     });
-  } finally {
     chatLoading.value = false;
     await nextTick();
     scrollToBottom();

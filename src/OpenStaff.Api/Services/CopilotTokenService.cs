@@ -63,7 +63,7 @@ public class CopilotTokenService
         var request = new HttpRequestMessage(HttpMethod.Get, TokenEndpoint);
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("token", oauthToken);
         request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.UserAgent.TryParseAdd("OpenStaff/1.0");
+        request.Headers.UserAgent.TryParseAdd("GitHubCopilotChat/1.0.102");
 
         var response = await httpClient.SendAsync(request, ct);
 

@@ -121,9 +121,11 @@ public class ChatClientFactory
         private static void AddCopilotHeaders(PipelineMessage message)
         {
             var headers = message.Request.Headers;
-            headers.Set("Editor-Version", "OpenStaff/1.0.0");
-            headers.Set("Editor-Plugin-Version", "copilot-openstaff/1.0.0");
-            headers.Set("Copilot-Integration-Id", "openstaff");
+            headers.Set("Editor-Version", "vscode/1.96.2");
+            headers.Set("X-Github-Api-Version", "2025-04-01");
+            headers.Set("User-Agent", "GitHubCopilotChat/1.0.102");
+            //headers.Set("Editor-Plugin-Version", "copilot-openstaff/1.0.0");
+            //headers.Set("Copilot-Integration-Id", "openstaff");
         }
     }
 }

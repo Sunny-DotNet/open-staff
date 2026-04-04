@@ -5,6 +5,7 @@ using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using AgentResponse = OpenStaff.Core.Agents.AgentResponse;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace OpenStaff.Agents;
 
@@ -91,7 +92,7 @@ public class StandardAgent : AgentBase
             };
 
             // 7. Run via AIAgent (handles tool-calling loop internally)
-            var result = await aiAgent.RunAsync(chatMessages, cancellationToken: cancellationToken);
+            var result = await aiAgent.RunAsync(chatMessages, session: null, options: null, cancellationToken: cancellationToken);
             var content = result?.ToString() ?? "";
 
             // 8. Check routing markers

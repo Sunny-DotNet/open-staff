@@ -86,6 +86,10 @@ builder.Services.AddSingleton<ApiKeyResolver>();
 builder.Services.AddHttpClient<GitHubDeviceAuthService>();
 builder.Services.AddHttpClient<ModelListingService>();
 
+// 会话流管理 / Session stream management
+builder.Services.AddSingleton<SessionStreamManager>();
+builder.Services.AddSingleton<SessionRunner>();
+
 // 数据库种子 / Database seed
 builder.Services.AddHostedService<OpenStaff.Api.Services.RoleSeedService>();
 
