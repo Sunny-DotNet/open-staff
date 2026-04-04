@@ -19,17 +19,20 @@ public class AgentRolesController : ControllerBase
     private readonly FileProviderService _providerService;
     private readonly AgentFactory _agentFactory;
     private readonly IProviderResolver _providerResolver;
+    private readonly SessionStreamManager _streamManager;
 
     public AgentRolesController(
         AppDbContext db,
         FileProviderService providerService,
         AgentFactory agentFactory,
-        IProviderResolver providerResolver)
+        IProviderResolver providerResolver,
+        SessionStreamManager streamManager)
     {
         _db = db;
         _providerService = providerService;
         _agentFactory = agentFactory;
         _providerResolver = providerResolver;
+        _streamManager = streamManager;
     }
 
     [HttpGet]
@@ -126,7 +129,7 @@ public class AgentRolesController : ControllerBase
     }
 
     /// <summary>
-    /// 测试代理体对话 — 直接调用指定角色的 Agent，无需项目/会话
+    /// 测试代理体对话（异步） — 返回 sessionId，前端通过 SignalR StreamSession 订阅结果
     /// </summary>
     [HttpPost("{id:guid}/test-chat")]
     public async Task<IActionResult> TestChat(Guid id, [FromBody] TestChatRequest request, CancellationToken cancellationToken)
@@ -165,47 +168,70 @@ public class AgentRolesController : ControllerBase
             });
         }
 
-        try
-        {
-            var agent = _agentFactory.CreateAgent(role.RoleType);
+        // 创建会话流，立即返回 sessionId
+        var sessionId = Guid.NewGuid();
+        var stream = _streamManager.Create(sessionId);
 
-            var context = new AgentContext
+        // 记录用户输入事件
+        stream.Push(SessionEventTypes.UserInput, payload: System.Text.Json.JsonSerializer.Serialize(new { content = request.Message }));
+
+        // 后台处理 Agent 调用
+        _ = Task.Run(async () =>
+        {
+            try
             {
-                ProjectId = Guid.Empty,
-                AgentInstanceId = Guid.NewGuid(),
-                Role = new AgentRole
+                var agent = _agentFactory.CreateAgent(role.RoleType);
+
+                var context = new AgentContext
                 {
-                    RoleType = role.RoleType,
-                    Name = role.Name,
-                    ModelName = role.ModelName
-                },
-                Provider = provider,
-                ApiKey = apiKey,
-                Language = "zh-CN"
-            };
-            await agent.InitializeAsync(context);
+                    ProjectId = Guid.Empty,
+                    AgentInstanceId = Guid.NewGuid(),
+                    Role = new AgentRole
+                    {
+                        RoleType = role.RoleType,
+                        Name = role.Name,
+                        ModelName = role.ModelName
+                    },
+                    Provider = provider,
+                    ApiKey = apiKey,
+                    Language = "zh-CN"
+                };
+                await agent.InitializeAsync(context);
 
-            var message = new AgentMessage
+                var message = new AgentMessage
+                {
+                    Content = request.Message,
+                    FromRole = "user",
+                    Timestamp = DateTime.UtcNow
+                };
+
+                var response = await agent.ProcessAsync(message, CancellationToken.None);
+
+                // 推送 Agent 回复
+                stream.Push(SessionEventTypes.Message, payload: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    role = role.RoleType,
+                    roleName = role.Name,
+                    content = response.Content,
+                    success = response.Success,
+                    targetRole = response.TargetRole,
+                    errors = response.Errors
+                }));
+
+                // 完成会话流
+                await _streamManager.CompleteAsync(sessionId);
+            }
+            catch (Exception ex)
             {
-                Content = request.Message,
-                FromRole = "user",
-                Timestamp = DateTime.UtcNow
-            };
+                stream.Push(SessionEventTypes.Error, payload: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    error = ex.Message
+                }));
+                await _streamManager.CompleteAsync(sessionId);
+            }
+        });
 
-            var response = await agent.ProcessAsync(message, cancellationToken);
-
-            return Ok(new
-            {
-                success = response.Success,
-                content = response.Content,
-                targetRole = response.TargetRole,
-                errors = response.Errors
-            });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { error = ex.Message });
-        }
+        return Ok(new { sessionId });
     }
 
     [HttpDelete("{id:guid}")]

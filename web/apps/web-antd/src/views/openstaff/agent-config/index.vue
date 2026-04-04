@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { AgentApi } from '#/api/openstaff/agent';
 
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -36,8 +36,11 @@ import {
   testAgentChatApi,
   updateAgentRoleApi,
 } from '#/api/openstaff/agent';
+import { useNotification } from '#/composables/useNotification';
 import { getModelProvidersApi, getProviderModelsApi } from '#/api/openstaff/settings';
 import type { SettingsApi } from '#/api/openstaff/settings';
+
+const { streamSession } = useNotification();
 
 // ===== 状态 =====
 const roles = ref<AgentApi.AgentRole[]>([]);
@@ -60,10 +63,11 @@ const providerModels = ref<SettingsApi.ProviderModel[]>([]);
 const loadingModels = ref(false);
 
 // 对话测试
-const chatMessages = ref<Array<{ content: string; role: 'assistant' | 'user' }>>([]);
+const chatMessages = ref<Array<{ content: string; role: 'assistant' | 'user'; streaming?: boolean }>>([]);
 const chatInput = ref('');
 const chatLoading = ref(false);
 const chatContainerRef = ref<HTMLElement | null>(null);
+const currentSubscription = ref<any>(null);
 
 // 选中菜单key
 const selectedKeys = computed({
@@ -213,7 +217,7 @@ async function saveConfig() {
   }
 }
 
-// ===== 对话测试（直接调用 Agent，无需项目/会话） =====
+// ===== 对话测试（异步：POST 返回 sessionId，通过 SignalR 订阅结果） =====
 
 async function sendTestMessage() {
   const role = selectedRole.value;
@@ -228,31 +232,80 @@ async function sendTestMessage() {
   scrollToBottom();
 
   try {
-    const response = await testAgentChatApi(role.id, userMsg);
+    const { sessionId } = await testAgentChatApi(role.id, userMsg);
 
-    if (response.success) {
-      chatMessages.value.push({
-        role: 'assistant',
-        content: response.content || '（无响应）',
-      });
-    } else {
-      const errorDetail = response.errors?.join(', ') || response.content || '未知错误';
-      chatMessages.value.push({
-        role: 'assistant',
-        content: `❌ ${errorDetail}`,
-      });
-    }
+    // 添加一个 streaming 占位消息
+    const assistantIdx = chatMessages.value.length;
+    chatMessages.value.push({ role: 'assistant', content: '思考中...', streaming: true });
+
+    // 通过 SignalR streaming 订阅会话事件
+    currentSubscription.value = streamSession(
+      sessionId,
+      (evt) => {
+        if (!evt.payload) return;
+        try {
+          const data = JSON.parse(evt.payload);
+
+          if (evt.eventType === 'message') {
+            chatMessages.value[assistantIdx] = {
+              role: 'assistant',
+              content: data.content || '（无响应）',
+              streaming: false,
+            };
+          } else if (evt.eventType === 'error') {
+            chatMessages.value[assistantIdx] = {
+              role: 'assistant',
+              content: `❌ ${data.error || '未知错误'}`,
+              streaming: false,
+            };
+          }
+        } catch {
+          // ignore parse errors
+        }
+        nextTick(() => scrollToBottom());
+      },
+      () => {
+        // stream complete
+        chatLoading.value = false;
+        currentSubscription.value = null;
+        // 确保 streaming 标记关闭
+        if (chatMessages.value[assistantIdx]?.streaming) {
+          chatMessages.value[assistantIdx]!.streaming = false;
+        }
+        nextTick(() => scrollToBottom());
+      },
+      (err) => {
+        // stream error
+        chatLoading.value = false;
+        currentSubscription.value = null;
+        if (chatMessages.value[assistantIdx]?.streaming) {
+          chatMessages.value[assistantIdx] = {
+            role: 'assistant',
+            content: `❌ 流式连接错误: ${err.message}`,
+            streaming: false,
+          };
+        }
+        nextTick(() => scrollToBottom());
+      },
+    );
   } catch (err: any) {
     chatMessages.value.push({
       role: 'assistant',
-      content: `❌ 请求失败: ${err?.message || '网络错误'}`,
+      content: `❌ 请求失败: ${err?.response?.data?.error || err?.message || '网络错误'}`,
     });
-  } finally {
     chatLoading.value = false;
     await nextTick();
     scrollToBottom();
   }
 }
+
+onUnmounted(() => {
+  // 清理可能存在的订阅
+  if (currentSubscription.value) {
+    currentSubscription.value.dispose();
+    currentSubscription.value = null;
+  }
+});
 
 function scrollToBottom() {
   if (chatContainerRef.value) {
@@ -489,7 +542,7 @@ function filterModelOption(input: string, option: any) {
                 <Button
                   size="small"
                   type="text"
-                  @click="chatMessages = []"
+                  @click="() => { if (currentSubscription) { currentSubscription.dispose(); currentSubscription = null; } chatLoading = false; chatMessages = []; }"
                 >
                   🗑️
                 </Button>
