@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OpenStaff.Agents;
 using OpenStaff.Agents.Prompts;
 using OpenStaff.Agents.Tools;
@@ -17,7 +18,8 @@ public class AgentFactoryTests
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
         var promptLoader = new EmbeddedPromptLoader();
-        return new AgentFactory(services, toolRegistry, promptLoader);
+        var aiAgentFactory = new AIAgentFactory(services.GetRequiredService<ILoggerFactory>());
+        return new AgentFactory(services, toolRegistry, promptLoader, aiAgentFactory);
     }
 
     private static RoleConfig CreateRoleConfig(string roleType) => new()

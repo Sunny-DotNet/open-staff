@@ -62,6 +62,22 @@ public class FileProviderService
     }
 
     /// <summary>
+    /// 解密 API Key — 根据供应商配置从环境变量或加密存储获取
+    /// Resolve API key — from env var or encrypted storage based on provider config
+    /// </summary>
+    public string? ResolveApiKey(ModelProvider provider)
+    {
+        return provider.ApiKeyMode switch
+        {
+            ApiKeyModes.Input or ApiKeyModes.Device =>
+                !string.IsNullOrEmpty(provider.ApiKeyEncrypted) ? _encryption.Decrypt(provider.ApiKeyEncrypted) : null,
+            ApiKeyModes.EnvVar =>
+                !string.IsNullOrEmpty(provider.ApiKeyEnvVar) ? Environment.GetEnvironmentVariable(provider.ApiKeyEnvVar) : null,
+            _ => null
+        };
+    }
+
+    /// <summary>
     /// 创建供应商 / Create provider
     /// </summary>
     public ModelProvider Create(CreateProviderRequest request)

@@ -1,6 +1,5 @@
 using OpenStaff.Core.Events;
 using OpenStaff.Core.Models;
-using OpenStaff.Core.Services;
 
 namespace OpenStaff.Core.Agents;
 
@@ -21,8 +20,11 @@ public class AgentContext
     /// <summary>工程信息 / Project info</summary>
     public Project Project { get; set; } = null!;
 
-    /// <summary>模型客户端 / LLM model client</summary>
-    public IModelClient ModelClient { get; set; } = null!;
+    /// <summary>模型供应商配置 / Model provider config (for agent creation)</summary>
+    public ModelProvider? Provider { get; set; }
+
+    /// <summary>已解密的 API Key / Decrypted API key</summary>
+    public string? ApiKey { get; set; }
 
     /// <summary>事件发布器 / Event publisher</summary>
     public IEventPublisher EventPublisher { get; set; } = null!;

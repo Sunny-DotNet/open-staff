@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenStaff.Core.Events;
-using OpenStaff.Core.Services;
 using OpenStaff.Infrastructure.Events;
 using OpenStaff.Infrastructure.Export;
 using OpenStaff.Infrastructure.Git;
-using OpenStaff.Infrastructure.LLM;
 using OpenStaff.Infrastructure.Persistence;
 using OpenStaff.Infrastructure.Plugins;
 using OpenStaff.Infrastructure.Security;
@@ -31,9 +29,8 @@ public static class InfrastructureServiceExtensions
         services.AddSingleton<IEventSubscriber>(sp => sp.GetRequiredService<EventBus>());
         services.AddScoped<IEventPublisher, EventPublisher>();
 
-        // LLM 客户端 / LLM clients
+        // HTTP 客户端 / HTTP clients
         services.AddHttpClient();
-        services.AddSingleton<IModelClientFactory, ModelClientFactory>();
 
         // Git 服务 / Git service
         services.AddScoped<GitService>();

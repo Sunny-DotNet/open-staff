@@ -6,7 +6,6 @@ using OpenStaff.Core.Agents;
 using OpenStaff.Core.Events;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Orchestration;
-using OpenStaff.Core.Services;
 
 namespace OpenStaff.Agents.Orchestrator;
 
@@ -17,7 +16,6 @@ namespace OpenStaff.Agents.Orchestrator;
 public class OrchestrationService : IOrchestrator
 {
     private readonly AgentFactory _agentFactory;
-    private readonly IModelClientFactory _modelClientFactory;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OrchestrationService> _logger;
 
@@ -26,12 +24,10 @@ public class OrchestrationService : IOrchestrator
 
     public OrchestrationService(
         AgentFactory agentFactory,
-        IModelClientFactory modelClientFactory,
         IServiceScopeFactory scopeFactory,
         ILogger<OrchestrationService> logger)
     {
         _agentFactory = agentFactory;
-        _modelClientFactory = modelClientFactory;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -154,6 +150,8 @@ public class OrchestrationService : IOrchestrator
             var config = _agentFactory.GetRoleConfig(rt);
 
             using var scope = _scopeFactory.CreateScope();
+            // Provider 和 ApiKey 在 ProcessAsync 时通过 AIAgentFactory 解析
+            // Provider and ApiKey are resolved at ProcessAsync time via AIAgentFactory
             var context = new AgentContext
             {
                 ProjectId = projectId,
@@ -165,7 +163,6 @@ public class OrchestrationService : IOrchestrator
                     ModelName = config?.ModelName
                 },
                 Project = new Project { Id = projectId },
-                ModelClient = _modelClientFactory.CreateClient(new ModelProvider()),
                 EventPublisher = scope.ServiceProvider.GetRequiredService<IEventPublisher>(),
                 Language = "zh-CN"
             };

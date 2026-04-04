@@ -154,6 +154,13 @@ public class AgentRolesController : ControllerBase
             return BadRequest(new { message = "没有可用的模型提供商，请先在设置中启用至少一个提供商" });
         }
 
+        // 解密 API Key
+        var apiKey = _providerService.ResolveApiKey(provider);
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            return BadRequest(new { message = "模型提供商未配置 API Key" });
+        }
+
         // 使用 AgentFactory 创建并调用 agent
         var agentFactory = HttpContext.RequestServices.GetRequiredService<OpenStaff.Agents.AgentFactory>();
         if (!agentFactory.IsRegistered(role.RoleType))
@@ -163,15 +170,15 @@ public class AgentRolesController : ControllerBase
 
         var agent = agentFactory.CreateAgent(role.RoleType);
 
-        // 创建临时上下文
-        var modelClientFactory = HttpContext.RequestServices.GetRequiredService<OpenStaff.Core.Services.IModelClientFactory>();
+        // 创建临时上下文（Provider + ApiKey 供 AIAgentFactory 使用）
         var context = new OpenStaff.Core.Agents.AgentContext
         {
             ProjectId = Guid.Empty,
             AgentInstanceId = Guid.NewGuid(),
             Role = role,
             Project = new Project { Id = Guid.Empty, Name = "Test" },
-            ModelClient = modelClientFactory.CreateClient(provider),
+            Provider = provider,
+            ApiKey = apiKey,
             EventPublisher = new NullEventPublisher(),
             Language = "zh-CN"
         };

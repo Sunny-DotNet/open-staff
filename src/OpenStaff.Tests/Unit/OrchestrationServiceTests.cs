@@ -9,7 +9,6 @@ using OpenStaff.Core.Agents;
 using OpenStaff.Core.Events;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Orchestration;
-using OpenStaff.Core.Services;
 using Xunit;
 
 namespace OpenStaff.Tests.Unit;
@@ -23,7 +22,8 @@ public class OrchestrationServiceTests
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
         var promptLoader = new EmbeddedPromptLoader();
-        var factory = new AgentFactory(services, toolRegistry, promptLoader);
+        var aiAgentFactory = new AIAgentFactory(services.GetRequiredService<ILoggerFactory>());
+        var factory = new AgentFactory(services, toolRegistry, promptLoader, aiAgentFactory);
 
         foreach (var roleType in roleTypes)
         {
@@ -50,16 +50,6 @@ public class OrchestrationServiceTests
             BuiltinRoleTypes.Producer,
             BuiltinRoleTypes.Debugger);
 
-        var modelClientMock = new Mock<IModelClient>();
-        modelClientMock
-            .Setup(m => m.ChatAsync(It.IsAny<ChatRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ChatResponse { Content = "response" });
-
-        var modelClientFactoryMock = new Mock<IModelClientFactory>();
-        modelClientFactoryMock
-            .Setup(f => f.CreateClient(It.IsAny<ModelProvider>()))
-            .Returns(modelClientMock.Object);
-
         var eventPublisherMock = new Mock<IEventPublisher>();
         eventPublisherMock
             .Setup(e => e.PublishAsync(It.IsAny<AgentEventData>(), It.IsAny<CancellationToken>()))
@@ -74,7 +64,7 @@ public class OrchestrationServiceTests
 
         var logger = new Mock<ILogger<OrchestrationService>>().Object;
 
-        return new OrchestrationService(factory, modelClientFactoryMock.Object, scopeFactoryMock.Object, logger);
+        return new OrchestrationService(factory, scopeFactoryMock.Object, logger);
     }
 
     [Fact]

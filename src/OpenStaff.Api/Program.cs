@@ -32,12 +32,16 @@ builder.Services.AddInfrastructure(connectionString, encryptionKey);
 builder.Services.AddSingleton<IAgentToolRegistry, AgentToolRegistry>();
 builder.Services.AddSingleton<IPromptLoader, EmbeddedPromptLoader>();
 
+// AI Agent 工厂 — 使用 microsoft/agent-framework 创建各供应商的 AIAgent
+builder.Services.AddSingleton<AIAgentFactory>();
+
 // 智能体工厂 — 从嵌入式角色配置创建 StandardAgent / Agent factory — creates StandardAgent from embedded role configs
 builder.Services.AddSingleton<AgentFactory>(sp =>
 {
     var toolRegistry = sp.GetRequiredService<IAgentToolRegistry>();
     var promptLoader = sp.GetRequiredService<IPromptLoader>();
-    var factory = new AgentFactory(sp, toolRegistry, promptLoader);
+    var aiAgentFactory = sp.GetRequiredService<AIAgentFactory>();
+    var factory = new AgentFactory(sp, toolRegistry, promptLoader, aiAgentFactory);
 
     // 加载所有嵌入式角色配置 / Load all embedded role configurations
     foreach (var config in RoleConfigLoader.LoadAll())

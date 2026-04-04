@@ -12,16 +12,19 @@ public class AgentFactory
     private readonly IServiceProvider _serviceProvider;
     private readonly IAgentToolRegistry _toolRegistry;
     private readonly IPromptLoader _promptLoader;
+    private readonly AIAgentFactory _aiAgentFactory;
     private readonly Dictionary<string, RoleConfig> _roleConfigs = new(StringComparer.OrdinalIgnoreCase);
 
     public AgentFactory(
         IServiceProvider serviceProvider,
         IAgentToolRegistry toolRegistry,
-        IPromptLoader promptLoader)
+        IPromptLoader promptLoader,
+        AIAgentFactory aiAgentFactory)
     {
         _serviceProvider = serviceProvider;
         _toolRegistry = toolRegistry;
         _promptLoader = promptLoader;
+        _aiAgentFactory = aiAgentFactory;
     }
 
     /// <summary>注册角色配置 / Register role configuration</summary>
@@ -37,7 +40,7 @@ public class AgentFactory
             throw new InvalidOperationException($"Role type '{roleType}' is not registered");
 
         var logger = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
-        return new StandardAgent(config, _toolRegistry, _promptLoader, logger);
+        return new StandardAgent(config, _toolRegistry, _promptLoader, _aiAgentFactory, logger);
     }
 
     /// <summary>检查角色是否已注册 / Check if role is registered</summary>
