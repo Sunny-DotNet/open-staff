@@ -133,13 +133,13 @@ export interface UseNotificationReturn {
   onChannel: (channel: string, handler: NotifyHandler) => () => void;
   /** 监听指定事件类型（跨频道） */
   onEventType: (eventType: string, handler: NotifyHandler) => () => void;
-  /** 启动会话流（SignalR Streaming） */
+  /** 启动会话流（SignalR Streaming） — 返回 Promise<ISubscription> */
   streamSession: (
     sessionId: string,
     onEvent: SessionEventHandler,
     onComplete?: () => void,
     onError?: (err: Error) => void,
-  ) => signalR.ISubscription<AgentApi.SessionEvent>;
+  ) => Promise<signalR.ISubscription<AgentApi.SessionEvent>>;
   /** 停止连接 */
   stop: () => Promise<void>;
 }
@@ -190,13 +190,13 @@ export function useNotification(
     return onChannel(`@type:${eventType}`, handler);
   }
 
-  function streamSession(
+  async function streamSession(
     sessionId: string,
     onEvent: SessionEventHandler,
     onComplete?: () => void,
     onError?: (err: Error) => void,
-  ): signalR.ISubscription<AgentApi.SessionEvent> {
-    const conn = getOrCreateConnection(hubUrl);
+  ): Promise<signalR.ISubscription<AgentApi.SessionEvent>> {
+    const conn = await ensureConnected(hubUrl);
 
     const stream = conn.stream<AgentApi.SessionEvent>(
       'StreamSession',

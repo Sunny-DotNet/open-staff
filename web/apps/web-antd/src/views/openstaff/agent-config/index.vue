@@ -239,7 +239,7 @@ async function sendTestMessage() {
     chatMessages.value.push({ role: 'assistant', content: '思考中...', streaming: true });
 
     // 通过 SignalR streaming 订阅会话事件
-    currentSubscription.value = streamSession(
+    currentSubscription.value = await streamSession(
       sessionId,
       (evt) => {
         if (!evt.payload) return;

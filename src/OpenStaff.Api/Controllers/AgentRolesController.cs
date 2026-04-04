@@ -218,8 +218,8 @@ public class AgentRolesController : ControllerBase
                     errors = response.Errors
                 }));
 
-                // 完成会话流
-                await _streamManager.CompleteAsync(sessionId);
+                // 完成会话流（不持久化，保留给迟到的订阅者回放）
+                _streamManager.CompleteTransient(sessionId);
             }
             catch (Exception ex)
             {
@@ -227,7 +227,7 @@ public class AgentRolesController : ControllerBase
                 {
                     error = ex.Message
                 }));
-                await _streamManager.CompleteAsync(sessionId);
+                _streamManager.CompleteTransient(sessionId);
             }
         });
 

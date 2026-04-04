@@ -76,6 +76,32 @@ public class SessionStreamManager : IDisposable
     }
 
     /// <summary>
+    /// 完成会话流但不持久化（用于测试对话等临时场景）
+    /// 流保留在内存中供迟到的订阅者回放，延迟后自动清理
+    /// </summary>
+    public void CompleteTransient(Guid sessionId, TimeSpan? cleanupDelay = null)
+    {
+        if (!_streams.TryGetValue(sessionId, out var stream))
+            return;
+
+        stream.Complete();
+        _logger.LogInformation("Session stream {SessionId} completed (transient, {Count} events)",
+            sessionId, stream.EventCount);
+
+        // 延迟清理，给客户端足够时间订阅和回放
+        var delay = cleanupDelay ?? TimeSpan.FromSeconds(30);
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(delay);
+            if (_streams.TryRemove(sessionId, out var s))
+            {
+                s.Dispose();
+                _logger.LogDebug("Transient session stream {SessionId} cleaned up", sessionId);
+            }
+        });
+    }
+
+    /// <summary>
     /// 取消会话 — 持久化已有事件，发送错误信号，释放
     /// </summary>
     public async Task CancelAsync(Guid sessionId, string reason = "Cancelled by user", CancellationToken ct = default)
