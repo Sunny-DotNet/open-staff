@@ -54,6 +54,70 @@ public class AgentFactory
         return new StandardAgent(config, _toolRegistry, _promptLoader, _aiAgentFactory, logger);
     }
 
+    /// <summary>
+    /// 从数据库角色动态创建智能体（用于自定义角色，无需预注册 RoleConfig）
+    /// </summary>
+    public IAgent CreateAgentFromDbRole(Core.Models.AgentRole dbRole)
+    {
+        // 优先使用已注册的 RoleConfig（内置角色）
+        if (_roleConfigs.TryGetValue(dbRole.RoleType, out var existingConfig))
+        {
+            var logger1 = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
+            return new StandardAgent(existingConfig, _toolRegistry, _promptLoader, _aiAgentFactory, logger1);
+        }
+
+        // 从数据库角色动态构建 RoleConfig
+        var config = BuildRoleConfigFromDb(dbRole);
+        var logger = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
+        return new StandardAgent(config, _toolRegistry, _promptLoader, _aiAgentFactory, logger);
+    }
+
+    /// <summary>从数据库角色构建 RoleConfig</summary>
+    private static RoleConfig BuildRoleConfigFromDb(Core.Models.AgentRole dbRole)
+    {
+        var config = new RoleConfig
+        {
+            RoleType = dbRole.RoleType,
+            Name = dbRole.Name,
+            Description = dbRole.Description,
+            IsBuiltin = false,
+            SystemPrompt = dbRole.SystemPrompt ?? string.Empty,
+            ModelName = dbRole.ModelName,
+        };
+
+        // 解析 config JSON 中的 modelParameters 和 tools
+        if (!string.IsNullOrEmpty(dbRole.Config))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(dbRole.Config);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("modelParameters", out var mp))
+                {
+                    config.ModelParameters = new ModelParameters
+                    {
+                        Temperature = mp.TryGetProperty("temperature", out var t) && t.ValueKind == System.Text.Json.JsonValueKind.Number
+                            ? t.GetDouble() : 0.7,
+                        MaxTokens = mp.TryGetProperty("maxTokens", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.Number
+                            ? m.GetInt32() : 4096,
+                    };
+                }
+
+                if (root.TryGetProperty("tools", out var tools) && tools.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    config.Tools = tools.EnumerateArray()
+                        .Where(e => e.ValueKind == System.Text.Json.JsonValueKind.String)
+                        .Select(e => e.GetString()!)
+                        .ToList();
+                }
+            }
+            catch { /* ignore parse errors */ }
+        }
+
+        return config;
+    }
+
     /// <summary>检查角色是否已注册 / Check if role is registered</summary>
     public bool IsRegistered(string roleType) => _roleConfigs.ContainsKey(roleType);
 

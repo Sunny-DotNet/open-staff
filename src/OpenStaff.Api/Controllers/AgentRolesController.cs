@@ -140,9 +140,6 @@ public class AgentRolesController : ControllerBase
         var role = await _db.AgentRoles.FirstOrDefaultAsync(r => r.Id == id && r.IsActive, cancellationToken);
         if (role == null) return NotFound(new { error = "Agent role not found" });
 
-        if (!_agentFactory.IsRegistered(role.RoleType))
-            return BadRequest(new { error = $"Role type '{role.RoleType}' is not registered in agent factory" });
-
         // 解析模型供应商和 API Key
         ModelProvider? provider = null;
         string? apiKey = null;
@@ -180,7 +177,7 @@ public class AgentRolesController : ControllerBase
         {
             try
             {
-                var agent = _agentFactory.CreateAgent(role.RoleType);
+                var agent = _agentFactory.CreateAgentFromDbRole(role);
 
                 var context = new AgentContext
                 {
