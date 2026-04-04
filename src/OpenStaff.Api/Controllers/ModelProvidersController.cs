@@ -85,6 +85,7 @@ public class ModelProvidersController : ControllerBase
 
     /// <summary>
     /// 获取供应商可用模型列表 / List available models from a provider
+    /// 优先从 models.dev 本地缓存获取，无需 API Key
     /// </summary>
     [HttpGet("{id:guid}/models")]
     public async Task<IActionResult> ListModels(Guid id, CancellationToken cancellationToken)
@@ -92,15 +93,17 @@ public class ModelProvidersController : ControllerBase
         var provider = _providerService.GetById(id);
         if (provider == null) return NotFound();
 
-        if (!provider.IsEnabled)
-        {
-            return BadRequest(new { message = "该供应商尚未启用" });
-        }
-
         try
         {
             var models = await _modelListingService.ListModelsAsync(provider, cancellationToken);
-            return Ok(models.Select(m => new { m.Id, m.DisplayName }));
+            return Ok(models.Select(m => new
+            {
+                m.Id,
+                m.DisplayName,
+                contextWindow = m.ContextWindow,
+                maxOutput = m.MaxOutput,
+                reasoning = m.Reasoning
+            }));
         }
         catch (HttpRequestException ex)
         {

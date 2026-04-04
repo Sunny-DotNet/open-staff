@@ -75,6 +75,7 @@ builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddSingleton<FileProviderService>();
+builder.Services.AddSingleton<ModelsDevService>();
 builder.Services.AddHttpClient<GitHubDeviceAuthService>();
 builder.Services.AddHttpClient<ModelListingService>();
 
@@ -95,6 +96,9 @@ var app = builder.Build();
 
 // 种子默认模型供应商（文件系统）/ Seed default model providers (file-based)
 app.Services.GetRequiredService<FileProviderService>().SeedDefaults();
+
+// 初始化 models.dev 数据（首次同步下载，之后异步更新）
+await app.Services.GetRequiredService<ModelsDevService>().InitializeAsync();
 
 // 中间件 / Middleware
 app.UseMiddleware<ErrorHandlingMiddleware>();

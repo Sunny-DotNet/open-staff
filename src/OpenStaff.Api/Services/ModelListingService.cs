@@ -6,27 +6,67 @@ using OpenStaff.Infrastructure.Security;
 namespace OpenStaff.Api.Services;
 
 /// <summary>
-/// 从各供应商 API 获取可用模型列表 / Fetches available models from provider APIs
+/// 模型列表服务 — 优先从 models.dev 本地缓存获取，也支持直接调用供应商 API
 /// </summary>
 public class ModelListingService
 {
     private readonly HttpClient _httpClient;
     private readonly EncryptionService _encryption;
+    private readonly ModelsDevService _modelsDev;
     private readonly ILogger<ModelListingService> _logger;
 
-    public ModelListingService(HttpClient httpClient, EncryptionService encryption, ILogger<ModelListingService> logger)
+    /// <summary>
+    /// ProviderType → models.dev 的 key 映射
+    /// </summary>
+    private static readonly Dictionary<string, string> ProviderTypeToModelsDevKey = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [ProviderTypes.OpenAI] = "openai",
+        [ProviderTypes.Google] = "google",
+        [ProviderTypes.Anthropic] = "anthropic",
+        [ProviderTypes.GitHubCopilot] = "github-copilot",
+    };
+
+    public ModelListingService(HttpClient httpClient, EncryptionService encryption, ModelsDevService modelsDev, ILogger<ModelListingService> logger)
     {
         _httpClient = httpClient;
         _encryption = encryption;
+        _modelsDev = modelsDev;
         _logger = logger;
     }
 
-    public record ModelInfo(string Id, string? DisplayName);
+    public record ModelInfo(string Id, string? DisplayName, long? ContextWindow = null, long? MaxOutput = null, bool? Reasoning = null);
 
     /// <summary>
-    /// 获取供应商的可用模型列表 / Get available models from a provider
+    /// 获取供应商的可用模型列表 — 优先从 models.dev 缓存获取
     /// </summary>
     public async Task<List<ModelInfo>> ListModelsAsync(ModelProvider provider, CancellationToken ct = default)
+    {
+        // 1. 尝试从 models.dev 本地缓存获取
+        if (_modelsDev.IsLoaded && ProviderTypeToModelsDevKey.TryGetValue(provider.ProviderType, out var devKey))
+        {
+            var devModels = _modelsDev.GetModels(devKey);
+            if (devModels.Count > 0)
+            {
+                _logger.LogDebug("Returning {Count} models for {Provider} from models.dev cache", devModels.Count, provider.Name);
+                return devModels.Select(m => new ModelInfo(
+                    m.Id,
+                    m.Name != m.Id ? m.Name : null,
+                    m.ContextWindow,
+                    m.MaxOutput,
+                    m.Reasoning
+                )).ToList();
+            }
+        }
+
+        // 2. 回退：直接调用供应商 API
+        _logger.LogDebug("Falling back to direct API call for {Provider}", provider.Name);
+        return await ListModelsFromApiAsync(provider, ct);
+    }
+
+    /// <summary>
+    /// 直接调用供应商 API 获取模型列表（需要 API Key）
+    /// </summary>
+    public async Task<List<ModelInfo>> ListModelsFromApiAsync(ModelProvider provider, CancellationToken ct = default)
     {
         var apiKey = ResolveApiKey(provider);
         if (string.IsNullOrEmpty(apiKey))
@@ -55,6 +95,18 @@ public class ModelListingService
             _logger.LogError(ex, "Failed to list models for provider {Name} ({Type})", provider.Name, provider.ProviderType);
             throw;
         }
+    }
+
+    /// <summary>
+    /// 获取指定模型的详细参数（从 models.dev 缓存）
+    /// </summary>
+    public ModelsDevModel? GetModelDetails(string providerType, string modelId)
+    {
+        if (ProviderTypeToModelsDevKey.TryGetValue(providerType, out var devKey))
+        {
+            return _modelsDev.GetModel(devKey, modelId);
+        }
+        return null;
     }
 
     private string? ResolveApiKey(ModelProvider provider)
@@ -125,7 +177,6 @@ public class ModelListingService
 
                 if (!string.IsNullOrEmpty(name))
                 {
-                    // "models/gemini-2.0-flash" → "gemini-2.0-flash"
                     var id = name.StartsWith("models/") ? name["models/".Length..] : name;
                     models.Add(new ModelInfo(id, displayName));
                 }
