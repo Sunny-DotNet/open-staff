@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenStaff.Api.Services;
@@ -48,48 +47,6 @@ public class SessionsController : ControllerBase
             status = session.Status,
             createdAt = session.CreatedAt
         });
-    }
-
-    /// <summary>
-    /// SSE 流端点 — 订阅会话事件（ReplaySubject 活跃时回放+推送，否则从 DB 拉取）
-    /// </summary>
-    [HttpGet("{sessionId}/stream")]
-    public async Task StreamSession(Guid sessionId, CancellationToken ct)
-    {
-        Response.Headers.Append("Content-Type", "text/event-stream");
-        Response.Headers.Append("Cache-Control", "no-cache");
-        Response.Headers.Append("Connection", "keep-alive");
-
-        await Response.Body.FlushAsync(ct);
-
-        try
-        {
-            await foreach (var evt in _streamManager.SubscribeAsync(sessionId, ct))
-            {
-                var data = JsonSerializer.Serialize(new
-                {
-                    id = evt.Id,
-                    sessionId = evt.SessionId,
-                    frameId = evt.FrameId,
-                    eventType = evt.EventType,
-                    payload = evt.Payload,
-                    sequenceNo = evt.SequenceNo,
-                    createdAt = evt.CreatedAt
-                });
-
-                await Response.WriteAsync($"event: {evt.EventType}\n", ct);
-                await Response.WriteAsync($"data: {data}\n\n", ct);
-                await Response.Body.FlushAsync(ct);
-            }
-
-            // 流结束，发送 done 事件
-            await Response.WriteAsync("event: done\ndata: {}\n\n", ct);
-            await Response.Body.FlushAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            // 客户端断开，正常退出
-        }
     }
 
     /// <summary>

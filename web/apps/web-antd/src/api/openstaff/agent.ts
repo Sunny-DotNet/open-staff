@@ -124,61 +124,6 @@ export async function createSessionApi(
   return (resp as any)?.data ?? resp;
 }
 
-/** 订阅会话事件流（SSE） */
-export function subscribeSessionStream(
-  sessionId: string,
-  onEvent: (event: AgentApi.SessionEvent) => void,
-  onDone?: () => void,
-  onError?: (error: Event) => void,
-): EventSource {
-  const baseUrl =
-    (requestClient as any).defaults?.baseURL ?? '/api';
-  const es = new EventSource(`${baseUrl}/sessions/${sessionId}/stream`);
-
-  // 监听所有已知事件类型
-  const eventTypes = [
-    'session_created',
-    'session_completed',
-    'session_cancelled',
-    'session_error',
-    'frame_pushed',
-    'frame_completed',
-    'frame_popped',
-    'thought',
-    'decision',
-    'message',
-    'action',
-    'tool_call',
-    'tool_result',
-    'error',
-    'routing',
-    'user_input',
-  ];
-
-  for (const type of eventTypes) {
-    es.addEventListener(type, (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        onEvent(data);
-      } catch {
-        // ignore parse errors
-      }
-    });
-  }
-
-  es.addEventListener('done', () => {
-    es.close();
-    onDone?.();
-  });
-
-  es.onerror = (e) => {
-    onError?.(e);
-    es.close();
-  };
-
-  return es;
-}
-
 /** 取消会话 */
 export async function cancelSessionApi(sessionId: string) {
   const resp = await requestClient.post(`/sessions/${sessionId}/cancel`);

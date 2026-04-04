@@ -1,10 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenStaff.Core.Agents;
-using OpenStaff.Core.Events;
 using OpenStaff.Core.Models;
+using OpenStaff.Core.Notifications;
 using OpenStaff.Core.Orchestration;
 
 namespace OpenStaff.Agents.Orchestrator;
@@ -16,7 +15,7 @@ namespace OpenStaff.Agents.Orchestrator;
 public class OrchestrationService : IOrchestrator
 {
     private readonly AgentFactory _agentFactory;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly INotificationService _notification;
     private readonly ILogger<OrchestrationService> _logger;
 
     // 每个项目的智能体实例池 / Agent instance pool per project
@@ -24,11 +23,11 @@ public class OrchestrationService : IOrchestrator
 
     public OrchestrationService(
         AgentFactory agentFactory,
-        IServiceScopeFactory scopeFactory,
+        INotificationService notification,
         ILogger<OrchestrationService> logger)
     {
         _agentFactory = agentFactory;
-        _scopeFactory = scopeFactory;
+        _notification = notification;
         _logger = logger;
     }
 
@@ -58,16 +57,10 @@ public class OrchestrationService : IOrchestrator
         var targetRole = ParseRoutingTarget(routingResult.Content) ?? BuiltinRoleTypes.Communicator;
 
         var preview = input.Length > 50 ? input.Substring(0, 50) + "..." : input;
-        using (var scope = _scopeFactory.CreateScope())
+        await _notification.NotifyAsync(Channels.Project(projectId), EventTypes.Decision, new
         {
-            var eventPublisher = scope.ServiceProvider.GetRequiredService<IEventPublisher>();
-            await eventPublisher.PublishAsync(new AgentEventData
-            {
-                ProjectId = projectId,
-                EventType = EventTypes.Decision,
-                Content = $"路由到 {targetRole}: {preview}"
-            }, cancellationToken);
-        }
+            content = $"路由到 {targetRole}: {preview}"
+        }, cancellationToken);
 
         // 路由到目标角色 / Route to target role
         return await RouteToAgentAsync(projectId, targetRole,
@@ -104,16 +97,10 @@ public class OrchestrationService : IOrchestrator
             GetOrCreateAgent(projectId, roleType);
         }
 
-        using (var scope = _scopeFactory.CreateScope())
+        await _notification.NotifyAsync(Channels.Project(projectId), EventTypes.SystemNotice, new
         {
-            var eventPublisher = scope.ServiceProvider.GetRequiredService<IEventPublisher>();
-            await eventPublisher.PublishAsync(new AgentEventData
-            {
-                ProjectId = projectId,
-                EventType = EventTypes.SystemNotice,
-                Content = $"已初始化 {agents.Count} 个智能体角色"
-            }, cancellationToken);
-        }
+            content = $"已初始化 {agents.Count} 个智能体角色"
+        }, cancellationToken);
     }
 
     public Task<IReadOnlyList<AgentStatusInfo>> GetAgentStatusesAsync(Guid projectId, CancellationToken cancellationToken = default)
@@ -149,9 +136,6 @@ public class OrchestrationService : IOrchestrator
             var agent = _agentFactory.CreateAgent(rt);
             var config = _agentFactory.GetRoleConfig(rt);
 
-            using var scope = _scopeFactory.CreateScope();
-            // Provider 和 ApiKey 在 ProcessAsync 时通过 AIAgentFactory 解析
-            // Provider and ApiKey are resolved at ProcessAsync time via AIAgentFactory
             var context = new AgentContext
             {
                 ProjectId = projectId,
@@ -163,7 +147,7 @@ public class OrchestrationService : IOrchestrator
                     ModelName = config?.ModelName
                 },
                 Project = new Project { Id = projectId },
-                EventPublisher = scope.ServiceProvider.GetRequiredService<IEventPublisher>(),
+                NotificationService = _notification,
                 Language = "zh-CN"
             };
 

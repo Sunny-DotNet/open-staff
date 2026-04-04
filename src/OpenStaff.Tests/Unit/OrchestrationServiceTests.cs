@@ -6,8 +6,8 @@ using OpenStaff.Agents.Orchestrator;
 using OpenStaff.Agents.Prompts;
 using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
-using OpenStaff.Core.Events;
 using OpenStaff.Core.Models;
+using OpenStaff.Core.Notifications;
 using OpenStaff.Core.Orchestration;
 using Xunit;
 
@@ -50,21 +50,14 @@ public class OrchestrationServiceTests
             BuiltinRoleTypes.Producer,
             BuiltinRoleTypes.Debugger);
 
-        var eventPublisherMock = new Mock<IEventPublisher>();
-        eventPublisherMock
-            .Setup(e => e.PublishAsync(It.IsAny<AgentEventData>(), It.IsAny<CancellationToken>()))
+        var notificationMock = new Mock<INotificationService>();
+        notificationMock
+            .Setup(n => n.NotifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-
-        var scopeFactoryMock = new Mock<IServiceScopeFactory>();
-        var scopeMock = new Mock<IServiceScope>();
-        var scopedSpMock = new Mock<IServiceProvider>();
-        scopedSpMock.Setup(sp => sp.GetService(typeof(IEventPublisher))).Returns(eventPublisherMock.Object);
-        scopeMock.Setup(s => s.ServiceProvider).Returns(scopedSpMock.Object);
-        scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
 
         var logger = new Mock<ILogger<OrchestrationService>>().Object;
 
-        return new OrchestrationService(factory, scopeFactoryMock.Object, logger);
+        return new OrchestrationService(factory, notificationMock.Object, logger);
     }
 
     [Fact]

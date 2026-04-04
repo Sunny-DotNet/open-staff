@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using OpenStaff.Agents.Orchestrator;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
+using OpenStaff.Core.Notifications;
 using OpenStaff.Infrastructure.Persistence;
 
 namespace OpenStaff.Api.Services;
@@ -16,6 +17,7 @@ namespace OpenStaff.Api.Services;
 public class SessionRunner
 {
     private readonly SessionStreamManager _streamManager;
+    private readonly INotificationService _notification;
     private readonly OrchestrationService _orchestration;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<SessionRunner> _logger;
@@ -29,11 +31,13 @@ public class SessionRunner
 
     public SessionRunner(
         SessionStreamManager streamManager,
+        INotificationService notification,
         OrchestrationService orchestration,
         IServiceProvider serviceProvider,
         ILogger<SessionRunner> logger)
     {
         _streamManager = streamManager;
+        _notification = notification;
         _orchestration = orchestration;
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -60,26 +64,33 @@ public class SessionRunner
         }
 
         // 2. 创建 ReplaySubject 流
-        var stream = _streamManager.Create(session.Id);
+        _streamManager.Create(session.Id);
 
         // 3. 创建 Session 级 CancellationTokenSource
         var sessionCts = new CancellationTokenSource();
         _sessionCts[session.Id] = sessionCts;
 
         // 4. 发布会话创建事件
-        stream.Push(SessionEventTypes.SessionCreated, payload: JsonSerializer.Serialize(new
+        await PushEventAsync(session.Id, SessionEventTypes.SessionCreated, payload: new
         {
             sessionId = session.Id,
             projectId,
             input
-        }));
+        });
 
-        // 5. 后台执行
+        // 5. 通知项目频道有新会话
+        await _notification.NotifyAsync(Channels.Project(projectId), "session_started", new
+        {
+            sessionId = session.Id,
+            input = Truncate(input, 100)
+        });
+
+        // 6. 后台执行
         _ = Task.Run(async () =>
         {
             try
             {
-                await RunSessionAsync(session, stream, sessionCts.Token);
+                await RunSessionAsync(session, sessionCts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -89,7 +100,7 @@ public class SessionRunner
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Session {SessionId} failed", session.Id);
-                stream.Push(SessionEventTypes.SessionError, payload: ex.Message);
+                await PushEventAsync(session.Id, SessionEventTypes.SessionError, payload: ex.Message);
                 await FinalizeSessionAsync(session.Id, SessionStatus.Error);
             }
         });
@@ -128,7 +139,7 @@ public class SessionRunner
     /// <summary>
     /// 会话主循环 — 从 Orchestrator 路由开始，递归执行 Frame 栈
     /// </summary>
-    private async Task RunSessionAsync(ChatSession session, SessionStream stream, CancellationToken sessionCt)
+    private async Task RunSessionAsync(ChatSession session, CancellationToken sessionCt)
     {
         // 确保项目 Agents 已初始化
         await _orchestration.InitializeProjectAgentsAsync(session.ProjectId, sessionCt);
@@ -136,24 +147,24 @@ public class SessionRunner
         // 创建根 Frame（Orchestrator 路由）
         var rootFrame = await CreateFrameAsync(session.Id, null, 0, "user", "orchestrator", session.InitialInput, sessionCt);
 
-        stream.Push(SessionEventTypes.FramePushed, rootFrame.Id, JsonSerializer.Serialize(new
+        await PushEventAsync(session.Id, SessionEventTypes.FramePushed, rootFrame.Id, new
         {
             frameId = rootFrame.Id,
             depth = 0,
             initiator = "user",
             target = "orchestrator",
             purpose = session.InitialInput
-        }));
+        });
 
         // 执行 Frame 栈
-        var result = await ExecuteFrameAsync(session, rootFrame, stream, sessionCt);
+        var result = await ExecuteFrameAsync(session, rootFrame, sessionCt);
 
         // 会话完成
-        stream.Push(SessionEventTypes.SessionCompleted, payload: JsonSerializer.Serialize(new
+        await PushEventAsync(session.Id, SessionEventTypes.SessionCompleted, payload: new
         {
             sessionId = session.Id,
             result
-        }));
+        });
 
         await FinalizeSessionAsync(session.Id, SessionStatus.Completed, result);
     }
@@ -162,7 +173,7 @@ public class SessionRunner
     /// 执行单个 Frame — 调用目标 Agent，处理路由和子 Frame
     /// </summary>
     private async Task<string> ExecuteFrameAsync(
-        ChatSession session, ChatFrame frame, SessionStream stream, CancellationToken sessionCt)
+        ChatSession session, ChatFrame frame, CancellationToken sessionCt)
     {
         // 创建 Frame 级 CancellationToken（linked to session）
         using var frameCts = CancellationTokenSource.CreateLinkedTokenSource(sessionCt);
@@ -174,11 +185,11 @@ public class SessionRunner
             var ct = frameCts.Token;
 
             // 发送思考事件
-            stream.Push(SessionEventTypes.Thought, frame.Id, JsonSerializer.Serialize(new
+            await PushEventAsync(session.Id, SessionEventTypes.Thought, frame.Id, new
             {
                 agent = frame.TargetRole,
                 message = $"正在处理: {Truncate(frame.Purpose, 100)}"
-            }));
+            });
 
             // 调用目标 Agent
             var message = new AgentMessage
@@ -192,12 +203,12 @@ public class SessionRunner
                 session.ProjectId, frame.TargetRole ?? "communicator", message, ct);
 
             // 发布消息事件
-            stream.Push(SessionEventTypes.Message, frame.Id, JsonSerializer.Serialize(new
+            await PushEventAsync(session.Id, SessionEventTypes.Message, frame.Id, new
             {
                 agent = frame.TargetRole,
                 content = response.Content,
                 success = response.Success
-            }));
+            });
 
             // 保存消息到数据库
             await SaveMessageAsync(frame, "assistant", frame.TargetRole, response.Content ?? "", ct);
@@ -205,12 +216,12 @@ public class SessionRunner
             // 检查是否需要路由到下一个 Agent（生成子 Frame）
             if (!string.IsNullOrEmpty(response.TargetRole) && response.TargetRole != frame.TargetRole)
             {
-                stream.Push(SessionEventTypes.Routing, frame.Id, JsonSerializer.Serialize(new
+                await PushEventAsync(session.Id, SessionEventTypes.Routing, frame.Id, new
                 {
                     from = frame.TargetRole,
                     to = response.TargetRole,
                     reason = "Agent routing marker"
-                }));
+                });
 
                 // 创建子 Frame
                 var childFrame = await CreateFrameAsync(
@@ -220,24 +231,24 @@ public class SessionRunner
                     response.Content ?? frame.Purpose,
                     ct);
 
-                stream.Push(SessionEventTypes.FramePushed, childFrame.Id, JsonSerializer.Serialize(new
+                await PushEventAsync(session.Id, SessionEventTypes.FramePushed, childFrame.Id, new
                 {
                     frameId = childFrame.Id,
                     depth = childFrame.Depth,
                     initiator = frame.TargetRole,
                     target = response.TargetRole,
                     purpose = Truncate(response.Content, 200)
-                }));
+                });
 
                 // 递归执行子 Frame
-                var childResult = await ExecuteFrameAsync(session, childFrame, stream, sessionCt);
+                var childResult = await ExecuteFrameAsync(session, childFrame, sessionCt);
 
                 // 子 Frame 完成后，Pop 回到当前 Frame
-                stream.Push(SessionEventTypes.FrameCompleted, childFrame.Id, JsonSerializer.Serialize(new
+                await PushEventAsync(session.Id, SessionEventTypes.FrameCompleted, childFrame.Id, new
                 {
                     frameId = childFrame.Id,
                     result = Truncate(childResult, 200)
-                }));
+                });
 
                 return childResult;
             }
@@ -245,11 +256,11 @@ public class SessionRunner
             // 当前 Frame 完成
             await CompleteFrameAsync(frame.Id, response.Content ?? "", ct);
 
-            stream.Push(SessionEventTypes.FrameCompleted, frame.Id, JsonSerializer.Serialize(new
+            await PushEventAsync(session.Id, SessionEventTypes.FrameCompleted, frame.Id, new
             {
                 frameId = frame.Id,
                 result = Truncate(response.Content, 200)
-            }));
+            });
 
             return response.Content ?? "";
         }
@@ -258,11 +269,11 @@ public class SessionRunner
             // Frame 级取消（Pop）
             await CompleteFrameAsync(frame.Id, "Frame popped by user", CancellationToken.None, FrameStatus.Popped);
 
-            stream.Push(SessionEventTypes.FramePopped, frame.Id, JsonSerializer.Serialize(new
+            await PushEventAsync(session.Id, SessionEventTypes.FramePopped, frame.Id, new
             {
                 frameId = frame.Id,
                 reason = "User requested pop"
-            }));
+            });
 
             return "Frame popped by user";
         }
@@ -376,5 +387,21 @@ public class SessionRunner
     {
         if (text == null) return null;
         return text.Length <= maxLength ? text : text[..maxLength] + "...";
+    }
+
+    /// <summary>
+    /// 通过 INotificationService 发布会话事件
+    /// </summary>
+    private Task PushEventAsync(Guid sessionId, string eventType, Guid? frameId = null, object? payload = null)
+    {
+        var evt = new SessionEvent
+        {
+            SessionId = sessionId,
+            FrameId = frameId,
+            EventType = eventType,
+            Payload = payload != null ? JsonSerializer.Serialize(payload) : null,
+            CreatedAt = DateTime.UtcNow
+        };
+        return _notification.PublishSessionEventAsync(sessionId, evt);
     }
 }

@@ -8,6 +8,7 @@ using OpenStaff.Agents.Prompts;
 using OpenStaff.Agents.Roles;
 using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
+using OpenStaff.Core.Notifications;
 using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure;
 
@@ -52,15 +53,20 @@ builder.Services.AddSingleton<AgentFactory>(sp =>
 
     return factory;
 });
+
+// 统一通知服务 + SignalR / Unified notification service + SignalR
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<SessionStreamManager>();
+builder.Services.AddSingleton<INotificationService, NotificationService>();
+
+// 编排服务（依赖 INotificationService） / Orchestration (depends on INotificationService)
 builder.Services.AddSingleton<OrchestrationService>();
 builder.Services.AddSingleton<IOrchestrator>(sp => sp.GetRequiredService<OrchestrationService>());
+builder.Services.AddSingleton<SessionRunner>();
 
 // 控制器 / Controllers
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
-
-// SignalR 实时通信 / SignalR real-time communication
-builder.Services.AddSignalR();
 
 // CORS 跨域 / CORS
 builder.Services.AddCors(options =>
@@ -86,15 +92,8 @@ builder.Services.AddSingleton<ApiKeyResolver>();
 builder.Services.AddHttpClient<GitHubDeviceAuthService>();
 builder.Services.AddHttpClient<ModelListingService>();
 
-// 会话流管理 / Session stream management
-builder.Services.AddSingleton<SessionStreamManager>();
-builder.Services.AddSingleton<SessionRunner>();
-
 // 数据库种子 / Database seed
 builder.Services.AddHostedService<OpenStaff.Api.Services.RoleSeedService>();
-
-// 事件转发到 SignalR / Forward events to SignalR
-builder.Services.AddHostedService<SignalREventForwarder>();
 
 var app = builder.Build();
 
@@ -118,9 +117,8 @@ app.UseMiddleware<LocaleMiddleware>();
 app.UseCors();
 app.MapControllers();
 
-// SignalR Hubs
-app.MapHub<AgentHub>("/hubs/agent");
-app.MapHub<ProjectHub>("/hubs/project");
+// SignalR — 统一通知 Hub / Unified notification hub
+app.MapHub<NotificationHub>("/hubs/notification");
 
 // Aspire 健康检查端点 / Aspire health check endpoints
 app.MapDefaultEndpoints();

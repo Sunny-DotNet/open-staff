@@ -1,5 +1,5 @@
-using OpenStaff.Core.Events;
 using OpenStaff.Core.Models;
+using OpenStaff.Core.Notifications;
 
 namespace OpenStaff.Core.Agents;
 
@@ -26,8 +26,8 @@ public class AgentContext
     /// <summary>已解密的 API Key / Decrypted API key</summary>
     public string? ApiKey { get; set; }
 
-    /// <summary>事件发布器 / Event publisher</summary>
-    public IEventPublisher EventPublisher { get; set; } = null!;
+    /// <summary>通知服务 / Notification service</summary>
+    public INotificationService? NotificationService { get; set; }
 
     /// <summary>交互语言 / Interaction language</summary>
     public string Language { get; set; } = "zh-CN";

@@ -34,12 +34,12 @@ import {
 import {
   getAgentRolesApi,
   createSessionApi,
-  subscribeSessionStream,
   cancelSessionApi,
   updateAgentRoleApi,
 } from '#/api/openstaff/agent';
 import { getModelProvidersApi, getProviderModelsApi } from '#/api/openstaff/settings';
 import type { SettingsApi } from '#/api/openstaff/settings';
+import { useNotification } from '#/composables/useNotification';
 
 // ===== 状态 =====
 const roles = ref<AgentApi.AgentRole[]>([]);
@@ -215,8 +215,9 @@ async function saveConfig() {
   }
 }
 
-// ===== 对话测试（基于 Session + SSE） =====
-const activeEventSource = ref<EventSource | null>(null);
+// ===== 对话测试（基于 Session + SignalR Streaming） =====
+const { streamSession } = useNotification();
+let activeSubscription: { dispose: () => void } | null = null;
 
 async function sendTestMessage() {
   const role = selectedRole.value;
@@ -230,30 +231,30 @@ async function sendTestMessage() {
   await nextTick();
   scrollToBottom();
 
-  // 关闭之前的 SSE 连接
-  if (activeEventSource.value) {
-    activeEventSource.value.close();
-    activeEventSource.value = null;
+  // 关闭之前的 Streaming 订阅
+  if (activeSubscription) {
+    activeSubscription.dispose();
+    activeSubscription = null;
   }
 
   try {
-    // 创建一个测试项目 ID（agent-config 没有项目上下文，用空 GUID）
     const session = await createSessionApi({
       projectId: '00000000-0000-0000-0000-000000000000',
       input: userMsg,
     });
 
-    // 订阅 SSE 事件流
+    // 通过 SignalR Streaming 订阅会话事件
     let assistantContent = '';
-    activeEventSource.value = subscribeSessionStream(
+    activeSubscription = streamSession(
       session.sessionId,
       (event) => {
         if (event.eventType === 'message' && event.payload) {
           try {
-            const payload = JSON.parse(event.payload);
+            const payload = typeof event.payload === 'string'
+              ? JSON.parse(event.payload)
+              : event.payload;
             if (payload.content) {
               assistantContent = payload.content;
-              // 更新或追加助手消息
               const lastMsg = chatMessages.value[chatMessages.value.length - 1];
               if (lastMsg && lastMsg.role === 'assistant' && lastMsg.streaming) {
                 lastMsg.content = assistantContent;
@@ -267,7 +268,7 @@ async function sendTestMessage() {
               nextTick(() => scrollToBottom());
             }
           } catch {
-            // ignore
+            // ignore parse errors
           }
         } else if (event.eventType === 'session_error' || event.eventType === 'error') {
           chatMessages.value.push({
@@ -277,9 +278,8 @@ async function sendTestMessage() {
         }
       },
       () => {
-        // SSE done
+        // Streaming 完成
         chatLoading.value = false;
-        // 标记最后一条消息为非流式
         const lastMsg = chatMessages.value[chatMessages.value.length - 1];
         if (lastMsg?.streaming) lastMsg.streaming = false;
         if (!assistantContent) {
@@ -291,11 +291,11 @@ async function sendTestMessage() {
         nextTick(() => scrollToBottom());
       },
       () => {
-        // SSE error
+        // Streaming 错误
         chatLoading.value = false;
         chatMessages.value.push({
           role: 'assistant',
-          content: '❌ SSE 连接失败',
+          content: '❌ 连接失败',
         });
         nextTick(() => scrollToBottom());
       },

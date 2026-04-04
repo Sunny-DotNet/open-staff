@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using OpenStaff.Agents;
 using OpenStaff.Core.Agents;
-using OpenStaff.Core.Events;
+using OpenStaff.Core.Notifications;
 using OpenStaff.Core.Models;
 using Xunit;
 
@@ -79,7 +79,7 @@ public class StandardAgentTests
             AgentInstanceId = Guid.NewGuid(),
             Role = new AgentRole { RoleType = "communicator", Name = "Test" },
             Project = new Project { Id = Guid.NewGuid() },
-            EventPublisher = new Mock<IEventPublisher>().Object,
+            NotificationService = new Mock<INotificationService>().Object,
             Language = "en"
         };
 
@@ -102,9 +102,9 @@ public class StandardAgentTests
             .Setup(t => t.GetTools(It.IsAny<IEnumerable<string>>()))
             .Returns(new List<IAgentTool>());
 
-        var eventPublisherMock = new Mock<IEventPublisher>();
-        eventPublisherMock
-            .Setup(e => e.PublishAsync(It.IsAny<AgentEventData>(), It.IsAny<CancellationToken>()))
+        var notificationMock = new Mock<INotificationService>();
+        notificationMock
+            .Setup(n => n.NotifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var agent = CreateAgent(config, toolRegistryMock.Object, promptLoaderMock.Object);
@@ -116,7 +116,7 @@ public class StandardAgentTests
             Project = new Project { Id = Guid.NewGuid() },
             Provider = null,
             ApiKey = null,
-            EventPublisher = eventPublisherMock.Object,
+            NotificationService = notificationMock.Object,
             Language = "en"
         });
 
@@ -136,9 +136,9 @@ public class StandardAgentTests
         var toolRegistryMock = new Mock<IAgentToolRegistry>();
         toolRegistryMock.Setup(t => t.GetTools(It.IsAny<IEnumerable<string>>())).Returns(new List<IAgentTool>());
 
-        var eventPublisherMock = new Mock<IEventPublisher>();
-        eventPublisherMock
-            .Setup(e => e.PublishAsync(It.IsAny<AgentEventData>(), It.IsAny<CancellationToken>()))
+        var notificationMock = new Mock<INotificationService>();
+        notificationMock
+            .Setup(n => n.NotifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var agent = CreateAgent(config, toolRegistryMock.Object, promptLoaderMock.Object);
@@ -149,7 +149,7 @@ public class StandardAgentTests
             Role = new AgentRole { RoleType = "communicator", Name = "Comm" },
             Project = new Project { Id = Guid.NewGuid() },
             Provider = null,
-            EventPublisher = eventPublisherMock.Object,
+            NotificationService = notificationMock.Object,
             Language = "en"
         });
 
@@ -169,7 +169,7 @@ public class StandardAgentTests
             AgentInstanceId = Guid.NewGuid(),
             Role = new AgentRole { RoleType = "communicator", Name = "Comm" },
             Project = new Project { Id = Guid.NewGuid() },
-            EventPublisher = new Mock<IEventPublisher>().Object
+            NotificationService = new Mock<INotificationService>().Object
         });
 
         await agent.StopAsync();

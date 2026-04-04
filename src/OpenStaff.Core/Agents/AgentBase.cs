@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using OpenStaff.Core.Notifications;
 
 namespace OpenStaff.Core.Agents;
 
@@ -36,19 +37,18 @@ public abstract class AgentBase : IAgent
     }
 
     /// <summary>
-    /// 发布事件 / Publish an event
+    /// 发布通知 / Publish a notification
     /// </summary>
     protected async Task PublishEventAsync(string eventType, string content, string? metadata = null)
     {
-        if (Context?.EventPublisher != null)
+        if (Context?.NotificationService != null)
         {
-            await Context.EventPublisher.PublishAsync(new Events.AgentEventData
+            var channel = Channels.Project(Context.ProjectId);
+            await Context.NotificationService.NotifyAsync(channel, eventType, new
             {
-                ProjectId = Context.ProjectId,
-                AgentId = Context.AgentInstanceId,
-                EventType = eventType,
-                Content = content,
-                Metadata = metadata
+                agentId = Context.AgentInstanceId,
+                content,
+                metadata
             });
         }
     }

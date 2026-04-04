@@ -1,7 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using OpenStaff.Core.Events;
-using OpenStaff.Infrastructure.Events;
 using OpenStaff.Infrastructure.Export;
 using OpenStaff.Infrastructure.Git;
 using OpenStaff.Infrastructure.Persistence;
@@ -23,11 +21,6 @@ public static class InfrastructureServiceExtensions
 
         // 加密服务 / Encryption service
         services.AddSingleton(new EncryptionService(encryptionKey ?? "OpenStaff-Default-Key-Change-In-Production"));
-
-        // 事件系统 / Event system
-        services.AddSingleton<EventBus>();
-        services.AddSingleton<IEventSubscriber>(sp => sp.GetRequiredService<EventBus>());
-        services.AddScoped<IEventPublisher, EventPublisher>();
 
         // HTTP 客户端 / HTTP clients
         services.AddHttpClient();
