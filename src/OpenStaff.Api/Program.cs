@@ -37,21 +37,12 @@ builder.Services.AddSingleton<IPromptLoader, EmbeddedPromptLoader>();
 builder.Services.AddSingleton<ChatClientFactory>();
 builder.Services.AddSingleton<AIAgentFactory>();
 
-// 智能体工厂 — 从嵌入式角色配置创建 StandardAgent / Agent factory — creates StandardAgent from embedded role configs
+// 智能体工厂 — 角色注册在 RoleSeedService 启动时完成（含提示词加载）
 builder.Services.AddSingleton<AgentFactory>(sp =>
 {
     var toolRegistry = sp.GetRequiredService<IAgentToolRegistry>();
-    var promptLoader = sp.GetRequiredService<IPromptLoader>();
     var aiAgentFactory = sp.GetRequiredService<AIAgentFactory>();
-    var factory = new AgentFactory(sp, toolRegistry, promptLoader, aiAgentFactory);
-
-    // 加载所有嵌入式角色配置 / Load all embedded role configurations
-    foreach (var config in RoleConfigLoader.LoadAll())
-    {
-        factory.RegisterRole(config);
-    }
-
-    return factory;
+    return new AgentFactory(sp, toolRegistry, aiAgentFactory);
 });
 
 // 统一通知服务 + SignalR / Unified notification service + SignalR

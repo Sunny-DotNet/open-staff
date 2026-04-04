@@ -14,7 +14,7 @@ public class StandardAgentTests
     {
         RoleType = roleType,
         Name = "TestRole",
-        SystemPrompt = $"{roleType}.system",
+        SystemPrompt = "You are a test agent.",
         IsBuiltin = true,
         Tools = new List<string>(),
         ModelParameters = new ModelParameters { Temperature = 0.5, MaxTokens = 2048 }
@@ -23,15 +23,13 @@ public class StandardAgentTests
     private static StandardAgent CreateAgent(
         RoleConfig? config = null,
         IAgentToolRegistry? toolRegistry = null,
-        IPromptLoader? promptLoader = null,
         AIAgentFactory? aiAgentFactory = null)
     {
         config ??= CreateConfig();
         toolRegistry ??= new Mock<IAgentToolRegistry>().Object;
-        promptLoader ??= new Mock<IPromptLoader>().Object;
         aiAgentFactory ??= new AIAgentFactory(new ChatClientFactory(new Mock<ILoggerFactory>().Object), new Mock<ILoggerFactory>().Object);
         var logger = new Mock<ILogger<StandardAgent>>().Object;
-        return new StandardAgent(config, toolRegistry, promptLoader, aiAgentFactory, logger);
+        return new StandardAgent(config, toolRegistry, aiAgentFactory, logger);
     }
 
     [Fact]
@@ -92,10 +90,7 @@ public class StandardAgentTests
     public async Task ProcessAsync_WithoutProvider_ReturnsError()
     {
         var config = CreateConfig("producer");
-        var promptLoaderMock = new Mock<IPromptLoader>();
-        promptLoaderMock
-            .Setup(p => p.Load(It.IsAny<string>(), It.IsAny<string>()))
-            .Returns("You are a producer.");
+        config.SystemPrompt = "You are a producer.";
 
         var toolRegistryMock = new Mock<IAgentToolRegistry>();
         toolRegistryMock
@@ -107,7 +102,7 @@ public class StandardAgentTests
             .Setup(n => n.NotifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var agent = CreateAgent(config, toolRegistryMock.Object, promptLoaderMock.Object);
+        var agent = CreateAgent(config, toolRegistryMock.Object);
         await agent.InitializeAsync(new AgentContext
         {
             ProjectId = Guid.NewGuid(),
@@ -130,8 +125,7 @@ public class StandardAgentTests
     public async Task ProcessAsync_StatusReturnsToIdleOrErrorAfterProcess()
     {
         var config = CreateConfig("communicator");
-        var promptLoaderMock = new Mock<IPromptLoader>();
-        promptLoaderMock.Setup(p => p.Load(It.IsAny<string>(), It.IsAny<string>())).Returns("prompt");
+        config.SystemPrompt = "You are a communicator.";
 
         var toolRegistryMock = new Mock<IAgentToolRegistry>();
         toolRegistryMock.Setup(t => t.GetTools(It.IsAny<IEnumerable<string>>())).Returns(new List<IAgentTool>());
@@ -141,7 +135,7 @@ public class StandardAgentTests
             .Setup(n => n.NotifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var agent = CreateAgent(config, toolRegistryMock.Object, promptLoaderMock.Object);
+        var agent = CreateAgent(config, toolRegistryMock.Object);
         await agent.InitializeAsync(new AgentContext
         {
             ProjectId = Guid.NewGuid(),

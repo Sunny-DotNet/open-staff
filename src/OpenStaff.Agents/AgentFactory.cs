@@ -11,7 +11,6 @@ public class AgentFactory
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IAgentToolRegistry _toolRegistry;
-    private readonly IPromptLoader _promptLoader;
     private readonly AIAgentFactory _aiAgentFactory;
     private readonly Dictionary<string, RoleConfig> _roleConfigs = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Core.Models.AgentRole> _dbRoles = new(StringComparer.OrdinalIgnoreCase);
@@ -19,12 +18,10 @@ public class AgentFactory
     public AgentFactory(
         IServiceProvider serviceProvider,
         IAgentToolRegistry toolRegistry,
-        IPromptLoader promptLoader,
         AIAgentFactory aiAgentFactory)
     {
         _serviceProvider = serviceProvider;
         _toolRegistry = toolRegistry;
-        _promptLoader = promptLoader;
         _aiAgentFactory = aiAgentFactory;
     }
 
@@ -51,7 +48,7 @@ public class AgentFactory
             throw new InvalidOperationException($"Role type '{roleType}' is not registered");
 
         var logger = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
-        return new StandardAgent(config, _toolRegistry, _promptLoader, _aiAgentFactory, logger);
+        return new StandardAgent(config, _toolRegistry, _aiAgentFactory, logger);
     }
 
     /// <summary>
@@ -63,13 +60,13 @@ public class AgentFactory
         if (_roleConfigs.TryGetValue(dbRole.RoleType, out var existingConfig))
         {
             var logger1 = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
-            return new StandardAgent(existingConfig, _toolRegistry, _promptLoader, _aiAgentFactory, logger1);
+            return new StandardAgent(existingConfig, _toolRegistry, _aiAgentFactory, logger1);
         }
 
         // 从数据库角色动态构建 RoleConfig
         var config = BuildRoleConfigFromDb(dbRole);
         var logger = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
-        return new StandardAgent(config, _toolRegistry, _promptLoader, _aiAgentFactory, logger);
+        return new StandardAgent(config, _toolRegistry, _aiAgentFactory, logger);
     }
 
     /// <summary>从数据库角色构建 RoleConfig</summary>

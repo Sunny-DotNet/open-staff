@@ -17,19 +17,16 @@ public class StandardAgent : AgentBase
 {
     private readonly RoleConfig _config;
     private readonly IAgentToolRegistry _toolRegistry;
-    private readonly IPromptLoader _promptLoader;
     private readonly AIAgentFactory _aiAgentFactory;
 
     public StandardAgent(
         RoleConfig config,
         IAgentToolRegistry toolRegistry,
-        IPromptLoader promptLoader,
         AIAgentFactory aiAgentFactory,
         ILogger<StandardAgent> logger) : base(logger)
     {
         _config = config;
         _toolRegistry = toolRegistry;
-        _promptLoader = promptLoader;
         _aiAgentFactory = aiAgentFactory;
     }
 
@@ -40,9 +37,8 @@ public class StandardAgent : AgentBase
         Status = AgentStatus.Thinking;
         try
         {
-            // 1. Load system prompt by language
-            var language = Context?.Language ?? "zh-CN";
-            var systemPrompt = _promptLoader.Load(_config.SystemPrompt, language);
+            // 1. System prompt 直接使用（已在种子/创建时存储完整文本）
+            var systemPrompt = _config.SystemPrompt;
 
             // 2. Publish thinking event
             var preview = message.Content?.Length > 100

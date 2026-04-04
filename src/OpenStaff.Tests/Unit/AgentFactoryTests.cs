@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenStaff.Agents;
-using OpenStaff.Agents.Prompts;
 using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
@@ -17,16 +16,15 @@ public class AgentFactoryTests
             .AddLogging()
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
-        var promptLoader = new EmbeddedPromptLoader();
         var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
-        return new AgentFactory(services, toolRegistry, promptLoader, aiAgentFactory);
+        return new AgentFactory(services, toolRegistry, aiAgentFactory);
     }
 
     private static RoleConfig CreateRoleConfig(string roleType) => new()
     {
         RoleType = roleType,
         Name = roleType,
-        SystemPrompt = $"{roleType}.system",
+        SystemPrompt = "You are a test agent.",
         IsBuiltin = true
     };
 

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using OpenStaff.Agents;
 using OpenStaff.Agents.Orchestrator;
-using OpenStaff.Agents.Prompts;
 using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
@@ -21,9 +20,8 @@ public class OrchestrationServiceTests
             .AddLogging()
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
-        var promptLoader = new EmbeddedPromptLoader();
         var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
-        var factory = new AgentFactory(services, toolRegistry, promptLoader, aiAgentFactory);
+        var factory = new AgentFactory(services, toolRegistry, aiAgentFactory);
 
         foreach (var roleType in roleTypes)
         {
