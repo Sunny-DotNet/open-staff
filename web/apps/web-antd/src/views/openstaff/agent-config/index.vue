@@ -62,7 +62,7 @@ const providerModels = ref<SettingsApi.ProviderModel[]>([]);
 const loadingModels = ref(false);
 
 // 对话测试
-const chatMessages = ref<Array<{ content: string; role: 'assistant' | 'user' }>>([]);
+const chatMessages = ref<Array<{ content: string; role: 'assistant' | 'user'; streaming?: boolean }>>([]);
 const chatInput = ref('');
 const chatLoading = ref(false);
 const chatContainerRef = ref<HTMLElement | null>(null);

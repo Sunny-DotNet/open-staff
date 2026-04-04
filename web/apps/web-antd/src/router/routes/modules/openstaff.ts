@@ -22,7 +22,18 @@ const routes: RouteRecordRaw[] = [
     },
     name: 'ProjectRoot',
     path: '/projects',
+    redirect: '/projects/list',
     children: [
+      {
+        name: 'ProjectList',
+        path: '/projects/list',
+        component: () => import('#/views/openstaff/projects/index.vue'),
+        meta: {
+          title: $t('openstaff.project.title'),
+          hideInMenu: true,
+          activePath: '/projects',
+        },
+      },
       {
         name: 'AgentChat',
         path: '/projects/:id/chat',

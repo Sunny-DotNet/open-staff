@@ -147,7 +147,7 @@ export interface UseNotificationReturn {
 export function useNotification(
   options: UseNotificationOptions = {},
 ): UseNotificationReturn {
-  const hubUrl = options.hubUrl ?? '/api/hubs/notification';
+  const hubUrl = options.hubUrl ?? '/hubs/notification';
   const connection = shallowRef<signalR.HubConnection | null>(null);
   const localCleanups: Array<() => void> = [];
 

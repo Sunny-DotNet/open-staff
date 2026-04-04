@@ -46,16 +46,28 @@ public class MonitorController : ControllerBase
         var taskCount = await _db.Tasks.CountAsync(ct);
         var eventCount = await _db.AgentEvents.CountAsync(ct);
         var completedTasks = await _db.Tasks.CountAsync(t => t.Status == "done", ct);
+        var sessionCount = await _db.ChatSessions.CountAsync(ct);
         var providerCount = _providerService.GetAll().Count;
+        var agentRoleCount = await _db.AgentRoles.CountAsync(ct);
+
+        // 最近会话
+        var recentSessions = await _db.ChatSessions
+            .OrderByDescending(s => s.CreatedAt)
+            .Take(10)
+            .Select(s => new { s.Id, s.Status, s.CreatedAt, s.CompletedAt })
+            .ToListAsync(ct);
 
         return Ok(new
         {
             projects = projectCount,
             agents = agentCount,
+            agentRoles = agentRoleCount,
             tasks = new { total = taskCount, completed = completedTasks },
             events = eventCount,
+            sessions = sessionCount,
             modelProviders = providerCount,
-            uptime = Environment.TickCount64 / 1000
+            uptime = Environment.TickCount64 / 1000,
+            recentSessions
         });
     }
 
