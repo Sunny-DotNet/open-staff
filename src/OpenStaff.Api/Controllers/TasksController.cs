@@ -128,6 +128,30 @@ public class TasksController : ControllerBase
             .ToListAsync(ct);
         return Ok(events);
     }
+
+    /// <summary>批量更新任务状态（看板拖拽）</summary>
+    [HttpPatch("batch-status")]
+    public async Task<IActionResult> BatchUpdateStatus(Guid projectId, [FromBody] BatchStatusRequest request, CancellationToken ct)
+    {
+        var taskIds = request.Tasks.Select(t => t.TaskId).ToList();
+        var tasks = await _db.Tasks
+            .Where(t => t.ProjectId == projectId && taskIds.Contains(t.Id))
+            .ToListAsync(ct);
+
+        foreach (var update in request.Tasks)
+        {
+            var task = tasks.FirstOrDefault(t => t.Id == update.TaskId);
+            if (task != null)
+            {
+                task.Status = update.Status;
+                task.UpdatedAt = DateTime.UtcNow;
+                if (update.Status == TaskItemStatus.Done) task.CompletedAt = DateTime.UtcNow;
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return Ok(new { updated = tasks.Count });
+    }
 }
 
 public class CreateTaskRequest
@@ -147,4 +171,15 @@ public class UpdateTaskRequest
     public string? Status { get; set; }
     public int? Priority { get; set; }
     public Guid? AssignedAgentId { get; set; }
+}
+
+public class BatchStatusRequest
+{
+    public List<TaskStatusUpdate> Tasks { get; set; } = new();
+}
+
+public class TaskStatusUpdate
+{
+    public Guid TaskId { get; set; }
+    public string Status { get; set; } = string.Empty;
 }
