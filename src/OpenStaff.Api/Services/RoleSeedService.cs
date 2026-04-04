@@ -23,6 +23,7 @@ public class RoleSeedService : IHostedService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var agentFactory = scope.ServiceProvider.GetRequiredService<OpenStaff.Agents.AgentFactory>();
 
         var roleConfigs = RoleConfigLoader.LoadAll();
 
@@ -63,6 +64,15 @@ public class RoleSeedService : IHostedService
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // 将所有 DB 角色注册到 AgentFactory（包含 ModelProviderId 等运行时信息）
+        var allRoles = await dbContext.AgentRoles.Where(r => r.IsActive).ToListAsync(cancellationToken);
+        foreach (var dbRole in allRoles)
+        {
+            agentFactory.RegisterDbRole(dbRole);
+            _logger.LogDebug("Registered DB role: {RoleType} (ProviderId={ProviderId})",
+                dbRole.RoleType, dbRole.ModelProviderId);
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

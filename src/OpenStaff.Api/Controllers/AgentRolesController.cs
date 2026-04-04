@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OpenStaff.Agents;
 using OpenStaff.Api.Services;
+using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using OpenStaff.Infrastructure.Persistence;
 
@@ -15,11 +17,19 @@ public class AgentRolesController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly FileProviderService _providerService;
+    private readonly AgentFactory _agentFactory;
+    private readonly IProviderResolver _providerResolver;
 
-    public AgentRolesController(AppDbContext db, FileProviderService providerService)
+    public AgentRolesController(
+        AppDbContext db,
+        FileProviderService providerService,
+        AgentFactory agentFactory,
+        IProviderResolver providerResolver)
     {
         _db = db;
         _providerService = providerService;
+        _agentFactory = agentFactory;
+        _providerResolver = providerResolver;
     }
 
     [HttpGet]
@@ -106,10 +116,96 @@ public class AgentRolesController : ControllerBase
         role.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
+        // 同步更新 AgentFactory 中的 DB 角色缓存
+        _agentFactory.RegisterDbRole(role);
+
         // Reload provider info
         if (role.ModelProviderId.HasValue)
             role.ModelProvider = _providerService.GetById(role.ModelProviderId.Value);
         return Ok(ToDto(role));
+    }
+
+    /// <summary>
+    /// 测试代理体对话 — 直接调用指定角色的 Agent，无需项目/会话
+    /// </summary>
+    [HttpPost("{id:guid}/test-chat")]
+    public async Task<IActionResult> TestChat(Guid id, [FromBody] TestChatRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Message))
+            return BadRequest(new { error = "Message is required" });
+
+        var role = await _db.AgentRoles.FirstOrDefaultAsync(r => r.Id == id && r.IsActive, cancellationToken);
+        if (role == null) return NotFound(new { error = "Agent role not found" });
+
+        if (!_agentFactory.IsRegistered(role.RoleType))
+            return BadRequest(new { error = $"Role type '{role.RoleType}' is not registered in agent factory" });
+
+        // 解析模型供应商和 API Key
+        ModelProvider? provider = null;
+        string? apiKey = null;
+
+        if (role.ModelProviderId.HasValue)
+        {
+            var resolved = await _providerResolver.ResolveAsync(role.ModelProviderId.Value, cancellationToken);
+            if (resolved != null)
+            {
+                provider = resolved.Provider;
+                apiKey = resolved.ApiKey;
+            }
+        }
+
+        if (provider == null || string.IsNullOrEmpty(apiKey))
+        {
+            return BadRequest(new
+            {
+                error = "模型供应商未配置或 API Key 未设置",
+                detail = provider == null
+                    ? "请先在角色配置中选择模型供应商"
+                    : "请先在设置页面配置供应商的 API Key"
+            });
+        }
+
+        try
+        {
+            var agent = _agentFactory.CreateAgent(role.RoleType);
+
+            var context = new AgentContext
+            {
+                ProjectId = Guid.Empty,
+                AgentInstanceId = Guid.NewGuid(),
+                Role = new AgentRole
+                {
+                    RoleType = role.RoleType,
+                    Name = role.Name,
+                    ModelName = role.ModelName
+                },
+                Provider = provider,
+                ApiKey = apiKey,
+                Language = "zh-CN"
+            };
+            await agent.InitializeAsync(context);
+
+            var message = new AgentMessage
+            {
+                Content = request.Message,
+                FromRole = "user",
+                Timestamp = DateTime.UtcNow
+            };
+
+            var response = await agent.ProcessAsync(message, cancellationToken);
+
+            return Ok(new
+            {
+                success = response.Success,
+                content = response.Content,
+                targetRole = response.TargetRole,
+                errors = response.Errors
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 
     [HttpDelete("{id:guid}")]
@@ -164,4 +260,9 @@ public class UpdateAgentRoleRequest
     public Guid? ModelProviderId { get; set; }
     public string? ModelName { get; set; }
     public string? Config { get; set; }
+}
+
+public class TestChatRequest
+{
+    public string Message { get; set; } = string.Empty;
 }

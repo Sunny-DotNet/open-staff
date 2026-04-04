@@ -89,6 +89,8 @@ builder.Services.AddSingleton<FileProviderService>();
 builder.Services.AddSingleton<ModelsDevService>();
 builder.Services.AddSingleton<CopilotTokenService>();
 builder.Services.AddSingleton<ApiKeyResolver>();
+builder.Services.AddSingleton<ProviderResolver>();
+builder.Services.AddSingleton<OpenStaff.Core.Agents.IProviderResolver>(sp => sp.GetRequiredService<ProviderResolver>());
 builder.Services.AddHttpClient<GitHubDeviceAuthService>();
 builder.Services.AddHttpClient<ModelListingService>();
 

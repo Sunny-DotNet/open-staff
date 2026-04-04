@@ -56,8 +56,9 @@ public class OrchestrationServiceTests
             .Returns(Task.CompletedTask);
 
         var logger = new Mock<ILogger<OrchestrationService>>().Object;
+        var providerResolverMock = new Mock<IProviderResolver>();
 
-        return new OrchestrationService(factory, notificationMock.Object, logger);
+        return new OrchestrationService(factory, providerResolverMock.Object, notificationMock.Object, logger);
     }
 
     [Fact]

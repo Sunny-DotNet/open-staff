@@ -33,13 +33,11 @@ import {
 
 import {
   getAgentRolesApi,
-  createSessionApi,
-  cancelSessionApi,
+  testAgentChatApi,
   updateAgentRoleApi,
 } from '#/api/openstaff/agent';
 import { getModelProvidersApi, getProviderModelsApi } from '#/api/openstaff/settings';
 import type { SettingsApi } from '#/api/openstaff/settings';
-import { useNotification } from '#/composables/useNotification';
 
 // ===== 状态 =====
 const roles = ref<AgentApi.AgentRole[]>([]);
@@ -62,7 +60,7 @@ const providerModels = ref<SettingsApi.ProviderModel[]>([]);
 const loadingModels = ref(false);
 
 // 对话测试
-const chatMessages = ref<Array<{ content: string; role: 'assistant' | 'user'; streaming?: boolean }>>([]);
+const chatMessages = ref<Array<{ content: string; role: 'assistant' | 'user' }>>([]);
 const chatInput = ref('');
 const chatLoading = ref(false);
 const chatContainerRef = ref<HTMLElement | null>(null);
@@ -215,9 +213,7 @@ async function saveConfig() {
   }
 }
 
-// ===== 对话测试（基于 Session + SignalR Streaming） =====
-const { streamSession } = useNotification();
-let activeSubscription: { dispose: () => void } | null = null;
+// ===== 对话测试（直接调用 Agent，无需项目/会话） =====
 
 async function sendTestMessage() {
   const role = selectedRole.value;
@@ -231,80 +227,27 @@ async function sendTestMessage() {
   await nextTick();
   scrollToBottom();
 
-  // 关闭之前的 Streaming 订阅
-  if (activeSubscription) {
-    activeSubscription.dispose();
-    activeSubscription = null;
-  }
-
   try {
-    const session = await createSessionApi({
-      projectId: '00000000-0000-0000-0000-000000000000',
-      input: userMsg,
-    });
+    const response = await testAgentChatApi(role.id, userMsg);
 
-    // 通过 SignalR Streaming 订阅会话事件
-    let assistantContent = '';
-    activeSubscription = streamSession(
-      session.sessionId,
-      (event) => {
-        if (event.eventType === 'message' && event.payload) {
-          try {
-            const payload = typeof event.payload === 'string'
-              ? JSON.parse(event.payload)
-              : event.payload;
-            if (payload.content) {
-              assistantContent = payload.content;
-              const lastMsg = chatMessages.value[chatMessages.value.length - 1];
-              if (lastMsg && lastMsg.role === 'assistant' && lastMsg.streaming) {
-                lastMsg.content = assistantContent;
-              } else {
-                chatMessages.value.push({
-                  role: 'assistant',
-                  content: assistantContent,
-                  streaming: true,
-                });
-              }
-              nextTick(() => scrollToBottom());
-            }
-          } catch {
-            // ignore parse errors
-          }
-        } else if (event.eventType === 'session_error' || event.eventType === 'error') {
-          chatMessages.value.push({
-            role: 'assistant',
-            content: `❌ ${event.payload || '未知错误'}`,
-          });
-        }
-      },
-      () => {
-        // Streaming 完成
-        chatLoading.value = false;
-        const lastMsg = chatMessages.value[chatMessages.value.length - 1];
-        if (lastMsg?.streaming) lastMsg.streaming = false;
-        if (!assistantContent) {
-          chatMessages.value.push({
-            role: 'assistant',
-            content: '（无响应）',
-          });
-        }
-        nextTick(() => scrollToBottom());
-      },
-      () => {
-        // Streaming 错误
-        chatLoading.value = false;
-        chatMessages.value.push({
-          role: 'assistant',
-          content: '❌ 连接失败',
-        });
-        nextTick(() => scrollToBottom());
-      },
-    );
+    if (response.success) {
+      chatMessages.value.push({
+        role: 'assistant',
+        content: response.content || '（无响应）',
+      });
+    } else {
+      const errorDetail = response.errors?.join(', ') || response.content || '未知错误';
+      chatMessages.value.push({
+        role: 'assistant',
+        content: `❌ ${errorDetail}`,
+      });
+    }
   } catch (err: any) {
     chatMessages.value.push({
       role: 'assistant',
       content: `❌ 请求失败: ${err?.message || '网络错误'}`,
     });
+  } finally {
     chatLoading.value = false;
     await nextTick();
     scrollToBottom();

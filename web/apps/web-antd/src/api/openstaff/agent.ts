@@ -116,6 +116,15 @@ export async function updateAgentRoleApi(
   return (resp as any)?.data ?? resp;
 }
 
+/** 测试代理体对话（直接调用，无需项目） */
+export async function testAgentChatApi(
+  roleId: string,
+  message: string,
+): Promise<{ success: boolean; content: string; targetRole?: string; errors?: string[] }> {
+  const resp = await requestClient.post(`/agent-roles/${roleId}/test-chat`, { message });
+  return (resp as any)?.data ?? resp;
+}
+
 /** 创建会话（异步启动，返回 sessionId） */
 export async function createSessionApi(
   params: AgentApi.CreateSessionParams,

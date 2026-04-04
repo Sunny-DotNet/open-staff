@@ -14,6 +14,7 @@ public class AgentFactory
     private readonly IPromptLoader _promptLoader;
     private readonly AIAgentFactory _aiAgentFactory;
     private readonly Dictionary<string, RoleConfig> _roleConfigs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Core.Models.AgentRole> _dbRoles = new(StringComparer.OrdinalIgnoreCase);
 
     public AgentFactory(
         IServiceProvider serviceProvider,
@@ -32,6 +33,16 @@ public class AgentFactory
     {
         _roleConfigs[config.RoleType] = config;
     }
+
+    /// <summary>注册数据库角色信息（含 ModelProviderId 等）/ Register DB role info</summary>
+    public void RegisterDbRole(Core.Models.AgentRole role)
+    {
+        _dbRoles[role.RoleType] = role;
+    }
+
+    /// <summary>获取数据库角色信息 / Get DB role info</summary>
+    public Core.Models.AgentRole? GetDbRole(string roleType) =>
+        _dbRoles.GetValueOrDefault(roleType);
 
     /// <summary>创建智能体实例 / Create agent instance</summary>
     public IAgent CreateAgent(string roleType)

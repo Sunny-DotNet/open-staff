@@ -15,6 +15,7 @@ namespace OpenStaff.Agents.Orchestrator;
 public class OrchestrationService : IOrchestrator
 {
     private readonly AgentFactory _agentFactory;
+    private readonly IProviderResolver _providerResolver;
     private readonly INotificationService _notification;
     private readonly ILogger<OrchestrationService> _logger;
 
@@ -23,10 +24,12 @@ public class OrchestrationService : IOrchestrator
 
     public OrchestrationService(
         AgentFactory agentFactory,
+        IProviderResolver providerResolver,
         INotificationService notification,
         ILogger<OrchestrationService> logger)
     {
         _agentFactory = agentFactory;
+        _providerResolver = providerResolver;
         _notification = notification;
         _logger = logger;
     }
@@ -36,7 +39,7 @@ public class OrchestrationService : IOrchestrator
         _logger.LogInformation("Handling user input for project {ProjectId}", projectId);
 
         // 使用 orchestrator 角色决定路由 / Use orchestrator role for routing decision
-        var routingAgent = GetOrCreateAgent(projectId, "orchestrator");
+        var routingAgent = await GetOrCreateAgentAsync(projectId, "orchestrator");
         if (routingAgent == null)
         {
             // 无 orchestrator 角色，默认路由到 communicator
@@ -70,7 +73,7 @@ public class OrchestrationService : IOrchestrator
     public async Task<AgentResponse> RouteToAgentAsync(Guid projectId, string targetRole,
         AgentMessage message, CancellationToken cancellationToken = default)
     {
-        var agent = GetOrCreateAgent(projectId, targetRole);
+        var agent = await GetOrCreateAgentAsync(projectId, targetRole);
         if (agent == null)
         {
             return new AgentResponse
@@ -94,7 +97,7 @@ public class OrchestrationService : IOrchestrator
         foreach (var roleType in _agentFactory.RegisteredRoleTypes)
         {
             if (roleType == BuiltinRoleTypes.Orchestrator) continue; // orchestrator 按需创建
-            GetOrCreateAgent(projectId, roleType);
+            await GetOrCreateAgentAsync(projectId, roleType);
         }
 
         await _notification.NotifyAsync(Channels.Project(projectId), EventTypes.SystemNotice, new
@@ -124,37 +127,54 @@ public class OrchestrationService : IOrchestrator
         return Task.FromResult<IReadOnlyList<AgentStatusInfo>>(result);
     }
 
-    private IAgent? GetOrCreateAgent(Guid projectId, string roleType)
+    private async Task<IAgent?> GetOrCreateAgentAsync(Guid projectId, string roleType)
     {
         if (!_agentFactory.IsRegistered(roleType))
             return null;
 
         var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, IAgent>());
 
-        return agents.GetOrAdd(roleType, rt =>
+        if (agents.TryGetValue(roleType, out var existing))
+            return existing;
+
+        var agent = _agentFactory.CreateAgent(roleType);
+        var config = _agentFactory.GetRoleConfig(roleType);
+
+        // 解析供应商和 API Key / Resolve provider and API key
+        ModelProvider? provider = null;
+        string? apiKey = null;
+        var roleDb = _agentFactory.GetDbRole(roleType);
+        if (roleDb?.ModelProviderId != null)
         {
-            var agent = _agentFactory.CreateAgent(rt);
-            var config = _agentFactory.GetRoleConfig(rt);
-
-            var context = new AgentContext
+            var resolved = await _providerResolver.ResolveAsync(roleDb.ModelProviderId.Value);
+            if (resolved != null)
             {
-                ProjectId = projectId,
-                AgentInstanceId = Guid.NewGuid(),
-                Role = new AgentRole
-                {
-                    RoleType = rt,
-                    Name = config?.Name ?? rt,
-                    ModelName = config?.ModelName
-                },
-                Project = new Project { Id = projectId },
-                NotificationService = _notification,
-                Language = "zh-CN"
-            };
+                provider = resolved.Provider;
+                apiKey = resolved.ApiKey;
+            }
+        }
 
-            agent.InitializeAsync(context).GetAwaiter().GetResult();
-            _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", rt, projectId);
-            return agent;
-        });
+        var context = new AgentContext
+        {
+            ProjectId = projectId,
+            AgentInstanceId = Guid.NewGuid(),
+            Role = new AgentRole
+            {
+                RoleType = roleType,
+                Name = config?.Name ?? roleType,
+                ModelName = config?.ModelName
+            },
+            Project = new Project { Id = projectId },
+            Provider = provider,
+            ApiKey = apiKey,
+            NotificationService = _notification,
+            Language = "zh-CN"
+        };
+
+        await agent.InitializeAsync(context);
+        agents.TryAdd(roleType, agent);
+        _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", roleType, projectId);
+        return agent;
     }
 
     private string? ParseRoutingTarget(string? content)
