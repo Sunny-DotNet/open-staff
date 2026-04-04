@@ -18,7 +18,7 @@ public class AgentFactoryTests
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
         var promptLoader = new EmbeddedPromptLoader();
-        var aiAgentFactory = new AIAgentFactory(services.GetRequiredService<ILoggerFactory>());
+        var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
         return new AgentFactory(services, toolRegistry, promptLoader, aiAgentFactory);
     }
 

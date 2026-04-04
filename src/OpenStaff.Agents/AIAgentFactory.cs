@@ -1,131 +1,53 @@
-using System.ClientModel;
-using Anthropic;
-using GitHub.Copilot.SDK;
-using Google.GenAI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using OpenAI;
-using OpenAI.Chat;
 using OpenStaff.Core.Models;
 
 namespace OpenStaff.Agents;
 
 /// <summary>
-/// AI Agent 工厂 — 根据供应商类型创建对应的 AIAgent 实例
-/// 参考 microsoft/agent-framework AgentProviders 示例
+/// AI Agent 工厂 — 从 IChatClient 创建 AIAgent 实例
+/// 统一入口：IChatClient + 提示词 + 工具 → ChatClientAgent (AIAgent)
 /// </summary>
 public class AIAgentFactory
 {
+    private readonly ChatClientFactory _chatClientFactory;
     private readonly ILoggerFactory _loggerFactory;
 
-    public AIAgentFactory(ILoggerFactory loggerFactory)
+    public AIAgentFactory(ChatClientFactory chatClientFactory, ILoggerFactory loggerFactory)
     {
+        _chatClientFactory = chatClientFactory;
         _loggerFactory = loggerFactory;
     }
 
     /// <summary>
-    /// 创建 AIAgent — 根据供应商类型选择正确的 SDK
+    /// 创建 AIAgent — 统一走 IChatClient → ChatClientAgent 路径
     /// </summary>
     /// <param name="provider">供应商配置</param>
     /// <param name="apiKey">已解密的 API Key</param>
     /// <param name="modelName">模型名称（覆盖供应商默认值）</param>
     /// <param name="instructions">系统提示词</param>
     /// <param name="agentName">代理体名称</param>
+    /// <param name="tools">AITool 列表（已从 IAgentTool 桥接转换）</param>
     public AIAgent CreateAgent(
         ModelProvider provider,
         string apiKey,
         string? modelName = null,
         string? instructions = null,
-        string? agentName = null)
+        string? agentName = null,
+        IList<AITool>? tools = null)
     {
-        var model = modelName ?? provider.DefaultModel ?? "gpt-4o";
-        var logger = _loggerFactory.CreateLogger<AIAgentFactory>();
+        var chatClient = _chatClientFactory.Create(provider, apiKey, modelName);
 
-        logger.LogInformation("Creating AIAgent for provider {Provider} ({Type}), model={Model}",
-            provider.Name, provider.ProviderType, model);
+        _loggerFactory.CreateLogger<AIAgentFactory>()
+            .LogInformation("Creating AIAgent '{Name}' with {ToolCount} tools",
+                agentName, tools?.Count ?? 0);
 
-        return provider.ProviderType switch
-        {
-            ProviderTypes.OpenAI => CreateOpenAIAgent(apiKey, model, provider.BaseUrl, instructions, agentName),
-            ProviderTypes.GitHubCopilot => CreateGitHubCopilotAgent(apiKey, model, provider.BaseUrl, instructions, agentName),
-            ProviderTypes.Anthropic => CreateAnthropicAgent(apiKey, model, instructions, agentName),
-            ProviderTypes.Google => CreateGoogleAgent(apiKey, model, instructions, agentName),
-            ProviderTypes.GenericOpenAI => CreateOpenAIAgent(apiKey, model, provider.BaseUrl, instructions, agentName),
-            ProviderTypes.AzureOpenAI => CreateOpenAIAgent(apiKey, model, provider.BaseUrl, instructions, agentName),
-            _ => throw new NotSupportedException($"不支持的供应商类型: {provider.ProviderType}")
-        };
-    }
-
-    /// <summary>
-    /// OpenAI — 参考 Agent_With_OpenAIChatCompletion
-    /// new OpenAIClient(apiKey).GetChatClient(model).AsAIAgent(instructions, name)
-    /// </summary>
-    private static AIAgent CreateOpenAIAgent(string apiKey, string model, string? baseUrl, string? instructions, string? name)
-    {
-        var credential = new ApiKeyCredential(apiKey);
-
-        OpenAIClientOptions? options = null;
-        if (!string.IsNullOrEmpty(baseUrl))
-        {
-            options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
-        }
-
-        var client = options != null
-            ? new OpenAIClient(credential, options)
-            : new OpenAIClient(credential);
-
-        return client
-            .GetChatClient(model)
-            .AsAIAgent(instructions: instructions, name: name);
-    }
-
-    /// <summary>
-    /// GitHub Copilot — 使用 OpenAI SDK 连接 Copilot API 端点
-    /// apiKey 应为 github_token（由 CopilotTokenService 从 oauth_token 交换获得）
-    /// baseUrl 可能来自 token 响应的 chat_completions endpoint
-    /// </summary>
-    private static AIAgent CreateGitHubCopilotAgent(string apiKey, string model, string? baseUrl, string? instructions, string? name)
-    {
-        var endpoint = baseUrl ?? "https://api.individual.githubcopilot.com";
-        var credential = new ApiKeyCredential(apiKey);
-        var options = new OpenAIClientOptions { Endpoint = new Uri(endpoint) };
-        var client = new OpenAIClient(credential, options);
-
-        return client
-            .GetChatClient(model)
-            .AsAIAgent(instructions: instructions, name: name);
-
-
-
-        var  copilotClient = new CopilotClient(new() { GitHubToken=apiKey});
-        SessionConfig sessionConfig = new()
-        {
-            Model= model,
-            
-        };
-
-        return copilotClient.AsAIAgent(sessionConfig);
-    }
-
-    /// <summary>
-    /// Anthropic — 参考 Agent_With_Anthropic
-    /// new AnthropicClient() { ApiKey = key }.AsAIAgent(model, instructions, name)
-    /// </summary>
-    private static AIAgent CreateAnthropicAgent(string apiKey, string model, string? instructions, string? name)
-    {
-        var client = new AnthropicClient { ApiKey = apiKey };
-        return client.AsAIAgent(model: model, instructions: instructions, name: name);
-    }
-
-    /// <summary>
-    /// Google Gemini — 参考 Agent_With_GoogleGemini
-    /// new Client(apiKey: key).AsIChatClient(model) → ChatClientAgent
-    /// </summary>
-    private static AIAgent CreateGoogleAgent(string apiKey, string model, string? instructions, string? name)
-    {
-        var client = new Client(vertexAI: false, apiKey: apiKey);
-        var chatClient = client.AsIChatClient(model);
-        return new ChatClientAgent(chatClient, name: name, instructions: instructions);
+        return new ChatClientAgent(
+            chatClient,
+            name: agentName,
+            instructions: instructions,
+            tools: tools,
+            loggerFactory: _loggerFactory);
     }
 }

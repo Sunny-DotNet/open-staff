@@ -1,6 +1,7 @@
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using AgentResponse = OpenStaff.Core.Agents.AgentResponse;
@@ -59,25 +60,41 @@ public class StandardAgent : AgentBase
                 };
             }
 
-            // 4. Create AIAgent via factory with resolved provider
-            var modelName = _config.ModelName ?? Context.Role?.ModelName ?? "gpt-4o";
+            // 4. Resolve tools from registry
+            IList<AITool>? aiTools = null;
+            if (_config.Tools.Count > 0 && Context != null)
+            {
+                var agentTools = _toolRegistry.GetTools(_config.Tools);
+                if (agentTools.Count > 0)
+                {
+                    aiTools = AgentToolBridge.ToAITools(agentTools, Context);
+                    Logger.LogInformation("Agent {Role} loaded {Count} tools: {Names}",
+                        _config.RoleType, aiTools.Count,
+                        string.Join(", ", agentTools.Select(t => t.Name)));
+                }
+            }
+
+            // 5. Create AIAgent via factory with resolved provider + tools
+            var modelName = _config.ModelName ?? Context!.Role?.ModelName ?? "gpt-4o";
             var aiAgent = _aiAgentFactory.CreateAgent(
-                Context.Provider,
-                Context.ApiKey,
+                Context!.Provider!,
+                Context!.ApiKey!,
                 modelName: modelName,
                 instructions: systemPrompt,
-                agentName: _config.Name);
-            // 5. Build chat messages
+                agentName: _config.Name,
+                tools: aiTools);
+
+            // 6. Build chat messages
             var chatMessages = new List<ChatMessage>
             {
                 new(ChatRole.User, message.Content ?? "")
             };
 
-            // 6. Run via AIAgent (handles tool-calling loop internally)
+            // 7. Run via AIAgent (handles tool-calling loop internally)
             var result = await aiAgent.RunAsync(chatMessages, cancellationToken: cancellationToken);
             var content = result?.ToString() ?? "";
 
-            // 7. Check routing markers
+            // 8. Check routing markers
             var targetRole = CheckRoutingMarkers(content);
             var response = new AgentResponse
             {

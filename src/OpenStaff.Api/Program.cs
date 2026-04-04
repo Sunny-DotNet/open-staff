@@ -33,6 +33,7 @@ builder.Services.AddSingleton<IAgentToolRegistry, AgentToolRegistry>();
 builder.Services.AddSingleton<IPromptLoader, EmbeddedPromptLoader>();
 
 // AI Agent 工厂 — 使用 microsoft/agent-framework 创建各供应商的 AIAgent
+builder.Services.AddSingleton<ChatClientFactory>();
 builder.Services.AddSingleton<AIAgentFactory>();
 
 // 智能体工厂 — 从嵌入式角色配置创建 StandardAgent / Agent factory — creates StandardAgent from embedded role configs

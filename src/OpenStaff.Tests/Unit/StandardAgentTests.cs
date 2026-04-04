@@ -29,7 +29,7 @@ public class StandardAgentTests
         config ??= CreateConfig();
         toolRegistry ??= new Mock<IAgentToolRegistry>().Object;
         promptLoader ??= new Mock<IPromptLoader>().Object;
-        aiAgentFactory ??= new AIAgentFactory(new Mock<ILoggerFactory>().Object);
+        aiAgentFactory ??= new AIAgentFactory(new ChatClientFactory(new Mock<ILoggerFactory>().Object), new Mock<ILoggerFactory>().Object);
         var logger = new Mock<ILogger<StandardAgent>>().Object;
         return new StandardAgent(config, toolRegistry, promptLoader, aiAgentFactory, logger);
     }

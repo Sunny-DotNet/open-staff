@@ -22,7 +22,7 @@ public class OrchestrationServiceTests
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
         var promptLoader = new EmbeddedPromptLoader();
-        var aiAgentFactory = new AIAgentFactory(services.GetRequiredService<ILoggerFactory>());
+        var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
         var factory = new AgentFactory(services, toolRegistry, promptLoader, aiAgentFactory);
 
         foreach (var roleType in roleTypes)
