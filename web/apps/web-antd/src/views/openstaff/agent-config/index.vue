@@ -1,25 +1,28 @@
 <script lang="ts" setup>
 import type { AgentApi } from '#/api/openstaff/agent';
+import type { SettingsApi } from '#/api/openstaff/settings';
 
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
 import {
-  Alert,
   Badge,
   Button,
   Card,
   Col,
+  Collapse,
+  CollapsePanel,
   Divider,
+  Drawer,
   Empty,
   Form,
   FormItem,
   Input,
   InputNumber,
-  Menu,
-  MenuItem,
   message,
+  Modal,
+  Popconfirm,
   Row,
   Select,
   SelectOption,
@@ -30,52 +33,43 @@ import {
   Tooltip,
   Typography,
 } from 'ant-design-vue';
+const CheckableTag = Tag.CheckableTag as any;
 
 import {
+  createAgentRoleApi,
+  deleteAgentRoleApi,
   getAgentRolesApi,
   testAgentChatApi,
   updateAgentRoleApi,
 } from '#/api/openstaff/agent';
 import { useNotification } from '#/composables/useNotification';
-import { getModelProvidersApi, getProviderModelsApi } from '#/api/openstaff/settings';
-import type { SettingsApi } from '#/api/openstaff/settings';
+import {
+  getModelProvidersApi,
+  getProviderModelsApi,
+} from '#/api/openstaff/settings';
 
 const { streamSession } = useNotification();
 
-// ===== 状态 =====
-const roles = ref<AgentApi.AgentRole[]>([]);
-const providers = ref<SettingsApi.ModelProvider[]>([]);
-const selectedRoleId = ref<string>('');
-const saving = ref(false);
-const loadingRoles = ref(false);
+// ===== 类型定义 =====
+interface SoulConfig {
+  traits?: string[];
+  style?: string;
+  attitudes?: string[];
+  custom?: string;
+}
 
-// 编辑表单
-const editForm = ref({
-  modelProviderId: '' as string,
-  modelName: '' as string,
-  temperature: 0.7,
-  maxTokens: 4096,
-  tools: [] as string[],
-});
+interface EditFormState {
+  name: string;
+  description: string;
+  modelProviderId: string;
+  modelName: string;
+  temperature: number;
+  maxTokens: number;
+  tools: string[];
+  soul: SoulConfig;
+}
 
-// 模型列表
-const providerModels = ref<SettingsApi.ProviderModel[]>([]);
-const loadingModels = ref(false);
-
-// 对话测试
-const chatMessages = ref<Array<{ content: string; role: 'assistant' | 'user'; streaming?: boolean }>>([]);
-const chatInput = ref('');
-const chatLoading = ref(false);
-const chatContainerRef = ref<HTMLElement | null>(null);
-const currentSubscription = ref<any>(null);
-
-// 选中菜单key
-const selectedKeys = computed({
-  get: () => [selectedRoleId.value],
-  set: (val: string[]) => {
-    if (val.length > 0) selectedRoleId.value = val[0]!;
-  },
-});
+// ===== 常量 =====
 const roleIcons: Record<string, string> = {
   orchestrator: '🎯',
   communicator: '💬',
@@ -87,9 +81,52 @@ const roleIcons: Record<string, string> = {
   video_creator: '🎬',
 };
 
+const TRAIT_OPTIONS = ['严谨', '幽默', '友善', '直率', '耐心', '果断', '细腻', '冷静'];
+const STYLE_OPTIONS = ['正式', '轻松', '技术流', '导师型', '鼓励型'];
+const ATTITUDE_OPTIONS = ['追求完美', '高效优先', '注重细节', '创新思维', '团队协作'];
+
+// ===== 状态 =====
+const roles = ref<AgentApi.AgentRole[]>([]);
+const providers = ref<SettingsApi.ModelProvider[]>([]);
+const loadingRoles = ref(false);
+const saving = ref(false);
+
+// Drawer 状态
+const drawerVisible = ref(false);
+const drawerMode = ref<'create' | 'edit'>('edit');
+const editingRoleId = ref<string>('');
+
+// 编辑表单
+const editForm = ref<EditFormState>({
+  name: '',
+  description: '',
+  modelProviderId: '',
+  modelName: '',
+  temperature: 0.7,
+  maxTokens: 4096,
+  tools: [],
+  soul: { traits: [], style: '', attitudes: [], custom: '' },
+});
+
+// 模型列表
+const providerModels = ref<SettingsApi.ProviderModel[]>([]);
+const loadingModels = ref(false);
+
+// 对话测试 Modal
+const chatModalVisible = ref(false);
+const chatRoleId = ref<string>('');
+const chatRoleName = ref<string>('');
+const chatMessages = ref<
+  Array<{ content: string; role: 'assistant' | 'user'; streaming?: boolean }>
+>([]);
+const chatInput = ref('');
+const chatLoading = ref(false);
+const chatContainerRef = ref<HTMLElement | null>(null);
+const currentSubscription = ref<any>(null);
+
 // ===== 计算属性 =====
-const selectedRole = computed(() =>
-  roles.value.find((r) => r.id === selectedRoleId.value),
+const editingRole = computed(() =>
+  roles.value.find((r) => r.id === editingRoleId.value),
 );
 
 const enabledProviders = computed(() =>
@@ -100,19 +137,27 @@ const selectedProvider = computed(() =>
   providers.value.find((p) => p.id === editForm.value.modelProviderId),
 );
 
-const configJson = computed<AgentApi.AgentRoleConfig>(() => {
+const soulPromptPreview = computed(() => generateSoulPrompt(editForm.value.soul));
+
+// ===== 灵魂 prompt 生成 =====
+function generateSoulPrompt(soul: SoulConfig): string {
+  const parts: string[] = [];
+  if (soul.traits?.length) parts.push(`你的性格特征：${soul.traits.join('、')}`);
+  if (soul.style) parts.push(`你的沟通风格：${soul.style}`);
+  if (soul.attitudes?.length)
+    parts.push(`你的工作态度：${soul.attitudes.join('、')}`);
+  if (soul.custom) parts.push(soul.custom);
+  return parts.length > 0 ? `${parts.join('。')}。` : '';
+}
+
+// ===== 解析 config =====
+function parseConfig(configStr: string | null): AgentApi.AgentRoleConfig & { soul?: SoulConfig } {
   try {
-    return selectedRole.value?.config
-      ? JSON.parse(selectedRole.value.config)
-      : {};
+    return configStr ? JSON.parse(configStr) : {};
   } catch {
     return {};
   }
-});
-
-const availableTools = computed(() => {
-  return configJson.value.tools ?? [];
-});
+}
 
 // ===== 加载数据 =====
 onMounted(async () => {
@@ -124,30 +169,22 @@ onMounted(async () => {
     ]);
     roles.value = rolesData;
     providers.value = providersData;
-
-    if (roles.value.length > 0) {
-      selectedRoleId.value = roles.value[0]!.id;
-    }
   } finally {
     loadingRoles.value = false;
   }
 });
 
-// 切换角色时加载配置到编辑表单
-watch(selectedRoleId, () => {
-  loadRoleToForm();
-  chatMessages.value = [];
-  chatInput.value = '';
-});
-
 // 切换提供商时加载模型列表
-watch(() => editForm.value.modelProviderId, async (newId, oldId) => {
-  if (newId && newId !== oldId) {
-    await fetchProviderModels(newId);
-  } else if (!newId) {
-    providerModels.value = [];
-  }
-});
+watch(
+  () => editForm.value.modelProviderId,
+  async (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      await fetchProviderModels(newId);
+    } else if (!newId) {
+      providerModels.value = [];
+    }
+  },
+);
 
 async function fetchProviderModels(providerId: string) {
   loadingModels.value = true;
@@ -161,21 +198,58 @@ async function fetchProviderModels(providerId: string) {
   }
 }
 
-function loadRoleToForm() {
-  const role = selectedRole.value;
-  if (!role) return;
+// ===== 卡片 / Drawer =====
+function getRoleIcon(roleType: string): string {
+  return roleIcons[roleType] || '🤖';
+}
 
-  const config = configJson.value;
+function openConfigDrawer(role: AgentApi.AgentRole) {
+  drawerMode.value = 'edit';
+  editingRoleId.value = role.id;
+  loadRoleToForm(role);
+  drawerVisible.value = true;
+}
+
+function openCreateDrawer() {
+  drawerMode.value = 'create';
+  editingRoleId.value = '';
+  editForm.value = {
+    name: '',
+    description: '',
+    modelProviderId: '',
+    modelName: '',
+    temperature: 0.7,
+    maxTokens: 4096,
+    tools: [],
+    soul: { traits: [], style: '', attitudes: [], custom: '' },
+  };
+  providerModels.value = [];
+  drawerVisible.value = true;
+}
+
+function closeDrawer() {
+  drawerVisible.value = false;
+}
+
+function loadRoleToForm(role: AgentApi.AgentRole) {
+  const config = parseConfig(role.config);
 
   editForm.value = {
+    name: role.name,
+    description: role.description ?? '',
     modelProviderId: role.modelProviderId ?? '',
     modelName: role.modelName ?? '',
     temperature: config.modelParameters?.temperature ?? 0.7,
     maxTokens: config.modelParameters?.maxTokens ?? 4096,
     tools: config.tools ?? [],
+    soul: {
+      traits: config.soul?.traits ?? [],
+      style: config.soul?.style ?? '',
+      attitudes: config.soul?.attitudes ?? [],
+      custom: config.soul?.custom ?? '',
+    },
   };
 
-  // 加载选中提供商的模型列表
   if (role.modelProviderId) {
     fetchProviderModels(role.modelProviderId);
   } else {
@@ -183,33 +257,72 @@ function loadRoleToForm() {
   }
 }
 
+// ===== Checkable tag helpers =====
+function toggleTrait(tag: string) {
+  const idx = editForm.value.soul.traits?.indexOf(tag) ?? -1;
+  if (!editForm.value.soul.traits) editForm.value.soul.traits = [];
+  if (idx >= 0) {
+    editForm.value.soul.traits.splice(idx, 1);
+  } else {
+    editForm.value.soul.traits.push(tag);
+  }
+}
+
+function toggleAttitude(tag: string) {
+  const idx = editForm.value.soul.attitudes?.indexOf(tag) ?? -1;
+  if (!editForm.value.soul.attitudes) editForm.value.soul.attitudes = [];
+  if (idx >= 0) {
+    editForm.value.soul.attitudes.splice(idx, 1);
+  } else {
+    editForm.value.soul.attitudes.push(tag);
+  }
+}
+
 // ===== 保存配置 =====
 async function saveConfig() {
-  const role = selectedRole.value;
+  if (drawerMode.value === 'create') {
+    await createRole();
+    return;
+  }
+  const role = editingRole.value;
   if (!role) return;
 
   saving.value = true;
   try {
-    const config = configJson.value;
+    const existingConfig = parseConfig(role.config);
+    const soulPrompt = generateSoulPrompt(editForm.value.soul);
     const updatedConfig = {
-      ...config,
+      ...existingConfig,
       modelParameters: {
         temperature: editForm.value.temperature,
         maxTokens: editForm.value.maxTokens,
       },
       tools: editForm.value.tools,
+      soul: editForm.value.soul,
     };
 
-    await updateAgentRoleApi(role.id, {
+    const updateData: AgentApi.UpdateAgentRoleParams = {
       modelProviderId: editForm.value.modelProviderId || undefined,
       modelName: editForm.value.modelName || undefined,
       config: JSON.stringify(updatedConfig),
-    });
+    };
 
-    // 刷新数据
+    // Non-builtin roles can also update name/description/systemPrompt
+    if (!role.isBuiltin) {
+      updateData.name = editForm.value.name;
+      updateData.description = editForm.value.description;
+      if (soulPrompt) {
+        updateData.systemPrompt = soulPrompt + (role.systemPrompt ?? '');
+      }
+    } else if (soulPrompt) {
+      updateData.systemPrompt = soulPrompt + (role.systemPrompt ?? '');
+    }
+
+    await updateAgentRoleApi(role.id, updateData);
     const updated = await getAgentRolesApi();
     roles.value = updated;
     message.success('配置已保存');
+    closeDrawer();
   } catch {
     message.error('保存失败');
   } finally {
@@ -217,11 +330,89 @@ async function saveConfig() {
   }
 }
 
-// ===== 对话测试（异步：POST 返回 sessionId，通过 SignalR 订阅结果） =====
+// ===== 创建角色 =====
+async function createRole() {
+  if (!editForm.value.name.trim()) {
+    message.warning('请输入员工名称');
+    return;
+  }
+
+  saving.value = true;
+  try {
+    const roleType = editForm.value.name
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_\u4e00-\u9fff]/g, '');
+    const soulPrompt = generateSoulPrompt(editForm.value.soul);
+    const config = {
+      modelParameters: {
+        temperature: editForm.value.temperature,
+        maxTokens: editForm.value.maxTokens,
+      },
+      tools: editForm.value.tools,
+      soul: editForm.value.soul,
+    };
+
+    await createAgentRoleApi({
+      name: editForm.value.name.trim(),
+      roleType,
+      description: editForm.value.description || undefined,
+      systemPrompt: soulPrompt || undefined,
+      modelProviderId: editForm.value.modelProviderId || undefined,
+      modelName: editForm.value.modelName || undefined,
+      config: JSON.stringify(config),
+    });
+
+    const updated = await getAgentRolesApi();
+    roles.value = updated;
+    message.success('员工创建成功');
+    closeDrawer();
+  } catch {
+    message.error('创建失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+// ===== 删除角色 =====
+async function deleteRole(role: AgentApi.AgentRole) {
+  try {
+    await deleteAgentRoleApi(role.id);
+    const updated = await getAgentRolesApi();
+    roles.value = updated;
+    message.success('已删除');
+    if (editingRoleId.value === role.id) {
+      closeDrawer();
+    }
+  } catch {
+    message.error('删除失败');
+  }
+}
+
+// ===== 对话测试 Modal =====
+function openChatModal(role: AgentApi.AgentRole) {
+  chatRoleId.value = role.id;
+  chatRoleName.value = role.name;
+  chatMessages.value = [];
+  chatInput.value = '';
+  chatLoading.value = false;
+  chatModalVisible.value = true;
+}
+
+function closeChatModal() {
+  chatModalVisible.value = false;
+  chatMessages.value = [];
+  chatInput.value = '';
+  chatLoading.value = false;
+  if (currentSubscription.value) {
+    currentSubscription.value.dispose();
+    currentSubscription.value = null;
+  }
+}
 
 async function sendTestMessage() {
-  const role = selectedRole.value;
-  if (!role || !chatInput.value.trim()) return;
+  if (!chatRoleId.value || !chatInput.value.trim()) return;
 
   const userMsg = chatInput.value.trim();
   chatMessages.value.push({ role: 'user', content: userMsg });
@@ -232,20 +423,20 @@ async function sendTestMessage() {
   scrollToBottom();
 
   try {
-    const { sessionId } = await testAgentChatApi(role.id, userMsg);
-
-    // 添加一个 streaming 占位消息
+    const { sessionId } = await testAgentChatApi(chatRoleId.value, userMsg);
     const assistantIdx = chatMessages.value.length;
-    chatMessages.value.push({ role: 'assistant', content: '思考中...', streaming: true });
+    chatMessages.value.push({
+      role: 'assistant',
+      content: '思考中...',
+      streaming: true,
+    });
 
-    // 通过 SignalR streaming 订阅会话事件
     currentSubscription.value = await streamSession(
       sessionId,
       (evt) => {
         if (!evt.payload) return;
         try {
           const data = JSON.parse(evt.payload);
-
           if (evt.eventType === 'message') {
             chatMessages.value[assistantIdx] = {
               role: 'assistant',
@@ -260,22 +451,19 @@ async function sendTestMessage() {
             };
           }
         } catch {
-          // ignore parse errors
+          // ignore
         }
         nextTick(() => scrollToBottom());
       },
       () => {
-        // stream complete
         chatLoading.value = false;
         currentSubscription.value = null;
-        // 确保 streaming 标记关闭
         if (chatMessages.value[assistantIdx]?.streaming) {
           chatMessages.value[assistantIdx]!.streaming = false;
         }
         nextTick(() => scrollToBottom());
       },
       (err) => {
-        // stream error
         chatLoading.value = false;
         currentSubscription.value = null;
         if (chatMessages.value[assistantIdx]?.streaming) {
@@ -299,14 +487,6 @@ async function sendTestMessage() {
   }
 }
 
-onUnmounted(() => {
-  // 清理可能存在的订阅
-  if (currentSubscription.value) {
-    currentSubscription.value.dispose();
-    currentSubscription.value = null;
-  }
-});
-
 function scrollToBottom() {
   if (chatContainerRef.value) {
     chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight;
@@ -325,296 +505,444 @@ function filterModelOption(input: string, option: any) {
   const val = (option?.value || '').toString().toLowerCase();
   return val.includes(search);
 }
+
+onUnmounted(() => {
+  if (currentSubscription.value) {
+    currentSubscription.value.dispose();
+    currentSubscription.value = null;
+  }
+});
 </script>
 
 <template>
-  <Page title="代理体配置">
+  <Page title="员工管理">
     <Spin :spinning="loadingRoles">
-      <Row :gutter="16" style="height: calc(100vh - 160px)">
-        <!-- 左侧：代理体列表 + 配置 -->
-        <Col :span="12" style="height: 100%; overflow-y: auto">
-          <Card :body-style="{ padding: '0' }" size="small">
-            <!-- 代理体选择列表 -->
-            <Menu
-              v-model:selectedKeys="selectedKeys"
-              mode="horizontal"
-              style="margin-bottom: 0"
-            >
-              <MenuItem
-                v-for="role in roles"
-                :key="role.id"
-                @click="selectedRoleId = role.id"
-              >
-                <Space :size="4">
-                  <span>{{ roleIcons[role.roleType] || '🤖' }}</span>
-                  <span>{{ role.name }}</span>
-                </Space>
-              </MenuItem>
-            </Menu>
-          </Card>
+      <!-- 顶部操作栏 -->
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center">
+        <Typography.Title :level="5" style="margin: 0">
+          团队成员（{{ roles.length }}）
+        </Typography.Title>
+        <Button type="primary" @click="openCreateDrawer">
+          ＋ 新增员工
+        </Button>
+      </div>
 
-          <!-- 角色配置详情 -->
-          <Card v-if="selectedRole" class="mt-3" size="small">
-            <template #title>
-              <Space>
-                <span class="text-xl">
-                  {{ roleIcons[selectedRole.roleType] || '🤖' }}
-                </span>
-                <span>{{ selectedRole.name }}</span>
-                <Tag v-if="selectedRole.isBuiltin" color="blue">内置</Tag>
+      <!-- 空状态 -->
+      <Empty v-if="!loadingRoles && roles.length === 0" description="暂无员工，点击上方按钮创建" />
+
+      <!-- 卡片网格 -->
+      <Row :gutter="[16, 16]">
+        <Col
+          v-for="role in roles"
+          :key="role.id"
+          :lg="6"
+          :md="8"
+          :sm="12"
+          :xs="24"
+        >
+          <Card
+            hoverable
+            class="staff-card"
+            :body-style="{ padding: '20px' }"
+            @click="openConfigDrawer(role)"
+          >
+            <!-- 卡片头部：图标 + 标签 -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px">
+              <span style="font-size: 36px; line-height: 1">
+                {{ getRoleIcon(role.roleType) }}
+              </span>
+              <Space :size="4">
+                <Tag v-if="role.isBuiltin" color="blue">内置</Tag>
+                <Tag v-if="role.modelProviderName" color="green">
+                  {{ role.modelProviderName }}
+                </Tag>
               </Space>
-            </template>
-
-            <!-- 角色描述 -->
-            <div class="mb-4">
-              <Typography.Text type="secondary">
-                {{ selectedRole.description || '无描述' }}
-              </Typography.Text>
             </div>
 
-            <Alert
-              v-if="selectedRole.isBuiltin"
-              class="mb-4"
-              message="内置代理体仅允许修改模型配置和参数"
-              show-icon
-              type="info"
+            <!-- 名称 -->
+            <Typography.Title :level="5" :ellipsis="true" style="margin-bottom: 4px">
+              {{ role.name }}
+            </Typography.Title>
+
+            <!-- 描述 -->
+            <Typography.Paragraph
+              type="secondary"
+              :ellipsis="{ rows: 2 }"
+              :content="role.description || '暂无描述'"
+              style="margin-bottom: 12px; font-size: 13px; min-height: 40px"
             />
 
-            <Divider orientation="left" style="margin: 12px 0">
-              模型配置
-            </Divider>
-
-            <Form :label-col="{ span: 6 }" size="small">
-              <!-- 模型提供商 -->
-              <FormItem label="模型提供商">
-                <Select
-                  v-model:value="editForm.modelProviderId"
-                  allow-clear
-                  placeholder="选择模型提供商"
-                  style="width: 100%"
-                >
-                  <SelectOption
-                    v-for="p in enabledProviders"
-                    :key="p.id"
-                    :value="p.id"
-                  >
-                    {{ p.name }}
-                    <Tag v-if="p.defaultModel" color="default" style="margin-left: 8px">
-                      {{ p.defaultModel }}
-                    </Tag>
-                  </SelectOption>
-                </Select>
-              </FormItem>
-
-              <!-- 模型名称 -->
-              <FormItem label="模型名称">
-                <Select
-                  v-model:value="editForm.modelName"
-                  :loading="loadingModels"
-                  :not-found-content="loadingModels ? undefined : undefined"
-                  allow-clear
-                  show-search
-                  :filter-option="filterModelOption"
-                  :placeholder="
-                    selectedProvider?.defaultModel || '请先选择模型提供商'
-                  "
-                  :disabled="!editForm.modelProviderId"
-                  style="width: 100%"
-                >
-                  <SelectOption
-                    v-for="m in providerModels"
-                    :key="m.id"
-                    :value="m.id"
-                  >
-                    {{ m.id }}
-                    <span v-if="m.displayName" style="color: #999; margin-left: 6px; font-size: 12px">
-                      {{ m.displayName }}
-                    </span>
-                  </SelectOption>
-                </Select>
-                <Typography.Text
-                  v-if="selectedProvider?.defaultModel && !editForm.modelName"
-                  type="secondary"
-                  style="font-size: 12px"
-                >
-                  留空将使用提供商默认模型：{{ selectedProvider.defaultModel }}
-                </Typography.Text>
-              </FormItem>
-
-              <!-- 温度 -->
-              <FormItem label="温度">
-                <Row :gutter="16" align="middle">
-                  <Col :span="16">
-                    <Slider
-                      v-model:value="editForm.temperature"
-                      :max="2"
-                      :min="0"
-                      :step="0.1"
-                    />
-                  </Col>
-                  <Col :span="8">
-                    <InputNumber
-                      v-model:value="editForm.temperature"
-                      :max="2"
-                      :min="0"
-                      :step="0.1"
-                      size="small"
-                      style="width: 100%"
-                    />
-                  </Col>
-                </Row>
-              </FormItem>
-
-              <!-- 最大 Token -->
-              <FormItem label="最大 Token">
-                <InputNumber
-                  v-model:value="editForm.maxTokens"
-                  :max="128000"
-                  :min="256"
-                  :step="256"
-                  style="width: 100%"
-                />
-              </FormItem>
-            </Form>
-
-            <!-- 工具配置 -->
-            <Divider orientation="left" style="margin: 12px 0">
-              工具配置
-            </Divider>
-
-            <div v-if="availableTools.length > 0" class="mb-3">
-              <Space wrap>
-                <Tag
-                  v-for="tool in availableTools"
-                  :key="tool"
-                  color="processing"
-                >
-                  🔧 {{ tool }}
-                </Tag>
-              </Space>
+            <!-- 角色类型标签 -->
+            <div style="margin-bottom: 12px">
+              <Tag color="default">{{ role.roleType }}</Tag>
             </div>
-            <Typography.Text v-else type="secondary">
-              该代理体暂无已配置的工具
-            </Typography.Text>
 
-            <!-- MCP 配置（占位） -->
-            <Divider orientation="left" style="margin: 12px 0">
-              MCP 配置
-            </Divider>
-
-            <Typography.Text type="secondary">
-              MCP Server 配置即将推出
-            </Typography.Text>
-
-            <!-- 保存按钮 -->
-            <Divider style="margin: 12px 0" />
-            <Button
-              :loading="saving"
-              block
-              type="primary"
-              @click="saveConfig"
-            >
-              保存配置
-            </Button>
-          </Card>
-
-          <Empty v-else description="请选择一个代理体" />
-        </Col>
-
-        <!-- 右侧：对话测试 -->
-        <Col :span="12" style="height: 100%; display: flex; flex-direction: column">
-          <Card
-            size="small"
-            style="flex: 1; display: flex; flex-direction: column; overflow: hidden"
-          >
-            <template #title>
-              <Space>
-                <span>💬</span>
-                <span>对话测试</span>
-                <Tag v-if="selectedRole" color="default">
-                  {{ selectedRole.name }}
-                </Tag>
-              </Space>
-            </template>
-
-            <template #extra>
-              <Tooltip title="清空对话">
-                <Button
-                  size="small"
-                  type="text"
-                  @click="() => { if (currentSubscription) { currentSubscription.dispose(); currentSubscription = null; } chatLoading = false; chatMessages = []; }"
-                >
-                  🗑️
-                </Button>
-              </Tooltip>
-            </template>
-
-            <!-- 消息列表 -->
-            <div
-              ref="chatContainerRef"
-              style="flex: 1; overflow-y: auto; min-height: 300px; max-height: calc(100vh - 340px); padding: 8px 0"
-            >
-              <div v-if="chatMessages.length === 0" class="py-16 text-center">
-                <Empty description="发送消息开始测试对话" />
-              </div>
-
-              <div
-                v-for="(msg, idx) in chatMessages"
-                :key="idx"
-                :class="[
-                  'mb-3 flex',
-                  msg.role === 'user' ? 'justify-end' : 'justify-start',
-                ]"
+            <!-- 操作按钮 -->
+            <div style="display: flex; gap: 8px" @click.stop>
+              <Button size="small" type="primary" ghost @click="openChatModal(role)">
+                💬 对话测试
+              </Button>
+              <Popconfirm
+                v-if="!role.isBuiltin"
+                title="确定要删除该员工吗？"
+                ok-text="确定"
+                cancel-text="取消"
+                @confirm="deleteRole(role)"
               >
-                <div
-                  :class="[
-                    'max-w-[85%] rounded-lg px-4 py-2',
-                    msg.role === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-800',
-                  ]"
-                  style="white-space: pre-wrap; word-break: break-word"
-                >
-                  {{ msg.content }}
-                </div>
-              </div>
-
-              <!-- 加载中 -->
-              <div v-if="chatLoading" class="mb-3 flex justify-start">
-                <div class="rounded-lg bg-gray-100 px-4 py-2">
-                  <Badge color="blue" status="processing" text="思考中..." />
-                </div>
-              </div>
-            </div>
-
-            <!-- 输入区域 -->
-            <div
-              style="
-                border-top: 1px solid #f0f0f0;
-                padding-top: 12px;
-                margin-top: auto;
-              "
-            >
-              <Space.Compact style="width: 100%">
-                <Input
-                  v-model:value="chatInput"
-                  :disabled="chatLoading || !selectedRole"
-                  placeholder="输入消息测试代理体..."
-                  @keydown="handleChatKeydown"
-                />
-                <Button
-                  :disabled="!chatInput.trim() || chatLoading || !selectedRole"
-                  :loading="chatLoading"
-                  type="primary"
-                  @click="sendTestMessage"
-                >
-                  发送
-                </Button>
-              </Space.Compact>
+                <Button size="small" danger>删除</Button>
+              </Popconfirm>
             </div>
           </Card>
         </Col>
       </Row>
     </Spin>
+
+    <!-- ===== 配置 Drawer ===== -->
+    <Drawer
+      :open="drawerVisible"
+      :title="undefined"
+      :width="560"
+      placement="right"
+      :destroy-on-close="true"
+      @close="closeDrawer"
+    >
+      <template #title>
+        <Space>
+          <span style="font-size: 24px">
+            {{ drawerMode === 'create' ? '🆕' : getRoleIcon(editingRole?.roleType ?? '') }}
+          </span>
+          <span style="font-size: 16px; font-weight: 600">
+            {{ drawerMode === 'create' ? '新增员工' : (editingRole?.name ?? '') }}
+          </span>
+          <Tag v-if="drawerMode === 'edit' && editingRole?.isBuiltin" color="blue">内置</Tag>
+        </Space>
+      </template>
+
+      <!-- 基本信息区 -->
+      <Divider orientation="left" style="margin: 0 0 16px 0">基本信息</Divider>
+      <Form :label-col="{ span: 6 }" size="small">
+        <FormItem label="名称" required>
+          <Input
+            v-model:value="editForm.name"
+            :readonly="drawerMode === 'edit' && (editingRole?.isBuiltin ?? false)"
+            placeholder="请输入员工名称"
+          />
+        </FormItem>
+        <FormItem label="描述 / 职位说明">
+          <Input.TextArea
+            v-model:value="editForm.description"
+            :readonly="drawerMode === 'edit' && (editingRole?.isBuiltin ?? false)"
+            :rows="3"
+            placeholder="请输入描述"
+          />
+        </FormItem>
+      </Form>
+
+      <!-- 灵魂配置区 -->
+      <Divider orientation="left" style="margin: 8px 0 16px 0">灵魂配置</Divider>
+
+      <div style="margin-bottom: 16px">
+        <div style="margin-bottom: 8px; font-weight: 500">🎭 性格特征</div>
+        <Space :size="[4, 8]" wrap>
+          <CheckableTag
+            v-for="t in TRAIT_OPTIONS"
+            :key="t"
+            :checked="editForm.soul.traits?.includes(t) ?? false"
+            @change="toggleTrait(t)"
+          >
+            {{ t }}
+          </CheckableTag>
+        </Space>
+      </div>
+
+      <div style="margin-bottom: 16px">
+        <div style="margin-bottom: 8px; font-weight: 500">🗣️ 沟通风格</div>
+        <Select
+          v-model:value="editForm.soul.style"
+          allow-clear
+          placeholder="选择沟通风格"
+          style="width: 100%"
+        >
+          <SelectOption v-for="s in STYLE_OPTIONS" :key="s" :value="s">
+            {{ s }}
+          </SelectOption>
+        </Select>
+      </div>
+
+      <div style="margin-bottom: 16px">
+        <div style="margin-bottom: 8px; font-weight: 500">🎯 工作态度</div>
+        <Space :size="[4, 8]" wrap>
+          <CheckableTag
+            v-for="a in ATTITUDE_OPTIONS"
+            :key="a"
+            :checked="editForm.soul.attitudes?.includes(a) ?? false"
+            @change="toggleAttitude(a)"
+          >
+            {{ a }}
+          </CheckableTag>
+        </Space>
+      </div>
+
+      <div style="margin-bottom: 16px">
+        <div style="margin-bottom: 8px; font-weight: 500">📖 自定义性格描述</div>
+        <Input.TextArea
+          v-model:value="editForm.soul.custom"
+          :rows="2"
+          placeholder="（可选）自由描述该员工的个性特点…"
+        />
+      </div>
+
+      <!-- 灵魂 prompt 预览 -->
+      <div
+        v-if="soulPromptPreview"
+        style="
+          margin-bottom: 16px;
+          padding: 10px 12px;
+          background: #f6f8fa;
+          border-radius: 6px;
+          font-size: 12px;
+          color: #666;
+          line-height: 1.6;
+        "
+      >
+        <strong>生成的灵魂 Prompt 预览：</strong><br />
+        {{ soulPromptPreview }}
+      </div>
+
+      <!-- 模型配置区 -->
+      <Divider orientation="left" style="margin: 8px 0 16px 0">模型配置</Divider>
+      <Form :label-col="{ span: 6 }" size="small">
+        <FormItem label="供应商">
+          <Select
+            v-model:value="editForm.modelProviderId"
+            allow-clear
+            placeholder="选择模型提供商"
+            style="width: 100%"
+          >
+            <SelectOption
+              v-for="p in enabledProviders"
+              :key="p.id"
+              :value="p.id"
+            >
+              {{ p.name }}
+              <Tag v-if="p.defaultModel" color="default" style="margin-left: 8px">
+                {{ p.defaultModel }}
+              </Tag>
+            </SelectOption>
+          </Select>
+        </FormItem>
+
+        <FormItem label="模型">
+          <Select
+            v-model:value="editForm.modelName"
+            :disabled="!editForm.modelProviderId"
+            :filter-option="filterModelOption"
+            :loading="loadingModels"
+            :placeholder="selectedProvider?.defaultModel || '请先选择供应商'"
+            allow-clear
+            show-search
+            style="width: 100%"
+          >
+            <SelectOption
+              v-for="m in providerModels"
+              :key="m.id"
+              :value="m.id"
+            >
+              {{ m.id }}
+              <span
+                v-if="m.displayName"
+                style="color: #999; margin-left: 6px; font-size: 12px"
+              >
+                {{ m.displayName }}
+              </span>
+            </SelectOption>
+          </Select>
+          <Typography.Text
+            v-if="selectedProvider?.defaultModel && !editForm.modelName"
+            type="secondary"
+            style="font-size: 12px"
+          >
+            留空将使用提供商默认模型：{{ selectedProvider.defaultModel }}
+          </Typography.Text>
+        </FormItem>
+
+        <FormItem label="温度">
+          <Row :gutter="16" align="middle">
+            <Col :span="16">
+              <Slider
+                v-model:value="editForm.temperature"
+                :max="2"
+                :min="0"
+                :step="0.1"
+              />
+            </Col>
+            <Col :span="8">
+              <InputNumber
+                v-model:value="editForm.temperature"
+                :max="2"
+                :min="0"
+                :step="0.1"
+                size="small"
+                style="width: 100%"
+              />
+            </Col>
+          </Row>
+        </FormItem>
+
+        <FormItem label="最大 Token">
+          <InputNumber
+            v-model:value="editForm.maxTokens"
+            :max="128000"
+            :min="256"
+            :step="256"
+            style="width: 100%"
+          />
+        </FormItem>
+      </Form>
+
+      <!-- 工具配置区 -->
+      <Collapse :bordered="false" style="background: transparent">
+        <CollapsePanel key="tools" header="🔧 工具配置">
+          <div v-if="editForm.tools.length > 0">
+            <Space wrap>
+              <Tag
+                v-for="tool in editForm.tools"
+                :key="tool"
+                color="processing"
+              >
+                🔧 {{ tool }}
+              </Tag>
+            </Space>
+          </div>
+          <Typography.Text v-else type="secondary">
+            暂无已配置的工具
+          </Typography.Text>
+        </CollapsePanel>
+      </Collapse>
+
+      <!-- 底部保存 -->
+      <Divider style="margin: 16px 0" />
+      <Button :loading="saving" block type="primary" size="large" @click="saveConfig">
+        {{ drawerMode === 'create' ? '创建员工' : '保存配置' }}
+      </Button>
+    </Drawer>
+
+    <!-- ===== 对话测试 Modal ===== -->
+    <Modal
+      :open="chatModalVisible"
+      :title="`对话测试 - ${chatRoleName}`"
+      :footer="null"
+      :width="'80%'"
+      :body-style="{ padding: 0, display: 'flex', flexDirection: 'column', height: '70vh' }"
+      :destroy-on-close="true"
+      @cancel="closeChatModal"
+    >
+      <!-- 消息列表 -->
+      <div
+        ref="chatContainerRef"
+        style="flex: 1; overflow-y: auto; padding: 16px 20px"
+      >
+        <div
+          v-if="chatMessages.length === 0"
+          style="display: flex; justify-content: center; align-items: center; height: 100%"
+        >
+          <Empty description="发送消息开始测试对话" />
+        </div>
+
+        <div
+          v-for="(msg, idx) in chatMessages"
+          :key="idx"
+          :style="{
+            display: 'flex',
+            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+            marginBottom: '12px',
+          }"
+        >
+          <div
+            :style="{
+              maxWidth: '75%',
+              padding: '10px 16px',
+              borderRadius: '12px',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              lineHeight: '1.6',
+              ...(msg.role === 'user'
+                ? { background: '#1677ff', color: '#fff' }
+                : { background: '#f5f5f5', color: '#333' }),
+            }"
+          >
+            {{ msg.content }}
+          </div>
+        </div>
+
+        <div
+          v-if="chatLoading"
+          style="display: flex; justify-content: flex-start; margin-bottom: 12px"
+        >
+          <div
+            style="
+              padding: 10px 16px;
+              border-radius: 12px;
+              background: #f5f5f5;
+            "
+          >
+            <Badge color="blue" status="processing" text="思考中..." />
+          </div>
+        </div>
+      </div>
+
+      <!-- 输入区域 -->
+      <div
+        style="
+          border-top: 1px solid #f0f0f0;
+          padding: 12px 20px;
+          display: flex;
+          gap: 8px;
+        "
+      >
+        <Input
+          v-model:value="chatInput"
+          :disabled="chatLoading"
+          placeholder="输入消息测试员工..."
+          style="flex: 1"
+          @keydown="handleChatKeydown"
+        />
+        <Button
+          :disabled="!chatInput.trim() || chatLoading"
+          :loading="chatLoading"
+          type="primary"
+          @click="sendTestMessage"
+        >
+          发送
+        </Button>
+        <Tooltip title="清空对话">
+          <Button
+            @click="() => {
+              if (currentSubscription) {
+                currentSubscription.dispose();
+                currentSubscription = null;
+              }
+              chatLoading = false;
+              chatMessages = [];
+            }"
+          >
+            🗑️
+          </Button>
+        </Tooltip>
+      </div>
+    </Modal>
   </Page>
 </template>
+
+<style scoped>
+.staff-card {
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  border: 1px solid #f0f0f0;
+}
+
+.staff-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+</style>

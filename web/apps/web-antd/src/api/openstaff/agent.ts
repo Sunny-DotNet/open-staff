@@ -116,6 +116,25 @@ export async function updateAgentRoleApi(
   return (resp as any)?.data ?? resp;
 }
 
+/** 创建代理体角色 */
+export async function createAgentRoleApi(data: {
+  name: string;
+  roleType: string;
+  description?: string;
+  systemPrompt?: string;
+  modelProviderId?: string;
+  modelName?: string;
+  config?: string;
+}): Promise<AgentApi.AgentRole> {
+  const resp = await requestClient.post('/agent-roles', data);
+  return (resp as any)?.data ?? resp;
+}
+
+/** 删除代理体角色（软删除） */
+export async function deleteAgentRoleApi(id: string): Promise<void> {
+  await requestClient.delete(`/agent-roles/${id}`);
+}
+
 /** 测试代理体对话（异步启动，返回 sessionId，通过 SignalR 订阅结果） */
 export async function testAgentChatApi(
   roleId: string,
