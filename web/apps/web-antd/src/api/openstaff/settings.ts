@@ -17,10 +17,23 @@ export namespace SettingsApi {
     apiKeyEnvVar: string;
     hasApiKey: boolean;
     defaultModel: string;
+    extraConfig: string | null;
     isEnabled: boolean;
     isBuiltin: boolean;
     createdAt: string;
     updatedAt: string;
+  }
+
+  export interface CreateModelProviderParams {
+    name: string;
+    providerType: string;
+    baseUrl?: string;
+    apiKeyMode?: string;
+    apiKeyEnvVar?: string;
+    apiKey?: string;
+    defaultModel?: string;
+    extraConfig?: string;
+    isEnabled?: boolean;
   }
 
   export interface UpdateModelProviderParams {
@@ -30,6 +43,7 @@ export namespace SettingsApi {
     apiKeyEnvVar?: string;
     apiKey?: string;
     defaultModel?: string;
+    extraConfig?: string;
     isEnabled?: boolean;
   }
 
@@ -78,6 +92,14 @@ export async function getModelProvidersApi(): Promise<
   return (resp as any)?.data ?? resp;
 }
 
+/** 创建模型提供商 */
+export async function createModelProviderApi(
+  data: SettingsApi.CreateModelProviderParams,
+): Promise<SettingsApi.ModelProvider> {
+  const resp = await requestClient.post('/model-providers', data);
+  return (resp as any)?.data ?? resp;
+}
+
 /** 更新模型提供商 */
 export async function updateModelProviderApi(
   id: string,
@@ -85,6 +107,11 @@ export async function updateModelProviderApi(
 ): Promise<SettingsApi.ModelProvider> {
   const resp = await requestClient.put(`/model-providers/${id}`, data);
   return (resp as any)?.data ?? resp;
+}
+
+/** 删除模型提供商 */
+export async function deleteModelProviderApi(id: string): Promise<void> {
+  await requestClient.delete(`/model-providers/${id}`);
 }
 
 /** 发起 GitHub 设备码授权 */

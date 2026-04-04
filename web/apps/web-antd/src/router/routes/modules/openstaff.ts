@@ -103,6 +103,16 @@ const routes: RouteRecordRaw[] = [
   },
   {
     meta: {
+      icon: 'lucide:cloud',
+      order: 60,
+      title: '供应商管理',
+    },
+    name: 'ProviderManagement',
+    path: '/providers',
+    component: () => import('#/views/openstaff/providers/index.vue'),
+  },
+  {
+    meta: {
       icon: 'lucide:settings',
       order: 100,
       title: $t('openstaff.settings.title'),
