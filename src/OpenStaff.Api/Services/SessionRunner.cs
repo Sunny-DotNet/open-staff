@@ -13,6 +13,7 @@ namespace OpenStaff.Api.Services;
 
 /// <summary>
 /// 会话执行引擎 — 管理栈模式 Frame 的推入/弹出和 Agent 调用
+/// 支持群聊模式：一个项目一个长期 Session，用户可随时追加消息
 /// </summary>
 public class SessionRunner
 {
@@ -23,11 +24,13 @@ public class SessionRunner
     private readonly ILogger<SessionRunner> _logger;
 
     // 活跃 Session 的 CancellationTokenSource
-    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _sessionCts = new();
+    private readonly ConcurrentDictionary<Guid, (CancellationTokenSource cts, DateTime createdAt)> _sessionCts = new();
     // 活跃 Frame 的 CancellationTokenSource
-    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _frameCts = new();
+    private readonly ConcurrentDictionary<Guid, (CancellationTokenSource cts, DateTime createdAt)> _frameCts = new();
     // 活跃 Session 的当前 Frame ID
     private readonly ConcurrentDictionary<Guid, Guid> _currentFrame = new();
+    // 暂停等待用户输入的信号量（sessionId → 信号量）
+    private readonly ConcurrentDictionary<Guid, TaskCompletionSource<string>> _awaitingInput = new();
 
     public SessionRunner(
         SessionStreamManager streamManager,
@@ -48,7 +51,6 @@ public class SessionRunner
     /// </summary>
     public async Task<ChatSession> StartSessionAsync(Guid projectId, string input, string contextStrategy = ContextStrategies.Full)
     {
-        // 1. 创建会话记录
         var session = new ChatSession
         {
             ProjectId = projectId,
@@ -63,14 +65,11 @@ public class SessionRunner
             await db.SaveChangesAsync();
         }
 
-        // 2. 创建 ReplaySubject 流
         _streamManager.Create(session.Id);
 
-        // 3. 创建 Session 级 CancellationTokenSource
         var sessionCts = new CancellationTokenSource();
-        _sessionCts[session.Id] = sessionCts;
+        _sessionCts[session.Id] = (sessionCts, DateTime.UtcNow);
 
-        // 4. 发布会话创建事件
         await PushEventAsync(session.Id, SessionEventTypes.SessionCreated, payload: new
         {
             sessionId = session.Id,
@@ -78,34 +77,122 @@ public class SessionRunner
             input
         });
 
-        // 5. 通知项目频道有新会话
         await _notification.NotifyAsync(Channels.Project(projectId), "session_started", new
         {
             sessionId = session.Id,
             input = Truncate(input, 100)
         });
 
-        // 6. 后台执行
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await RunSessionAsync(session, sessionCts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Session {SessionId} was cancelled", session.Id);
-                await FinalizeSessionAsync(session.Id, SessionStatus.Cancelled);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Session {SessionId} failed", session.Id);
-                await PushEventAsync(session.Id, SessionEventTypes.SessionError, payload: ex.Message);
-                await FinalizeSessionAsync(session.Id, SessionStatus.Error);
-            }
-        });
+        // 后台执行第一轮
+        _ = Task.Run(() => ExecuteUserInputAsync(session, input, sessionCts.Token));
 
         return session;
+    }
+
+    /// <summary>
+    /// 群聊追加消息 — 向已有 Session 发送新消息
+    /// 如果 Session 正在等待用户输入，恢复链式流转；
+    /// 否则创建新的根 Frame 执行。
+    /// </summary>
+    public async Task SendMessageAsync(Guid sessionId, string input)
+    {
+        // 检查是否正在等待用户输入
+        if (_awaitingInput.TryRemove(sessionId, out var tcs))
+        {
+            _logger.LogInformation("Session {SessionId} resumed with user input", sessionId);
+
+            // 更新 Session 状态回 Active
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var session = await db.ChatSessions.FindAsync(sessionId);
+            if (session != null)
+            {
+                session.Status = SessionStatus.Active;
+                await db.SaveChangesAsync();
+            }
+
+            await PushEventAsync(sessionId, SessionEventTypes.ResumedByUser, payload: new
+            {
+                input
+            });
+
+            // 唤醒等待的链路
+            tcs.TrySetResult(input);
+            return;
+        }
+
+        // 非暂停状态 — 创建新的根 Frame 执行
+        ChatSession? existing;
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            existing = await db.ChatSessions.FindAsync(sessionId);
+        }
+
+        if (existing == null)
+        {
+            _logger.LogWarning("Session {SessionId} not found", sessionId);
+            return;
+        }
+
+        // 确保流存在
+        if (!_streamManager.IsActive(sessionId))
+        {
+            _streamManager.Create(sessionId);
+        }
+
+        // 确保 CTS 存在
+        if (!_sessionCts.ContainsKey(sessionId))
+        {
+            var cts = new CancellationTokenSource();
+            _sessionCts[sessionId] = (cts, DateTime.UtcNow);
+        }
+
+        var sessionCts = _sessionCts[sessionId].cts;
+
+        // 发布用户输入事件到群聊
+        await PushEventAsync(sessionId, SessionEventTypes.UserInput, payload: new
+        {
+            input,
+            role = "user"
+        });
+
+        // 后台执行
+        _ = Task.Run(() => ExecuteUserInputAsync(existing, input, sessionCts.Token));
+    }
+
+    /// <summary>
+    /// 执行用户输入 — 创建根 Frame 并执行链式流转
+    /// </summary>
+    private async Task ExecuteUserInputAsync(ChatSession session, string input, CancellationToken sessionCt)
+    {
+        try
+        {
+            await _orchestration.InitializeProjectAgentsAsync(session.ProjectId, sessionCt);
+
+            // 先经过 orchestrator 决定路由（对话者优先）
+            var rootFrame = await CreateFrameAsync(session.Id, null, 0, "user", "communicator", input, sessionCt);
+
+            await PushEventAsync(session.Id, SessionEventTypes.FramePushed, rootFrame.Id, new
+            {
+                frameId = rootFrame.Id,
+                depth = 0,
+                initiator = "user",
+                target = "communicator",
+                purpose = input
+            });
+
+            await ExecuteFrameAsync(session, rootFrame, sessionCt);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Session {SessionId} execution cancelled", session.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Session {SessionId} execution failed", session.Id);
+            await PushEventAsync(session.Id, SessionEventTypes.Error, payload: new { error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -113,12 +200,29 @@ public class SessionRunner
     /// </summary>
     public async Task CancelSessionAsync(Guid sessionId)
     {
-        if (_sessionCts.TryRemove(sessionId, out var cts))
+        // 清理暂停信号
+        if (_awaitingInput.TryRemove(sessionId, out var tcs))
         {
-            await cts.CancelAsync();
-            cts.Dispose();
+            tcs.TrySetCanceled();
+        }
+
+        if (_sessionCts.TryRemove(sessionId, out var sessionData))
+        {
+            await sessionData.cts.CancelAsync();
+            sessionData.cts.Dispose();
+            _logger.LogInformation("Session {SessionId} cancelled", sessionId);
         }
         await _streamManager.CancelAsync(sessionId, "Cancelled by user");
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var session = await db.ChatSessions.FindAsync(sessionId);
+        if (session != null)
+        {
+            session.Status = SessionStatus.Cancelled;
+            session.CompletedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
     }
 
     /// <summary>
@@ -128,46 +232,19 @@ public class SessionRunner
     {
         if (_currentFrame.TryGetValue(sessionId, out var frameId))
         {
-            if (_frameCts.TryRemove(frameId, out var cts))
+            if (_frameCts.TryRemove(frameId, out var frameData))
             {
-                cts.Cancel();
-                cts.Dispose();
+                frameData.cts.Cancel();
+                frameData.cts.Dispose();
+                _logger.LogDebug("Frame {FrameId} popped for session {SessionId}", frameId, sessionId);
             }
         }
     }
 
     /// <summary>
-    /// 会话主循环 — 从 Orchestrator 路由开始，递归执行 Frame 栈
+    /// 检查 Session 是否正在等待用户输入
     /// </summary>
-    private async Task RunSessionAsync(ChatSession session, CancellationToken sessionCt)
-    {
-        // 确保项目 Agents 已初始化
-        await _orchestration.InitializeProjectAgentsAsync(session.ProjectId, sessionCt);
-
-        // 创建根 Frame（Orchestrator 路由）
-        var rootFrame = await CreateFrameAsync(session.Id, null, 0, "user", "orchestrator", session.InitialInput, sessionCt);
-
-        await PushEventAsync(session.Id, SessionEventTypes.FramePushed, rootFrame.Id, new
-        {
-            frameId = rootFrame.Id,
-            depth = 0,
-            initiator = "user",
-            target = "orchestrator",
-            purpose = session.InitialInput
-        });
-
-        // 执行 Frame 栈
-        var result = await ExecuteFrameAsync(session, rootFrame, sessionCt);
-
-        // 会话完成
-        await PushEventAsync(session.Id, SessionEventTypes.SessionCompleted, payload: new
-        {
-            sessionId = session.Id,
-            result
-        });
-
-        await FinalizeSessionAsync(session.Id, SessionStatus.Completed, result);
-    }
+    public bool IsAwaitingInput(Guid sessionId) => _awaitingInput.ContainsKey(sessionId);
 
     /// <summary>
     /// 执行单个 Frame — 调用目标 Agent，处理路由和子 Frame
@@ -175,9 +252,8 @@ public class SessionRunner
     private async Task<string> ExecuteFrameAsync(
         ChatSession session, ChatFrame frame, CancellationToken sessionCt)
     {
-        // 创建 Frame 级 CancellationToken（linked to session）
         using var frameCts = CancellationTokenSource.CreateLinkedTokenSource(sessionCt);
-        _frameCts[frame.Id] = frameCts;
+        _frameCts[frame.Id] = (frameCts, DateTime.UtcNow);
         _currentFrame[session.Id] = frame.Id;
 
         try
@@ -202,7 +278,7 @@ public class SessionRunner
             var response = await _orchestration.RouteToAgentAsync(
                 session.ProjectId, frame.TargetRole ?? "communicator", message, ct);
 
-            // 发布消息事件
+            // 发布消息事件（群聊中显示 Agent 发言）
             await PushEventAsync(session.Id, SessionEventTypes.Message, frame.Id, new
             {
                 agent = frame.TargetRole,
@@ -213,7 +289,16 @@ public class SessionRunner
             // 保存消息到数据库
             await SaveMessageAsync(frame, "assistant", frame.TargetRole, response.Content ?? "", ct);
 
-            // 检查是否需要路由到下一个 Agent（生成子 Frame）
+            // 检查是否需要用户输入（暂停链式流转）
+            if (response.RequiresUserInput)
+            {
+                await PauseForUserInputAsync(session, frame, ct);
+                // 暂停恢复后，不再继续当前链路（用户新消息会触发新的 ExecuteUserInputAsync）
+                await CompleteFrameAsync(frame.Id, response.Content ?? "", ct);
+                return response.Content ?? "";
+            }
+
+            // 检查是否需要路由到下一个 Agent（链式流转）
             if (!string.IsNullOrEmpty(response.TargetRole) && response.TargetRole != frame.TargetRole)
             {
                 await PushEventAsync(session.Id, SessionEventTypes.Routing, frame.Id, new
@@ -223,7 +308,6 @@ public class SessionRunner
                     reason = "Agent routing marker"
                 });
 
-                // 创建子 Frame
                 var childFrame = await CreateFrameAsync(
                     session.Id, frame.Id, frame.Depth + 1,
                     frame.TargetRole ?? "unknown",
@@ -240,10 +324,8 @@ public class SessionRunner
                     purpose = Truncate(response.Content, 200)
                 });
 
-                // 递归执行子 Frame
                 var childResult = await ExecuteFrameAsync(session, childFrame, sessionCt);
 
-                // 子 Frame 完成后，Pop 回到当前 Frame
                 await PushEventAsync(session.Id, SessionEventTypes.FrameCompleted, childFrame.Id, new
                 {
                     frameId = childFrame.Id,
@@ -266,7 +348,6 @@ public class SessionRunner
         }
         catch (OperationCanceledException) when (frameCts.IsCancellationRequested && !sessionCt.IsCancellationRequested)
         {
-            // Frame 级取消（Pop）
             await CompleteFrameAsync(frame.Id, "Frame popped by user", CancellationToken.None, FrameStatus.Popped);
 
             await PushEventAsync(session.Id, SessionEventTypes.FramePopped, frame.Id, new
@@ -282,6 +363,39 @@ public class SessionRunner
             _frameCts.TryRemove(frame.Id, out _);
             _currentFrame.TryRemove(session.Id, out _);
         }
+    }
+
+    /// <summary>
+    /// 暂停 Session 等待用户输入
+    /// </summary>
+    private async Task PauseForUserInputAsync(ChatSession session, ChatFrame frame, CancellationToken ct)
+    {
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _awaitingInput[session.Id] = tcs;
+
+        // 更新 Session 状态
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var dbSession = await db.ChatSessions.FindAsync(session.Id);
+            if (dbSession != null)
+            {
+                dbSession.Status = SessionStatus.AwaitingInput;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        await PushEventAsync(session.Id, SessionEventTypes.AwaitingInput, frame.Id, new
+        {
+            agent = frame.TargetRole,
+            message = "等待用户输入..."
+        });
+
+        _logger.LogInformation("Session {SessionId} paused, awaiting user input", session.Id);
+
+        // 等待用户输入或取消
+        using var reg = ct.Register(() => tcs.TrySetCanceled());
+        await tcs.Task; // 阻塞直到用户回复或取消
     }
 
     private async Task<ChatFrame> CreateFrameAsync(
@@ -352,35 +466,6 @@ public class SessionRunner
             frame.CompletedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
         }
-    }
-
-    private async Task FinalizeSessionAsync(Guid sessionId, string status, string? result = null)
-    {
-        // 更新数据库状态
-        using var scope = _serviceProvider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var session = await db.ChatSessions.FindAsync(sessionId);
-        if (session != null)
-        {
-            session.Status = status;
-            session.FinalResult = result;
-            session.CompletedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync();
-        }
-
-        // 持久化事件并释放流
-        if (status == SessionStatus.Cancelled)
-        {
-            await _streamManager.CancelAsync(sessionId);
-        }
-        else
-        {
-            await _streamManager.CompleteAsync(sessionId);
-        }
-
-        // 清理 CancellationTokenSource
-        if (_sessionCts.TryRemove(sessionId, out var cts))
-            cts.Dispose();
     }
 
     private static string? Truncate(string? text, int maxLength)

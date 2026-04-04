@@ -56,4 +56,6 @@ public static class SessionEventTypes
 
     // 用户交互
     public const string UserInput = "user_input";
+    public const string AwaitingInput = "awaiting_input";
+    public const string ResumedByUser = "resumed_by_user";
 }

@@ -50,6 +50,29 @@ public class SessionsController : ControllerBase
     }
 
     /// <summary>
+    /// 群聊追加消息 — 向已有 Session 发送新消息
+    /// </summary>
+    [HttpPost("{sessionId}/messages")]
+    public async Task<IActionResult> SendMessage(Guid sessionId, [FromBody] ChatMessageRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Input))
+            return BadRequest(new { error = "Input is required" });
+
+        var session = await _db.ChatSessions.FindAsync(sessionId);
+        if (session == null)
+            return NotFound(new { error = "Session not found" });
+
+        await _runner.SendMessageAsync(sessionId, request.Input);
+
+        return Ok(new
+        {
+            sessionId,
+            status = "message_sent",
+            isAwaitingInput = _runner.IsAwaitingInput(sessionId)
+        });
+    }
+
+    /// <summary>
     /// 获取会话详情
     /// </summary>
     [HttpGet("{sessionId}")]
@@ -179,6 +202,34 @@ public class SessionsController : ControllerBase
 
         return Ok(sessions);
     }
+
+    /// <summary>
+    /// 获取群聊消息流 — 按时间排序的所有消息（分页）
+    /// </summary>
+    [HttpGet("{sessionId}/chat-messages")]
+    public async Task<IActionResult> GetChatMessages(Guid sessionId, [FromQuery] int skip = 0, [FromQuery] int take = 50)
+    {
+        var messages = await _db.ChatMessages
+            .Where(m => m.SessionId == sessionId)
+            .OrderBy(m => m.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .Select(m => new
+            {
+                id = m.Id,
+                frameId = m.FrameId,
+                role = m.Role,
+                agentRole = m.AgentRole,
+                content = m.Content,
+                contentType = m.ContentType,
+                createdAt = m.CreatedAt
+            })
+            .ToListAsync();
+
+        var total = await _db.ChatMessages.CountAsync(m => m.SessionId == sessionId);
+
+        return Ok(new { messages, total, skip, take });
+    }
 }
 
 public class CreateSessionRequest
@@ -186,4 +237,9 @@ public class CreateSessionRequest
     public Guid ProjectId { get; set; }
     public string Input { get; set; } = string.Empty;
     public string? ContextStrategy { get; set; }
+}
+
+public class ChatMessageRequest
+{
+    public string Input { get; set; } = string.Empty;
 }
