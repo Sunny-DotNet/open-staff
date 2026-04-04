@@ -67,7 +67,6 @@ public class StandardAgent : AgentBase
                 modelName: modelName,
                 instructions: systemPrompt,
                 agentName: _config.Name);
-
             // 5. Build chat messages
             var chatMessages = new List<ChatMessage>
             {

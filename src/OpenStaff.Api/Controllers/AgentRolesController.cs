@@ -154,11 +154,27 @@ public class AgentRolesController : ControllerBase
             return BadRequest(new { message = "没有可用的模型提供商，请先在设置中启用至少一个提供商" });
         }
 
-        // 解密 API Key
-        var apiKey = _providerService.ResolveApiKey(provider);
-        if (string.IsNullOrEmpty(apiKey))
+        // 解析 API Key（Copilot 会自动做 oauth_token → github_token 交换）
+        var apiKeyResolver = HttpContext.RequestServices.GetRequiredService<ApiKeyResolver>();
+        var resolved = await apiKeyResolver.ResolveAsync(provider, cancellationToken);
+        if (string.IsNullOrEmpty(resolved.ApiKey))
         {
             return BadRequest(new { message = "模型提供商未配置 API Key" });
+        }
+
+        // 如果 Copilot token 返回了动态端点，覆盖 provider 的 BaseUrl
+        var effectiveProvider = provider;
+        if (!string.IsNullOrEmpty(resolved.EndpointOverride))
+        {
+            effectiveProvider = new ModelProvider
+            {
+                Id = provider.Id,
+                Name = provider.Name,
+                ProviderType = provider.ProviderType,
+                BaseUrl = resolved.EndpointOverride,
+                DefaultModel = provider.DefaultModel,
+                IsEnabled = provider.IsEnabled
+            };
         }
 
         // 使用 AgentFactory 创建并调用 agent
@@ -177,8 +193,8 @@ public class AgentRolesController : ControllerBase
             AgentInstanceId = Guid.NewGuid(),
             Role = role,
             Project = new Project { Id = Guid.Empty, Name = "Test" },
-            Provider = provider,
-            ApiKey = apiKey,
+            Provider = effectiveProvider,
+            ApiKey = resolved.ApiKey,
             EventPublisher = new NullEventPublisher(),
             Language = "zh-CN"
         };

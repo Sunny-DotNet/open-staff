@@ -80,6 +80,8 @@ builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddSingleton<FileProviderService>();
 builder.Services.AddSingleton<ModelsDevService>();
+builder.Services.AddSingleton<CopilotTokenService>();
+builder.Services.AddSingleton<ApiKeyResolver>();
 builder.Services.AddHttpClient<GitHubDeviceAuthService>();
 builder.Services.AddHttpClient<ModelListingService>();
 

@@ -19,6 +19,7 @@ public class GitHubDeviceAuthService
     private readonly HttpClient _httpClient;
     private readonly FileProviderService _providerService;
     private readonly EncryptionService _encryption;
+    private readonly CopilotTokenService _copilotTokenService;
 
     // 存储进行中的设备码流程（providerId -> DeviceCodeSession）
     private static readonly ConcurrentDictionary<Guid, DeviceCodeSession> _sessions = new();
@@ -26,11 +27,13 @@ public class GitHubDeviceAuthService
     public GitHubDeviceAuthService(
         HttpClient httpClient,
         FileProviderService providerService,
-        EncryptionService encryption)
+        EncryptionService encryption,
+        CopilotTokenService copilotTokenService)
     {
         _httpClient = httpClient;
         _providerService = providerService;
         _encryption = encryption;
+        _copilotTokenService = copilotTokenService;
     }
 
     /// <summary>
@@ -116,11 +119,14 @@ public class GitHubDeviceAuthService
         {
             _sessions.TryRemove(providerId, out _);
 
-            // 将 token 加密存储到 ModelProvider
+            // 将 oauth_token 加密存储到 ModelProvider
             _providerService.Update(providerId, new UpdateProviderRequest
             {
                 ApiKey = result.AccessToken
             });
+
+            // 清除 Copilot token 缓存（旧 github_token 可能已失效）
+            _copilotTokenService.ClearCache();
 
             return new PollResult { Status = "success", Message = "授权成功" };
         }

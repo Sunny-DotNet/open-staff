@@ -2,40 +2,34 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Aspire -->
     <PackageVersion Include="Aspire.Hosting" Version="13.2.1" />
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.1" />
     <!-- SQLite 不需要 Aspire.Hosting.PostgreSQL -->
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.2.1" />
-
     <!-- Microsoft Agent Framework -->
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.0.0" />
+    <PackageVersion Include="Microsoft.Agents.AI.GitHub.Copilot" Version="1.0.0-preview.260402.1" />
     <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0" />
     <PackageVersion Include="Microsoft.Agents.AI.Anthropic" Version="1.0.0-rc6" />
     <PackageVersion Include="Google.GenAI" Version="1.6.1" />
-
     <!-- Entity Framework Core -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.4" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
-
     <!-- ASP.NET Core / Extensions -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Common" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.5" />
-
     <!-- Git -->
     <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
-
     <!-- Testing -->
     <PackageVersion Include="coverlet.collector" Version="6.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="xunit" Version="2.5.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.5.3" />
-
     <!-- Aspire ServiceDefaults (OpenTelemetry + Resilience + ServiceDiscovery) -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.2.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.2.0" />

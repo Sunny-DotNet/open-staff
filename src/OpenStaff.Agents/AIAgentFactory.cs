@@ -1,5 +1,6 @@
 using System.ClientModel;
 using Anthropic;
+using GitHub.Copilot.SDK;
 using Google.GenAI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -81,11 +82,12 @@ public class AIAgentFactory
 
     /// <summary>
     /// GitHub Copilot — 使用 OpenAI SDK 连接 Copilot API 端点
-    /// 使用 Device Auth 获取的 token 作为 Bearer token
+    /// apiKey 应为 github_token（由 CopilotTokenService 从 oauth_token 交换获得）
+    /// baseUrl 可能来自 token 响应的 chat_completions endpoint
     /// </summary>
     private static AIAgent CreateGitHubCopilotAgent(string apiKey, string model, string? baseUrl, string? instructions, string? name)
     {
-        var endpoint = baseUrl ?? "https://api.githubcopilot.com";
+        var endpoint = baseUrl ?? "https://api.individual.githubcopilot.com";
         var credential = new ApiKeyCredential(apiKey);
         var options = new OpenAIClientOptions { Endpoint = new Uri(endpoint) };
         var client = new OpenAIClient(credential, options);
@@ -93,6 +95,17 @@ public class AIAgentFactory
         return client
             .GetChatClient(model)
             .AsAIAgent(instructions: instructions, name: name);
+
+
+
+        var  copilotClient = new CopilotClient(new() { GitHubToken=apiKey});
+        SessionConfig sessionConfig = new()
+        {
+            Model= model,
+            
+        };
+
+        return copilotClient.AsAIAgent(sessionConfig);
     }
 
     /// <summary>
