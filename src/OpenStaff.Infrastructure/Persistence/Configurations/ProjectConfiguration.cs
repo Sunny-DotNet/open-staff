@@ -17,5 +17,12 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(x => x.GitConfig).HasColumnType("TEXT");
         builder.Property(x => x.Status).HasMaxLength(50).HasDefaultValue(ProjectStatus.Initializing);
         builder.Property(x => x.Metadata).HasColumnType("TEXT");
+
+        builder.HasOne(x => x.MainSession)
+            .WithOne()
+            .HasForeignKey<Project>(x => x.MainSessionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(x => x.MainSessionId).IsUnique();
     }
 }

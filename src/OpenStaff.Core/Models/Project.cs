@@ -17,7 +17,11 @@ public class Project
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>主群聊会话 ID</summary>
+    public Guid? MainSessionId { get; set; }
+
     // 导航属性
+    public ChatSession? MainSession { get; set; }
     public ICollection<ProjectAgent> Agents { get; set; } = new List<ProjectAgent>();
     public ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
     public ICollection<AgentEvent> Events { get; set; } = new List<AgentEvent>();

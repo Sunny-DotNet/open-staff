@@ -35,6 +35,8 @@ public static class SessionStatus
     public const string Completed = "completed";
     public const string Cancelled = "cancelled";
     public const string Error = "error";
+    /// <summary>等待用户输入（暂停链式流转）</summary>
+    public const string AwaitingInput = "awaiting_input";
 }
 
 public static class ContextStrategies
