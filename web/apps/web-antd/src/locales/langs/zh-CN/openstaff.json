@@ -1,0 +1,93 @@
+{
+  "dashboard": {
+    "title": "控制台",
+    "totalProjects": "项目总数",
+    "activeAgents": "活跃智能体",
+    "runningTasks": "运行中任务",
+    "recentActivity": "最近活动",
+    "systemStatus": "系统状态",
+    "statusNormal": "运行正常",
+    "statusAbnormal": "运行异常",
+    "noActivity": "暂无活动"
+  },
+  "project": {
+    "title": "项目管理",
+    "create": "创建项目",
+    "name": "项目名称",
+    "description": "项目描述",
+    "status": "状态"
+  },
+  "agentChat": {
+    "title": "智能体协作",
+    "agentList": "智能体列表",
+    "messageStream": "消息流",
+    "taskPanel": "任务面板",
+    "sendMessage": "发送消息",
+    "inputPlaceholder": "输入消息内容...",
+    "statusIdle": "空闲",
+    "statusThinking": "思考中",
+    "statusWorking": "工作中",
+    "noMessages": "暂无消息",
+    "noAgents": "暂无智能体"
+  },
+  "taskBoard": {
+    "title": "任务看板",
+    "pending": "待处理",
+    "inProgress": "进行中",
+    "done": "已完成",
+    "blocked": "已阻塞",
+    "priority": "优先级",
+    "assignedAgent": "分配智能体",
+    "noTasks": "暂无任务",
+    "priorityLow": "低",
+    "priorityMedium": "中",
+    "priorityHigh": "高",
+    "priorityCritical": "紧急"
+  },
+  "codeDiff": {
+    "title": "代码差异",
+    "selectCheckpoint": "选择检查点",
+    "fileChanges": "文件变更",
+    "noCheckpoints": "暂无检查点",
+    "noChanges": "暂无变更",
+    "additions": "新增",
+    "deletions": "删除"
+  },
+  "fileExplorer": {
+    "title": "文件浏览",
+    "fileTree": "文件树",
+    "fileContent": "文件内容",
+    "noFiles": "暂无文件",
+    "selectFile": "请选择文件"
+  },
+  "monitor": {
+    "title": "运行监控",
+    "tokenUsage": "Token 用量",
+    "apiLatency": "API 延迟",
+    "totalTokens": "总 Token 数",
+    "todayTokens": "今日用量",
+    "avgLatency": "平均延迟",
+    "byAgent": "按智能体",
+    "byTime": "按时间"
+  },
+  "settings": {
+    "title": "系统设置",
+    "modelProviders": "模型提供商",
+    "providerName": "名称",
+    "providerType": "类型",
+    "apiKey": "API 密钥",
+    "baseUrl": "接口地址",
+    "enabled": "启用",
+    "language": "语言",
+    "globalSettings": "全局设置",
+    "defaultModel": "默认模型",
+    "maxTokens": "最大 Token 数",
+    "autoSave": "自动保存",
+    "save": "保存",
+    "add": "添加",
+    "edit": "编辑",
+    "delete": "删除",
+    "confirm": "确认",
+    "cancel": "取消"
+  }
+}
