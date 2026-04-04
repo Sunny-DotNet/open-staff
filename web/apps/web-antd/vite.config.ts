@@ -8,11 +8,11 @@ export default defineConfig(async () => {
         proxy: {
           '/api': {
             changeOrigin: true,
-            target: 'http://localhost:5000',
+            target: 'http://localhost:5010',
           },
           '/hubs': {
             changeOrigin: true,
-            target: 'http://localhost:5000',
+            target: 'http://localhost:5010',
             ws: true,
           },
         },

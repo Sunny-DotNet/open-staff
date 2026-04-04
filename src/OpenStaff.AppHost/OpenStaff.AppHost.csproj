@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
-    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <!-- SQLite is file-based, no Aspire hosting needed -->
     <PackageReference Include="Aspire.Hosting.JavaScript" />
   </ItemGroup>
 

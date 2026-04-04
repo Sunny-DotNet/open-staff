@@ -82,6 +82,16 @@ const routes: RouteRecordRaw[] = [
   },
   {
     meta: {
+      icon: 'lucide:bot',
+      order: 50,
+      title: $t('openstaff.agentConfig.title'),
+    },
+    name: 'AgentConfig',
+    path: '/agents',
+    component: () => import('#/views/openstaff/agent-config/index.vue'),
+  },
+  {
+    meta: {
       icon: 'lucide:settings',
       order: 100,
       title: $t('openstaff.settings.title'),

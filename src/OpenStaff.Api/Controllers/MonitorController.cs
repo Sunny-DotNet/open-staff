@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OpenStaff.Api.Services;
 using OpenStaff.Infrastructure.Persistence;
 
 namespace OpenStaff.Api.Controllers;
@@ -12,8 +13,13 @@ namespace OpenStaff.Api.Controllers;
 public class MonitorController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly FileProviderService _providerService;
 
-    public MonitorController(AppDbContext db) => _db = db;
+    public MonitorController(AppDbContext db, FileProviderService providerService)
+    {
+        _db = db;
+        _providerService = providerService;
+    }
 
     /// <summary>
     /// 系统健康检查 / System health check
@@ -40,7 +46,7 @@ public class MonitorController : ControllerBase
         var taskCount = await _db.Tasks.CountAsync(ct);
         var eventCount = await _db.AgentEvents.CountAsync(ct);
         var completedTasks = await _db.Tasks.CountAsync(t => t.Status == "done", ct);
-        var providerCount = await _db.ModelProviders.CountAsync(p => p.IsActive, ct);
+        var providerCount = _providerService.GetAll().Count;
 
         return Ok(new
         {

@@ -1,0 +1,349 @@
+- generic [ref=e2]:
+  - generic "Aspire" [ref=e4]:
+    - link "Aspire" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - generic:
+        - generic:
+          - generic:
+            - img
+  - banner [ref=e6]:
+    - generic [ref=e7]:
+      - link "OpenStaff" [ref=e9] [cursor=pointer]:
+        - /url: /
+        - generic:
+          - generic: OpenStaff
+      - generic "Aspire 存储库" [ref=e10]:
+        - link "Aspire 存储库" [ref=e11] [cursor=pointer]:
+          - /url: https://aka.ms/dotnet/aspire/repo
+          - generic:
+            - generic:
+              - img
+      - generic "帮助" [ref=e12] [cursor=pointer]:
+        - button "帮助" [ref=e13]:
+          - generic:
+            - generic:
+              - img
+      - generic "MCP Server" [ref=e14] [cursor=pointer]:
+        - button "MCP Server" [ref=e15]:
+          - generic:
+            - generic:
+              - img
+      - generic "设置" [ref=e16] [cursor=pointer]:
+        - button "设置" [ref=e17]:
+          - generic:
+            - generic:
+              - img
+  - navigation [ref=e18]:
+    - generic "资源" [ref=e19]:
+      - link "资源" [ref=e21] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e22]:
+          - img [ref=e23]
+          - generic [ref=e25]: 资源
+    - generic "控制台" [ref=e26]:
+      - link "控制台" [ref=e28] [cursor=pointer]:
+        - /url: /consolelogs
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - generic [ref=e32]: 控制台
+    - generic "结构化" [ref=e33]:
+      - link "结构化" [ref=e35] [cursor=pointer]:
+        - /url: /structuredlogs
+        - generic [ref=e36]:
+          - img [ref=e37]
+          - generic [ref=e39]: 结构化
+    - generic "跟踪" [ref=e40]:
+      - link "跟踪" [ref=e42] [cursor=pointer]:
+        - /url: /traces
+        - generic [ref=e43]:
+          - img [ref=e44]
+          - generic [ref=e46]: 跟踪
+    - generic "指标" [ref=e47]:
+      - link "指标" [ref=e49] [cursor=pointer]:
+        - /url: /metrics
+        - generic [ref=e50]:
+          - img [ref=e51]
+          - generic [ref=e53]: 指标
+  - generic [ref=e58]:
+    - banner "页面工具栏" [ref=e59]:
+      - toolbar [ref=e60]:
+        - generic [ref=e61]:
+          - heading "资源" [level=1] [ref=e62]
+          - generic [ref=e63]:
+            - generic:
+              - generic [ref=e65]:
+                - img [ref=e68]
+                - generic [ref=e70]:
+                  - searchbox [ref=e71]
+                  - button [ref=e73]:
+                    - img [ref=e75]
+              - generic "无筛选器" [ref=e77] [cursor=pointer]:
+                - button "无筛选器" [ref=e78]:
+                  - generic:
+                    - generic:
+                      - img
+              - generic "查看选项" [ref=e79] [cursor=pointer]:
+                - button "查看选项" [ref=e80]:
+                  - generic:
+                    - generic:
+                      - img
+    - main [ref=e81]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - tablist [ref=e89]:
+            - generic:
+              - tab "资源" [selected] [ref=e90] [cursor=pointer]:
+                - generic:
+                  - img [ref=e91]
+                  - text: 资源
+              - tab "参数" [ref=e93] [cursor=pointer]:
+                - generic:
+                  - img [ref=e94]
+                  - text: 参数
+              - tab "图。有关可访问的视图，请导航到“资源”选项卡" [ref=e96] [cursor=pointer]:
+                - generic:
+                  - img [ref=e97]
+                  - text: 图
+          - generic:
+            - generic:
+              - tabpanel "资源"
+        - table [ref=e101]:
+          - rowgroup [ref=e102]:
+            - row "名称 状态 开始时间 源 URL 操作" [ref=e103]:
+              - columnheader "名称" [ref=e104]:
+                - generic "名称" [ref=e106] [cursor=pointer]:
+                  - button "名称" [ref=e107]:
+                    - generic:
+                      - generic:
+                        - generic "名称"
+              - columnheader "状态" [ref=e110]:
+                - generic "状态" [ref=e112] [cursor=pointer]:
+                  - button "状态" [ref=e113]:
+                    - generic:
+                      - generic:
+                        - generic "状态"
+              - columnheader "开始时间" [ref=e116]:
+                - generic "开始时间" [ref=e118] [cursor=pointer]:
+                  - button "开始时间" [ref=e119]:
+                    - generic:
+                      - generic:
+                        - generic "开始时间"
+              - columnheader "源" [ref=e122]:
+                - generic "源" [ref=e124] [cursor=pointer]:
+                  - button "源" [ref=e125]:
+                    - generic:
+                      - generic:
+                        - generic "源"
+              - columnheader "URL" [ref=e128]:
+                - generic "URL" [ref=e130] [cursor=pointer]:
+                  - button "URL" [ref=e131]:
+                    - generic:
+                      - generic:
+                        - generic "URL"
+              - columnheader "操作" [ref=e134]:
+                - generic "操作" [ref=e136] [cursor=pointer]:
+                  - button "操作" [ref=e137]:
+                    - generic:
+                      - generic:
+                        - generic "操作"
+          - rowgroup [ref=e140]:
+            - 'row "Container: postgres Running 2026/4/4 17:01:35 docker.io/library/postgres:17.6 tcp://localhost:49935 停止资源 控制台日志 操作" [ref=e141]':
+              - 'gridcell "Container: postgres" [ref=e142]':
+                - generic [ref=e143]:
+                  - generic "切换嵌套" [ref=e145] [cursor=pointer]:
+                    - button "切换嵌套" [ref=e146]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic [ref=e147]:
+                    - img [ref=e148]
+                    - generic [ref=e150]: postgres
+              - gridcell "Running" [ref=e151]:
+                - generic [ref=e152]:
+                  - img [ref=e153]
+                  - text: Running
+              - gridcell "2026/4/4 17:01:35" [ref=e155]: 17:01:35
+              - gridcell "docker.io/library/postgres:17.6" [ref=e156]:
+                - generic [ref=e157]:
+                  - generic "docker.io/library/postgres:17.6" [ref=e158]
+                  - generic "在文本可视化工具中打开" [ref=e159] [cursor=pointer]:
+                    - button "在文本可视化工具中打开" [ref=e160]:
+                      - generic:
+                        - generic:
+                          - img
+              - gridcell "tcp://localhost:49935" [ref=e161]
+              - gridcell "停止资源 控制台日志 操作" [ref=e162]:
+                - generic [ref=e163]:
+                  - generic "停止资源" [ref=e164] [cursor=pointer]:
+                    - button "停止资源" [ref=e165]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "控制台日志" [ref=e166] [cursor=pointer]:
+                    - button "控制台日志" [ref=e167]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "操作" [ref=e168] [cursor=pointer]:
+                    - button "操作" [ref=e169]:
+                      - generic:
+                        - generic:
+                          - img
+            - 'row "PostgresDatabaseResource: openstaff Running 2026/4/4 17:01:35 - - 控制台日志 操作" [ref=e170]':
+              - 'gridcell "PostgresDatabaseResource: openstaff" [ref=e171]':
+                - generic [ref=e173]:
+                  - img [ref=e174]
+                  - generic [ref=e176]: openstaff
+              - gridcell "Running" [ref=e177]:
+                - generic [ref=e178]:
+                  - img [ref=e179]
+                  - text: Running
+              - gridcell "2026/4/4 17:01:35" [ref=e181]: 17:01:35
+              - gridcell "-" [ref=e182]:
+                - generic [ref=e183]: "-"
+              - gridcell "-" [ref=e184]:
+                - generic [ref=e185]: "-"
+              - gridcell "控制台日志 操作" [ref=e186]:
+                - generic [ref=e187]:
+                  - generic "控制台日志" [ref=e188] [cursor=pointer]:
+                    - button "控制台日志" [ref=e189]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "操作" [ref=e190] [cursor=pointer]:
+                    - button "操作" [ref=e191]:
+                      - generic:
+                        - generic:
+                          - img
+            - 'row "Executable: web Running 2026/4/4 17:01:42 pnpm run dev --port {{- portForServing \"web\" -}} http://localhost:49934 停止资源 控制台日志 操作" [ref=e192]':
+              - 'gridcell "Executable: web" [ref=e193]':
+                - generic [ref=e194]:
+                  - generic "切换嵌套" [ref=e196] [cursor=pointer]:
+                    - button "切换嵌套" [ref=e197]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic [ref=e198]:
+                    - img [ref=e199]
+                    - generic [ref=e201]: web
+              - gridcell "Running" [ref=e202]:
+                - generic [ref=e203]:
+                  - img [ref=e204]
+                  - text: Running
+              - gridcell "2026/4/4 17:01:42" [ref=e206]: 17:01:42
+              - 'gridcell "pnpm run dev --port {{- portForServing \"web\" -}}" [ref=e207]':
+                - generic [ref=e208]:
+                  - 'generic "pnpm run dev --port {{- portForServing \"web\" -}}" [ref=e209]': "pnpm run dev --port \"{{- portForServing \"web\" -}}\""
+                  - generic "在文本可视化工具中打开" [ref=e210] [cursor=pointer]:
+                    - button "在文本可视化工具中打开" [ref=e211]:
+                      - generic:
+                        - generic:
+                          - img
+              - gridcell "http://localhost:49934" [ref=e212]:
+                - link "http://localhost:49934" [ref=e213] [cursor=pointer]:
+                  - /url: http://localhost:49934
+              - gridcell "停止资源 控制台日志 操作" [ref=e214]:
+                - generic [ref=e215]:
+                  - generic "停止资源" [ref=e216] [cursor=pointer]:
+                    - button "停止资源" [ref=e217]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "控制台日志" [ref=e218] [cursor=pointer]:
+                    - button "控制台日志" [ref=e219]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "操作" [ref=e220] [cursor=pointer]:
+                    - button "操作" [ref=e221]:
+                      - generic:
+                        - generic:
+                          - img
+            - 'row "Executable: web-installer Executable 已不再运行 2026/4/4 17:01:30 pnpm install - 启动资源 控制台日志 操作" [ref=e222]':
+              - 'gridcell "Executable: web-installer" [ref=e223]':
+                - generic [ref=e225]:
+                  - img [ref=e226]
+                  - generic [ref=e228]: web-installer
+              - gridcell "Executable 已不再运行" [ref=e229]:
+                - generic [ref=e230]:
+                  - img [ref=e231]
+                  - text: Finished
+              - gridcell "2026/4/4 17:01:30" [ref=e233]: 17:01:30
+              - gridcell "pnpm install" [ref=e234]:
+                - generic [ref=e235]:
+                  - generic "pnpm install" [ref=e236]
+                  - generic "在文本可视化工具中打开" [ref=e237] [cursor=pointer]:
+                    - button "在文本可视化工具中打开" [ref=e238]:
+                      - generic:
+                        - generic:
+                          - img
+              - gridcell "-" [ref=e239]:
+                - generic [ref=e240]: "-"
+              - gridcell "启动资源 控制台日志 操作" [ref=e241]:
+                - generic [ref=e242]:
+                  - generic "启动资源" [ref=e243] [cursor=pointer]:
+                    - button "启动资源" [ref=e244]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "控制台日志" [ref=e245] [cursor=pointer]:
+                    - button "控制台日志" [ref=e246]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "操作" [ref=e247] [cursor=pointer]:
+                    - button "操作" [ref=e248]:
+                      - generic:
+                        - generic:
+                          - img
+            - 'row "Project: api Running 2026/4/4 17:01:30 A:\\Git\\Github\\m67186636\\open-staff\\src\\OpenStaff.Api\\OpenStaff.Api.csproj http://localhost:5010/weatherforecast 停止资源 控制台日志 操作" [ref=e249]':
+              - 'gridcell "Project: api" [ref=e250]':
+                - generic [ref=e252]:
+                  - img [ref=e253]
+                  - generic [ref=e255]: api
+              - gridcell "Running" [ref=e256]:
+                - generic [ref=e257]:
+                  - img [ref=e258]
+                  - text: Running
+                  - generic "2 个错误日志" [ref=e260]:
+                    - link "2 个错误日志" [ref=e261] [cursor=pointer]:
+                      - /url: /structuredlogs/resource/api?logLevel=error
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic: "2"
+              - gridcell "2026/4/4 17:01:30" [ref=e262]: 17:01:30
+              - gridcell "A:\\Git\\Github\\m67186636\\open-staff\\src\\OpenStaff.Api\\OpenStaff.Api.csproj" [ref=e263]:
+                - generic [ref=e264]:
+                  - generic "A:\\Git\\Github\\m67186636\\open-staff\\src\\OpenStaff.Api\\OpenStaff.Api.csproj" [ref=e265]: OpenStaff.Api.csproj
+                  - generic "在文本可视化工具中打开" [ref=e266] [cursor=pointer]:
+                    - button "在文本可视化工具中打开" [ref=e267]:
+                      - generic:
+                        - generic:
+                          - img
+              - gridcell "http://localhost:5010/weatherforecast" [ref=e268]:
+                - link "http://localhost:5010/weatherforecast" [ref=e269] [cursor=pointer]:
+                  - /url: http://localhost:5010/weatherforecast
+              - gridcell "停止资源 控制台日志 操作" [ref=e270]:
+                - generic [ref=e271]:
+                  - generic "停止资源" [ref=e272] [cursor=pointer]:
+                    - button "停止资源" [ref=e273]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "控制台日志" [ref=e274] [cursor=pointer]:
+                    - button "控制台日志" [ref=e275]:
+                      - generic:
+                        - generic:
+                          - img
+                  - generic "操作" [ref=e276] [cursor=pointer]:
+                    - button "操作" [ref=e277]:
+                      - generic:
+                        - generic:
+                          - img
+    - contentinfo [ref=e278]:
+      - generic [ref=e281]:
+        - text: 显示 5 个资源
+        - strong

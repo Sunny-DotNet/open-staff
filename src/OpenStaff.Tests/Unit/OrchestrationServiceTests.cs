@@ -65,9 +65,16 @@ public class OrchestrationServiceTests
             .Setup(e => e.PublishAsync(It.IsAny<AgentEventData>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var scopeFactoryMock = new Mock<IServiceScopeFactory>();
+        var scopeMock = new Mock<IServiceScope>();
+        var scopedSpMock = new Mock<IServiceProvider>();
+        scopedSpMock.Setup(sp => sp.GetService(typeof(IEventPublisher))).Returns(eventPublisherMock.Object);
+        scopeMock.Setup(s => s.ServiceProvider).Returns(scopedSpMock.Object);
+        scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
+
         var logger = new Mock<ILogger<OrchestrationService>>().Object;
 
-        return new OrchestrationService(factory, modelClientFactoryMock.Object, eventPublisherMock.Object, logger);
+        return new OrchestrationService(factory, modelClientFactoryMock.Object, scopeFactoryMock.Object, logger);
     }
 
     [Fact]

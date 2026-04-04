@@ -17,8 +17,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // 数据库与基础设施 / Database and infrastructure
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Database=openstaff;Username=openstaff;Password=openstaff";
+// 默认使用 ~/.staff/openstaff.db / Default: ~/.staff/openstaff.db
+var staffDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".staff");
+Directory.CreateDirectory(staffDir);
+var defaultDbPath = Path.Combine(staffDir, "openstaff.db");
+
+var connectionString = builder.Configuration.GetConnectionString("openstaff")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? $"Data Source={defaultDbPath}";
 var encryptionKey = builder.Configuration["Security:EncryptionKey"];
 builder.Services.AddInfrastructure(connectionString, encryptionKey);
 
@@ -68,6 +74,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<SettingsService>();
+builder.Services.AddSingleton<FileProviderService>();
+builder.Services.AddHttpClient<GitHubDeviceAuthService>();
+builder.Services.AddHttpClient<ModelListingService>();
 
 // 数据库种子 / Database seed
 builder.Services.AddHostedService<OpenStaff.Api.Services.RoleSeedService>();
@@ -78,11 +87,14 @@ builder.Services.AddHostedService<SignalREventForwarder>();
 var app = builder.Build();
 
 // 自动迁移数据库 / Auto-migrate database on startup
-using (var scope = app.Services.CreateScope())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<OpenStaff.Infrastructure.Persistence.AppDbContext>();
     await db.Database.MigrateAsync();
 }
+
+// 种子默认模型供应商（文件系统）/ Seed default model providers (file-based)
+app.Services.GetRequiredService<FileProviderService>().SeedDefaults();
 
 // 中间件 / Middleware
 app.UseMiddleware<ErrorHandlingMiddleware>();

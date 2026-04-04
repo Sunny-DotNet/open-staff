@@ -46,3 +46,4 @@ plugins/
 # Logs
 *.log
 logs/
+.playwright-mcp/

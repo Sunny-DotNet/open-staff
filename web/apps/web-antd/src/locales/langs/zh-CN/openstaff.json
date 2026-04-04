@@ -89,5 +89,25 @@
     "delete": "删除",
     "confirm": "确认",
     "cancel": "取消"
+  },
+  "agentConfig": {
+    "title": "代理体配置",
+    "selectAgent": "选择代理体",
+    "modelConfig": "模型配置",
+    "modelProvider": "模型提供商",
+    "modelName": "模型名称",
+    "temperature": "温度",
+    "maxTokens": "最大 Token",
+    "tools": "工具配置",
+    "mcp": "MCP 配置",
+    "testChat": "对话测试",
+    "sendMessage": "发送",
+    "inputPlaceholder": "输入消息测试代理体...",
+    "noProvider": "未选择模型提供商",
+    "builtinTip": "内置代理体仅允许修改模型配置",
+    "save": "保存配置",
+    "saving": "保存中...",
+    "saved": "配置已保存",
+    "noMessages": "发送消息开始测试对话"
   }
 }

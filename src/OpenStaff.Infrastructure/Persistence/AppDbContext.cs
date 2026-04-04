@@ -11,7 +11,6 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     public DbSet<GlobalSetting> GlobalSettings => Set<GlobalSetting>();
-    public DbSet<ModelProvider> ModelProviders => Set<ModelProvider>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<AgentRole> AgentRoles => Set<AgentRole>();
     public DbSet<ProjectAgent> ProjectAgents => Set<ProjectAgent>();

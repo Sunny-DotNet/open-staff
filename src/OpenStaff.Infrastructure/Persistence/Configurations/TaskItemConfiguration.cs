@@ -12,7 +12,7 @@ public class TaskItemConfiguration : IEntityTypeConfiguration<TaskItem>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Title).IsRequired().HasMaxLength(500);
         builder.Property(x => x.Status).HasMaxLength(50).HasDefaultValue(TaskItemStatus.Pending);
-        builder.Property(x => x.Metadata).HasColumnType("jsonb");
+        builder.Property(x => x.Metadata).HasColumnType("TEXT");
 
         builder.HasOne(x => x.Project)
             .WithMany(x => x.Tasks)

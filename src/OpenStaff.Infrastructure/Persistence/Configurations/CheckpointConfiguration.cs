@@ -11,7 +11,7 @@ public class CheckpointConfiguration : IEntityTypeConfiguration<Checkpoint>
         builder.ToTable("checkpoints");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.GitCommitSha).HasMaxLength(40);
-        builder.Property(x => x.FilesChanged).HasColumnType("jsonb");
+        builder.Property(x => x.FilesChanged).HasColumnType("TEXT");
 
         builder.HasOne(x => x.Project)
             .WithMany(x => x.Checkpoints)

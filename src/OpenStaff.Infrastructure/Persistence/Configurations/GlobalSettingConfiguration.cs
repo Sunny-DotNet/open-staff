@@ -12,7 +12,7 @@ public class GlobalSettingConfiguration : IEntityTypeConfiguration<GlobalSetting
         builder.HasKey(x => x.Id);
         builder.HasIndex(x => x.Key).IsUnique();
         builder.Property(x => x.Key).IsRequired().HasMaxLength(255);
-        builder.Property(x => x.Value).IsRequired().HasColumnType("jsonb");
+        builder.Property(x => x.Value).IsRequired().HasColumnType("TEXT");
         builder.Property(x => x.Category).HasMaxLength(100);
     }
 }

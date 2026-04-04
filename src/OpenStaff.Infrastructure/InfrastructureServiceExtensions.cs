@@ -19,9 +19,9 @@ public static class InfrastructureServiceExtensions
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString, string? encryptionKey = null)
     {
-        // 数据库 / Database
+        // 数据库 / Database (SQLite)
         services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseSqlite(connectionString));
 
         // 加密服务 / Encryption service
         services.AddSingleton(new EncryptionService(encryptionKey ?? "OpenStaff-Default-Key-Change-In-Production"));

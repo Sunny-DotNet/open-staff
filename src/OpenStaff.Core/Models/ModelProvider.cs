@@ -6,22 +6,33 @@ namespace OpenStaff.Core.Models;
 public class ModelProvider
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; } = string.Empty; // 供应商名称
-    public string ProviderType { get; set; } = string.Empty; // openai/azure_openai/generic_openai
-    public string? BaseUrl { get; set; } // API 端点
-    public string ApiKeyEncrypted { get; set; } = string.Empty; // 加密的 API Key
-    public string? DefaultModel { get; set; } // 默认模型名
-    public string? ExtraConfig { get; set; } // JSON 额外配置
-    public bool IsActive { get; set; } = true;
+    public string Name { get; set; } = string.Empty;
+    public string ProviderType { get; set; } = string.Empty;
+    public string? BaseUrl { get; set; }
+    public string ApiKeyEncrypted { get; set; } = string.Empty;
+    public string ApiKeyMode { get; set; } = ApiKeyModes.EnvVar; // input / env / device
+    public string? ApiKeyEnvVar { get; set; } // 环境变量名
+    public string? DefaultModel { get; set; }
+    public string? ExtraConfig { get; set; }
+    public bool IsEnabled { get; set; } = false; // 是否启用
+    public bool IsBuiltin { get; set; } = false; // 是否为内置供应商
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    public ICollection<AgentRole> AgentRoles { get; set; } = new List<AgentRole>();
 }
 
 public static class ProviderTypes
 {
     public const string OpenAI = "openai";
+    public const string Google = "google";
+    public const string Anthropic = "anthropic";
+    public const string GitHubCopilot = "github_copilot";
     public const string AzureOpenAI = "azure_openai";
-    public const string GenericOpenAI = "generic_openai"; // 国内厂商等兼容接口
+    public const string GenericOpenAI = "generic_openai";
+}
+
+public static class ApiKeyModes
+{
+    public const string Input = "input";
+    public const string EnvVar = "env";
+    public const string Device = "device"; // GitHub 设备码授权
 }

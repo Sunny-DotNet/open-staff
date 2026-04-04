@@ -13,12 +13,10 @@ public class AgentRoleConfiguration : IEntityTypeConfiguration<AgentRole>
         builder.Property(x => x.Name).IsRequired().HasMaxLength(100);
         builder.Property(x => x.RoleType).IsRequired().HasMaxLength(50);
         builder.Property(x => x.ModelName).HasMaxLength(200);
-        builder.Property(x => x.Config).HasColumnType("jsonb");
+        builder.Property(x => x.Config).HasColumnType("TEXT");
 
-        builder.HasOne(x => x.ModelProvider)
-            .WithMany(x => x.AgentRoles)
-            .HasForeignKey(x => x.ModelProviderId)
-            .OnDelete(DeleteBehavior.SetNull);
+        // ModelProviderId 不再是 FK（供应商存储在文件系统）
+        builder.Ignore(x => x.ModelProvider);
 
         builder.HasOne(x => x.Plugin)
             .WithMany(x => x.AgentRoles)

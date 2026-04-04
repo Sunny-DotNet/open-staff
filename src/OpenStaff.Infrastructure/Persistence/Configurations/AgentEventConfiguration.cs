@@ -11,7 +11,7 @@ public class AgentEventConfiguration : IEntityTypeConfiguration<AgentEvent>
         builder.ToTable("agent_events");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.EventType).IsRequired().HasMaxLength(50);
-        builder.Property(x => x.Metadata).HasColumnType("jsonb");
+        builder.Property(x => x.Metadata).HasColumnType("TEXT");
 
         builder.HasOne(x => x.Project)
             .WithMany(x => x.Events)

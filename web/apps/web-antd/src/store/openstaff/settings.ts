@@ -7,6 +7,7 @@ import { defineStore } from 'pinia';
 import {
   getModelProvidersApi,
   getSettingsApi,
+  updateModelProviderApi,
   updateSettingsApi,
 } from '#/api/openstaff/settings';
 
@@ -41,6 +42,18 @@ export const useSettingsStore = defineStore('openstaff-settings', () => {
     }
   }
 
+  async function updateProvider(
+    id: string,
+    data: SettingsApi.UpdateModelProviderParams,
+  ) {
+    const updated = await updateModelProviderApi(id, data);
+    const idx = modelProviders.value.findIndex((p) => p.id === id);
+    if (idx >= 0 && updated) {
+      modelProviders.value[idx] = updated;
+    }
+    return updated;
+  }
+
   function $reset() {
     settings.value = null;
     modelProviders.value = [];
@@ -55,5 +68,6 @@ export const useSettingsStore = defineStore('openstaff-settings', () => {
     modelProviders,
     saveSettings,
     settings,
+    updateProvider,
   };
 });

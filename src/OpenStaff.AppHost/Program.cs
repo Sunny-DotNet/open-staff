@@ -1,19 +1,14 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// PostgreSQL 数据库 / PostgreSQL database
-var postgres = builder.AddPostgres("postgres")
-    .WithDataVolume("openstaff-pgdata");
-
-var db = postgres.AddDatabase("openstaff");
-
-// 后端 API / Backend API
-var api = builder.AddProject<Projects.OpenStaff_Api>("api")
-    .WithReference(db)
-    .WaitFor(db);
+// 后端 API (SQLite 文件数据库，不需要外部数据库服务)
+// Backend API (SQLite file-based database, no external DB service needed)
+var api = builder.AddProject<Projects.OpenStaff_Api>("api");
 
 // 前端 Vben / Frontend Vben App
 builder.AddViteApp("web", "../../web/apps/web-antd")
+    .WithPnpm()
     .WithReference(api)
-    .WithHttpEndpoint(port: 3000, env: "PORT");
+    .WithEnvironment("PORT", "3000")
+    .WaitFor(api);
 
 builder.Build().Run();

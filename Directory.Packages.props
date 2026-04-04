@@ -7,7 +7,7 @@
     <!-- Aspire -->
     <PackageVersion Include="Aspire.Hosting" Version="13.2.1" />
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.2.1" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.2.1" />
+    <!-- SQLite 不需要 Aspire.Hosting.PostgreSQL -->
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.2.1" />
 
     <!-- Microsoft Agent Framework -->
@@ -15,7 +15,7 @@
     <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0" />
 
     <!-- Entity Framework Core -->
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.4" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
 
     <!-- ASP.NET Core / Extensions -->
