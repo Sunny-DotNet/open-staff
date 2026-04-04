@@ -13,6 +13,9 @@ using OpenStaff.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Aspire 服务默认值 / Aspire service defaults
+builder.AddServiceDefaults();
+
 // 数据库与基础设施 / Database and infrastructure
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Host=localhost;Database=openstaff;Username=openstaff;Password=openstaff";
@@ -66,6 +69,9 @@ builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<SettingsService>();
 
+// 数据库种子 / Database seed
+builder.Services.AddHostedService<OpenStaff.Api.Services.RoleSeedService>();
+
 // 事件转发到 SignalR / Forward events to SignalR
 builder.Services.AddHostedService<SignalREventForwarder>();
 
@@ -88,5 +94,8 @@ app.MapControllers();
 // SignalR Hubs
 app.MapHub<AgentHub>("/hubs/agent");
 app.MapHub<ProjectHub>("/hubs/project");
+
+// Aspire 健康检查端点 / Aspire health check endpoints
+app.MapDefaultEndpoints();
 
 app.Run();

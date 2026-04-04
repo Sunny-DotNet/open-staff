@@ -1,0 +1,69 @@
+using Microsoft.EntityFrameworkCore;
+using OpenStaff.Agents.Roles;
+using OpenStaff.Infrastructure.Persistence;
+
+namespace OpenStaff.Api.Services;
+
+/// <summary>
+/// 启动时从嵌入资源加载内置角色到数据库
+/// Seeds built-in roles from embedded resources into database on startup
+/// </summary>
+public class RoleSeedService : IHostedService
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<RoleSeedService> _logger;
+
+    public RoleSeedService(IServiceProvider serviceProvider, ILogger<RoleSeedService> logger)
+    {
+        _serviceProvider = serviceProvider;
+        _logger = logger;
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var roleConfigs = RoleConfigLoader.LoadAll();
+
+        foreach (var config in roleConfigs)
+        {
+            var existing = await dbContext.AgentRoles
+                .FirstOrDefaultAsync(r => r.RoleType == config.RoleType, cancellationToken);
+
+            if (existing == null)
+            {
+                var role = new OpenStaff.Core.Models.AgentRole
+                {
+                    Id = Guid.NewGuid(),
+                    Name = config.Name,
+                    RoleType = config.RoleType,
+                    Description = config.Description,
+                    SystemPrompt = config.SystemPrompt,
+                    ModelName = config.ModelName,
+                    IsBuiltin = true,
+                    IsActive = true,
+                    Config = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        modelParameters = config.ModelParameters,
+                        tools = config.Tools,
+                        routing = config.Routing
+                    }),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                dbContext.AgentRoles.Add(role);
+                _logger.LogInformation("Seeded built-in role: {RoleType} ({Name})", config.RoleType, config.Name);
+            }
+            else
+            {
+                _logger.LogDebug("Role {RoleType} already exists, skipping seed", config.RoleType);
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
