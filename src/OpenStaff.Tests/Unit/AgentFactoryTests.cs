@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenStaff.Agents;
+using OpenStaff.Agents.Prompts;
+using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using Xunit;
@@ -10,9 +12,21 @@ public class AgentFactoryTests
 {
     private static AgentFactory CreateFactory()
     {
-        var services = new ServiceCollection().BuildServiceProvider();
-        return new AgentFactory(services);
+        var services = new ServiceCollection()
+            .AddLogging()
+            .BuildServiceProvider();
+        var toolRegistry = new AgentToolRegistry();
+        var promptLoader = new EmbeddedPromptLoader();
+        return new AgentFactory(services, toolRegistry, promptLoader);
     }
+
+    private static RoleConfig CreateRoleConfig(string roleType) => new()
+    {
+        RoleType = roleType,
+        Name = roleType,
+        SystemPrompt = $"{roleType}.system",
+        IsBuiltin = true
+    };
 
     [Fact]
     public void IsRegistered_ShouldReturnFalseWhenNothingRegistered()
@@ -22,10 +36,10 @@ public class AgentFactoryTests
     }
 
     [Fact]
-    public void RegisterAgent_ShouldMakeRoleRegistered()
+    public void RegisterRole_ShouldMakeRoleRegistered()
     {
         var factory = CreateFactory();
-        factory.RegisterAgent<FakeAgent>(BuiltinRoleTypes.Communicator);
+        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Communicator));
 
         Assert.True(factory.IsRegistered(BuiltinRoleTypes.Communicator));
     }
@@ -34,7 +48,7 @@ public class AgentFactoryTests
     public void IsRegistered_ShouldReturnFalseForUnknownRole()
     {
         var factory = CreateFactory();
-        factory.RegisterAgent<FakeAgent>(BuiltinRoleTypes.Producer);
+        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Producer));
 
         Assert.False(factory.IsRegistered("nonexistent_role"));
     }
@@ -43,9 +57,9 @@ public class AgentFactoryTests
     public void RegisteredRoleTypes_ShouldListAllRegisteredRoles()
     {
         var factory = CreateFactory();
-        factory.RegisterAgent<FakeAgent>(BuiltinRoleTypes.Communicator);
-        factory.RegisterAgent<FakeAgent>(BuiltinRoleTypes.Producer);
-        factory.RegisterAgent<FakeAgent>(BuiltinRoleTypes.Debugger);
+        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Communicator));
+        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Producer));
+        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Debugger));
 
         var roles = factory.RegisteredRoleTypes;
         Assert.Equal(3, roles.Count);
@@ -69,31 +83,33 @@ public class AgentFactoryTests
     }
 
     [Fact]
-    public void CreateAgent_ShouldReturnAgentInstance()
+    public void CreateAgent_ShouldReturnStandardAgentInstance()
     {
         var factory = CreateFactory();
-        factory.RegisterAgent<FakeAgent>(BuiltinRoleTypes.Architect);
+        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Architect));
 
         var agent = factory.CreateAgent(BuiltinRoleTypes.Architect);
         Assert.NotNull(agent);
-        Assert.IsType<FakeAgent>(agent);
+        Assert.IsType<StandardAgent>(agent);
+        Assert.Equal(BuiltinRoleTypes.Architect, agent.RoleType);
     }
 
-    /// <summary>
-    /// Minimal IAgent implementation for testing.
-    /// </summary>
-    private class FakeAgent : IAgent
+    [Fact]
+    public void GetRoleConfig_ShouldReturnConfigForRegisteredRole()
     {
-        public string RoleType => "fake";
-        public string Status => "idle";
+        var factory = CreateFactory();
+        var config = CreateRoleConfig(BuiltinRoleTypes.Communicator);
+        factory.RegisterRole(config);
 
-        public Task InitializeAsync(AgentContext context, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        var result = factory.GetRoleConfig(BuiltinRoleTypes.Communicator);
+        Assert.NotNull(result);
+        Assert.Equal(BuiltinRoleTypes.Communicator, result!.RoleType);
+    }
 
-        public Task<AgentResponse> ProcessAsync(AgentMessage message, CancellationToken cancellationToken = default)
-            => Task.FromResult(new AgentResponse());
-
-        public Task StopAsync(CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+    [Fact]
+    public void GetRoleConfig_ShouldReturnNullForUnknownRole()
+    {
+        var factory = CreateFactory();
+        Assert.Null(factory.GetRoleConfig("unknown"));
     }
 }

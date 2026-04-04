@@ -1,0 +1,48 @@
+# ============================================================
+# OpenStaff Monorepo .gitignore
+# ============================================================
+
+# .NET
+src/**/bin/
+src/**/obj/
+src/**/*.user
+src/**/*.suo
+src/**/.vs/
+*.DotSettings.user
+
+# Node / Vue
+web/node_modules/
+web/dist/
+web/.vite/
+web/*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Workspaces (runtime project files)
+workspaces/
+
+# Plugins (runtime)
+plugins/
+
+# Logs
+*.log
+logs/

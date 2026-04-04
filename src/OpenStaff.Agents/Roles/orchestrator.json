@@ -1,0 +1,17 @@
+{
+  "roleType": "orchestrator",
+  "name": "调度者",
+  "description": "路由用户输入到合适的智能体角色",
+  "isBuiltin": true,
+  "systemPrompt": "orchestrator.system",
+  "modelName": "gpt-4o-mini",
+  "modelParameters": {
+    "temperature": 0.3,
+    "maxTokens": 2048
+  },
+  "tools": [],
+  "routing": {
+    "markers": {},
+    "defaultNext": "communicator"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "roleType": "debugger",
+  "name": "调试者",
+  "description": "代码审查、测试执行与问题诊断",
+  "isBuiltin": true,
+  "systemPrompt": "debugger.system",
+  "modelName": "gpt-4o",
+  "modelParameters": {
+    "temperature": 0.3,
+    "maxTokens": 4096
+  },
+  "tools": ["run_tests", "analyze_code"],
+  "routing": {
+    "markers": {},
+    "defaultNext": null
+  }
+}

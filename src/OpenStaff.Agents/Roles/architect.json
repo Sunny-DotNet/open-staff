@@ -1,0 +1,17 @@
+{
+  "roleType": "architect",
+  "name": "架构者",
+  "description": "任务分解、依赖分析与分配策略",
+  "isBuiltin": true,
+  "systemPrompt": "architect.system",
+  "modelName": "gpt-4o",
+  "modelParameters": {
+    "temperature": 0.4,
+    "maxTokens": 8192
+  },
+  "tools": [],
+  "routing": {
+    "markers": {},
+    "defaultNext": "producer"
+  }
+}

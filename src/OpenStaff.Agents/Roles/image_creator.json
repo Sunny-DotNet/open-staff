@@ -1,0 +1,17 @@
+{
+  "roleType": "image_creator",
+  "name": "图片创造者",
+  "description": "图片资源生成",
+  "isBuiltin": true,
+  "systemPrompt": "image_creator.system",
+  "modelName": "dall-e-3",
+  "modelParameters": {
+    "temperature": 0.8,
+    "maxTokens": 1024
+  },
+  "tools": ["generate_image"],
+  "routing": {
+    "markers": {},
+    "defaultNext": null
+  }
+}
