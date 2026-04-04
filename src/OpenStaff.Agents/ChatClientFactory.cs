@@ -6,6 +6,7 @@ using OpenAI;
 using OpenAI.Chat;
 using OpenStaff.Core.Models;
 using System.ClientModel;
+using System.ClientModel.Primitives;
 
 namespace OpenStaff.Agents;
 
@@ -36,7 +37,7 @@ public class ChatClientFactory
         return provider.ProviderType switch
         {
             ProviderTypes.OpenAI => CreateOpenAIChatClient(apiKey, model, provider.BaseUrl),
-            ProviderTypes.GitHubCopilot => CreateOpenAIChatClient(apiKey, model, provider.BaseUrl ?? "https://api.individual.githubcopilot.com"),
+            ProviderTypes.GitHubCopilot => CreateCopilotChatClient(apiKey, model, provider.BaseUrl),
             ProviderTypes.GenericOpenAI => CreateOpenAIChatClient(apiKey, model, provider.BaseUrl),
             ProviderTypes.AzureOpenAI => CreateOpenAIChatClient(apiKey, model, provider.BaseUrl),
             ProviderTypes.Anthropic => CreateAnthropicChatClient(apiKey, model),
@@ -46,8 +47,7 @@ public class ChatClientFactory
     }
 
     /// <summary>
-    /// OpenAI 兼容 — OpenAI / Copilot / GenericOpenAI / AzureOpenAI
-    /// ChatClient.AsIChatClient()
+    /// OpenAI 兼容 — OpenAI / GenericOpenAI / AzureOpenAI
     /// </summary>
     private static IChatClient CreateOpenAIChatClient(string apiKey, string model, string? baseUrl)
     {
@@ -67,6 +67,23 @@ public class ChatClientFactory
     }
 
     /// <summary>
+    /// GitHub Copilot — OpenAI SDK + 自定义 endpoint + 必要的请求头
+    /// Copilot API 要求 Editor-Version、Editor-Plugin-Version、Copilot-Integration-Id 等头
+    /// </summary>
+    private static IChatClient CreateCopilotChatClient(string apiKey, string model, string? baseUrl)
+    {
+        var endpoint = baseUrl ?? "https://api.individual.githubcopilot.com";
+        var credential = new ApiKeyCredential(apiKey);
+        var options = new OpenAIClientOptions { Endpoint = new Uri(endpoint) };
+
+        // 注入 Copilot 必需的请求头
+        options.AddPolicy(new CopilotHeaderPolicy(), PipelinePosition.PerCall);
+
+        var client = new OpenAIClient(credential, options);
+        return client.GetChatClient(model).AsIChatClient();
+    }
+
+    /// <summary>
     /// Anthropic — AnthropicClient.AsIChatClient(model)
     /// </summary>
     private static IChatClient CreateAnthropicChatClient(string apiKey, string model)
@@ -82,5 +99,31 @@ public class ChatClientFactory
     {
         var client = new Client(vertexAI: false, apiKey: apiKey);
         return client.AsIChatClient(model);
+    }
+
+    /// <summary>
+    /// 为 Copilot API 请求注入必需的 Editor 头
+    /// </summary>
+    private sealed class CopilotHeaderPolicy : PipelinePolicy
+    {
+        public override void Process(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)
+        {
+            AddCopilotHeaders(message);
+            ProcessNext(message, pipeline, currentIndex);
+        }
+
+        public override async ValueTask ProcessAsync(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)
+        {
+            AddCopilotHeaders(message);
+            await ProcessNextAsync(message, pipeline, currentIndex);
+        }
+
+        private static void AddCopilotHeaders(PipelineMessage message)
+        {
+            var headers = message.Request.Headers;
+            headers.Set("Editor-Version", "OpenStaff/1.0.0");
+            headers.Set("Editor-Plugin-Version", "copilot-openstaff/1.0.0");
+            headers.Set("Copilot-Integration-Id", "openstaff");
+        }
     }
 }
