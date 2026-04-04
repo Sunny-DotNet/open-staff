@@ -4,14 +4,14 @@ using OpenStaff.Core.Models;
 namespace OpenStaff.Api.Services;
 
 /// <summary>
-/// IProviderResolver 实现 — 组合 FileProviderService + ApiKeyResolver
+/// IProviderResolver 实现 — 组合 DbProviderService + ApiKeyResolver
 /// </summary>
 public class ProviderResolver : IProviderResolver
 {
-    private readonly FileProviderService _providerService;
+    private readonly DbProviderService _providerService;
     private readonly ApiKeyResolver _apiKeyResolver;
 
-    public ProviderResolver(FileProviderService providerService, ApiKeyResolver apiKeyResolver)
+    public ProviderResolver(DbProviderService providerService, ApiKeyResolver apiKeyResolver)
     {
         _providerService = providerService;
         _apiKeyResolver = apiKeyResolver;
@@ -19,7 +19,7 @@ public class ProviderResolver : IProviderResolver
 
     public async Task<ResolvedProvider?> ResolveAsync(Guid providerId, CancellationToken ct = default)
     {
-        var provider = _providerService.GetById(providerId);
+        var provider = await _providerService.GetByIdAsync(providerId);
         if (provider == null) return null;
 
         var resolved = await _apiKeyResolver.ResolveAsync(provider, ct);

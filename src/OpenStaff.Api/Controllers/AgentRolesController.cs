@@ -17,14 +17,14 @@ namespace OpenStaff.Api.Controllers;
 public class AgentRolesController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly FileProviderService _providerService;
+    private readonly DbProviderService _providerService;
     private readonly AgentFactory _agentFactory;
     private readonly IProviderResolver _providerResolver;
     private readonly SessionStreamManager _streamManager;
 
     public AgentRolesController(
         AppDbContext db,
-        FileProviderService providerService,
+        DbProviderService providerService,
         AgentFactory agentFactory,
         IProviderResolver providerResolver,
         SessionStreamManager streamManager)
@@ -49,7 +49,7 @@ public class AgentRolesController : ControllerBase
         foreach (var role in roles)
         {
             if (role.ModelProviderId.HasValue)
-                role.ModelProvider = _providerService.GetById(role.ModelProviderId.Value);
+                role.ModelProvider = await _providerService.GetByIdAsync(role.ModelProviderId.Value);
         }
 
         var result = roles.Select(ToDto);
@@ -64,7 +64,7 @@ public class AgentRolesController : ControllerBase
         if (role == null) return NotFound();
 
         if (role.ModelProviderId.HasValue)
-            role.ModelProvider = _providerService.GetById(role.ModelProviderId.Value);
+            role.ModelProvider = await _providerService.GetByIdAsync(role.ModelProviderId.Value);
 
         return Ok(ToDto(role));
     }
@@ -170,7 +170,7 @@ public class AgentRolesController : ControllerBase
 
         // Reload provider info
         if (role.ModelProviderId.HasValue)
-            role.ModelProvider = _providerService.GetById(role.ModelProviderId.Value);
+            role.ModelProvider = await _providerService.GetByIdAsync(role.ModelProviderId.Value);
         return Ok(ToDto(role));
     }
 

@@ -9,10 +9,10 @@ namespace OpenStaff.Api.Services;
 /// </summary>
 public class ApiKeyResolver
 {
-    private readonly FileProviderService _providerService;
+    private readonly DbProviderService _providerService;
     private readonly CopilotTokenService _copilotTokenService;
 
-    public ApiKeyResolver(FileProviderService providerService, CopilotTokenService copilotTokenService)
+    public ApiKeyResolver(DbProviderService providerService, CopilotTokenService copilotTokenService)
     {
         _providerService = providerService;
         _copilotTokenService = copilotTokenService;

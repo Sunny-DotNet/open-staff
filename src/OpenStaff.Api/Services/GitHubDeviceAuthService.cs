@@ -17,7 +17,7 @@ public class GitHubDeviceAuthService
     private const string AccessTokenUrl = "https://github.com/login/oauth/access_token";
 
     private readonly HttpClient _httpClient;
-    private readonly FileProviderService _providerService;
+    private readonly DbProviderService _providerService;
     private readonly EncryptionService _encryption;
     private readonly CopilotTokenService _copilotTokenService;
 
@@ -26,7 +26,7 @@ public class GitHubDeviceAuthService
 
     public GitHubDeviceAuthService(
         HttpClient httpClient,
-        FileProviderService providerService,
+        DbProviderService providerService,
         EncryptionService encryption,
         CopilotTokenService copilotTokenService)
     {
@@ -120,7 +120,7 @@ public class GitHubDeviceAuthService
             _sessions.TryRemove(providerId, out _);
 
             // 将 oauth_token 加密存储到 ModelProvider
-            _providerService.Update(providerId, new UpdateProviderRequest
+            await _providerService.UpdateAsync(providerId, new UpdateProviderRequest
             {
                 ApiKey = result.AccessToken
             });

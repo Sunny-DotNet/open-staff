@@ -11,11 +11,11 @@ namespace OpenStaff.Api.Controllers;
 [Route("api/model-providers")]
 public class ModelProvidersController : ControllerBase
 {
-    private readonly FileProviderService _providerService;
+    private readonly DbProviderService _providerService;
     private readonly GitHubDeviceAuthService _deviceAuthService;
     private readonly ModelListingService _modelListingService;
 
-    public ModelProvidersController(FileProviderService providerService, GitHubDeviceAuthService deviceAuthService, ModelListingService modelListingService)
+    public ModelProvidersController(DbProviderService providerService, GitHubDeviceAuthService deviceAuthService, ModelListingService modelListingService)
     {
         _providerService = providerService;
         _deviceAuthService = deviceAuthService;
@@ -23,9 +23,9 @@ public class ModelProvidersController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll()
+    public async Task<IActionResult> GetAll()
     {
-        var providers = _providerService.GetAll();
+        var providers = await _providerService.GetAllAsync();
         var result = providers.Select(p => new
         {
             p.Id,
@@ -45,16 +45,16 @@ public class ModelProvidersController : ControllerBase
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] CreateProviderRequest request)
+    public async Task<IActionResult> Create([FromBody] CreateProviderRequest request)
     {
-        var provider = _providerService.Create(request);
+        var provider = await _providerService.CreateAsync(request);
         return Ok(provider);
     }
 
     [HttpPut("{id:guid}")]
-    public IActionResult Update(Guid id, [FromBody] UpdateProviderRequest request)
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProviderRequest request)
     {
-        var provider = _providerService.Update(id, request);
+        var provider = await _providerService.UpdateAsync(id, request);
         if (provider == null) return NotFound();
         return Ok(new
         {
@@ -74,9 +74,9 @@ public class ModelProvidersController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    public IActionResult Delete(Guid id)
+    public async Task<IActionResult> Delete(Guid id)
     {
-        var result = _providerService.Delete(id);
+        var result = await _providerService.DeleteAsync(id);
         if (!result) return NotFound();
         return NoContent();
     }
@@ -90,7 +90,7 @@ public class ModelProvidersController : ControllerBase
     [HttpGet("{id:guid}/models")]
     public async Task<IActionResult> ListModels(Guid id, CancellationToken cancellationToken)
     {
-        var provider = _providerService.GetById(id);
+        var provider = await _providerService.GetByIdAsync(id);
         if (provider == null) return NotFound();
 
         try
@@ -123,7 +123,7 @@ public class ModelProvidersController : ControllerBase
     [HttpPost("{id:guid}/device-auth")]
     public async Task<IActionResult> InitiateDeviceAuth(Guid id, CancellationToken cancellationToken)
     {
-        var provider = _providerService.GetById(id);
+        var provider = await _providerService.GetByIdAsync(id);
         if (provider == null) return NotFound();
 
         if (provider.ProviderType != ProviderTypes.GitHubCopilot)

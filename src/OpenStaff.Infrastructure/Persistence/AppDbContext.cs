@@ -33,6 +33,9 @@ public class AppDbContext : DbContext
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<SessionEvent> SessionEvents => Set<SessionEvent>();
 
+    // 模型供应商
+    public DbSet<ModelProvider> ModelProviders => Set<ModelProvider>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
