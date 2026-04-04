@@ -109,5 +109,27 @@
     "saving": "保存中...",
     "saved": "配置已保存",
     "noMessages": "发送消息开始测试对话"
+  },
+  "staff": {
+    "title": "员工管理",
+    "addStaff": "招聘新员工",
+    "editStaff": "编辑员工",
+    "deleteStaff": "解雇员工",
+    "deleteConfirm": "确定要解雇这位员工吗？",
+    "testChat": "对话测试",
+    "soul": "灵魂配置",
+    "traits": "性格特征",
+    "style": "沟通风格",
+    "attitudes": "工作态度",
+    "customDesc": "自定义性格描述",
+    "basicInfo": "基本信息",
+    "modelConfig": "模型配置",
+    "toolConfig": "工具配置",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "保存成功",
+    "builtin": "内置",
+    "custom": "自定义",
+    "noStaff": "暂无员工，点击上方按钮招聘"
   }
 }
