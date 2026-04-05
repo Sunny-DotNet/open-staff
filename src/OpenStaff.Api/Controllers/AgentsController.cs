@@ -11,18 +11,28 @@ namespace OpenStaff.Api.Controllers;
 public class AgentsController : ControllerBase
 {
     private readonly AgentService _agentService;
+    private readonly ProjectService _projectService;
 
-    public AgentsController(AgentService agentService)
+    public AgentsController(AgentService agentService, ProjectService projectService)
     {
         _agentService = agentService;
+        _projectService = projectService;
     }
 
     /// <summary>获取工程角色实例列表 / Get project agent instances</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll(Guid projectId, CancellationToken cancellationToken)
     {
-        var agents = await _agentService.GetProjectAgentsAsync(projectId, cancellationToken);
+        var agents = await _projectService.GetProjectAgentsAsync(projectId, cancellationToken);
         return Ok(agents);
+    }
+
+    /// <summary>批量设置项目员工</summary>
+    [HttpPut]
+    public async Task<IActionResult> SetAgents(Guid projectId, [FromBody] SetProjectAgentsRequest request, CancellationToken cancellationToken)
+    {
+        await _projectService.SetProjectAgentsAsync(projectId, request.AgentRoleIds, cancellationToken);
+        return Ok(new { message = "项目员工已更新" });
     }
 
     /// <summary>获取角色事件历史 / Get agent event history</summary>

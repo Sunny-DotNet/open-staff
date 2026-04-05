@@ -71,22 +71,6 @@ public class ProjectsController : ControllerBase
         return Ok(new { message = "工程初始化已启动 / Project initialization started" });
     }
 
-    /// <summary>获取项目员工列表</summary>
-    [HttpGet("{id:guid}/agents")]
-    public async Task<IActionResult> GetAgents(Guid id, CancellationToken cancellationToken)
-    {
-        var agents = await _projectService.GetProjectAgentsAsync(id, cancellationToken);
-        return Ok(agents);
-    }
-
-    /// <summary>批量设置项目员工</summary>
-    [HttpPut("{id:guid}/agents")]
-    public async Task<IActionResult> SetAgents(Guid id, [FromBody] SetProjectAgentsRequest request, CancellationToken cancellationToken)
-    {
-        await _projectService.SetProjectAgentsAsync(id, request.AgentRoleIds, cancellationToken);
-        return Ok(new { message = "项目员工已更新" });
-    }
-
     /// <summary>导出工程 / Export project</summary>
     [HttpPost("{id:guid}/export")]
     public async Task<IActionResult> Export(Guid id, CancellationToken cancellationToken)
