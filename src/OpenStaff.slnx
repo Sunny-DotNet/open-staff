@@ -1,4 +1,14 @@
 <Solution>
+  <Folder Name="/plugins/">
+    <Project Path="plugins/OpenStaff.Plugins.ModelDataSource/OpenStaff.Plugins.ModelDataSource.csproj" />
+  </Folder>
+  <Folder Name="/providers/">
+    <Project Path="providers/OpenStaff.Provider.Abstractions/OpenStaff.Provider.Abstractions.csproj" Id="eb24c83e-2f89-4136-ba2e-b311494a8cc8" />
+    <Project Path="providers/OpenStaff.Provider.Anthropic/OpenStaff.Provider.Anthropic.csproj" />
+    <Project Path="providers/OpenStaff.Provider.Google/OpenStaff.Provider.Google.csproj" />
+    <Project Path="providers/OpenStaff.Provider.NewApi/OpenStaff.Provider.NewApi.csproj" />
+    <Project Path="providers/OpenStaff.Provider.OpenAI/OpenStaff.Provider.OpenAI.csproj" />
+  </Folder>
   <Project Path="OpenStaff.Agents/OpenStaff.Agents.csproj" />
   <Project Path="OpenStaff.Api/OpenStaff.Api.csproj" />
   <Project Path="OpenStaff.AppHost/OpenStaff.AppHost.csproj" />
