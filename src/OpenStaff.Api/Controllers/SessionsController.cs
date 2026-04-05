@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenStaff.Api.Services;
+using OpenStaff.Application.Sessions;
 using OpenStaff.Core.Models;
 using OpenStaff.Infrastructure.Persistence;
 

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenStaff.Api.Services;
+using OpenStaff.Application.Providers;
 using OpenStaff.Infrastructure.Persistence;
 
 namespace OpenStaff.Api.Controllers;

@@ -5,8 +5,6 @@ namespace OpenStaff.Core.Modularity;
 
 public static class ModuleServiceCollectionExtensions
 {
-    private const string ModulesKey = "__OpenStaffModules__";
-
     /// <summary>
     /// 加载并配置所有 OpenStaff 模块（从启动模块开始，自动解析依赖）。
     /// </summary>
@@ -27,5 +25,19 @@ public static class ModuleServiceCollectionExtensions
         services.AddSingleton<IReadOnlyList<OpenStaffModule>>(modules);
 
         return services;
+    }
+
+    /// <summary>
+    /// 执行所有模块的应用初始化（按拓扑排序顺序）。
+    /// </summary>
+    public static void UseOpenStaffModules(this IServiceProvider serviceProvider)
+    {
+        var modules = serviceProvider.GetRequiredService<IReadOnlyList<OpenStaffModule>>();
+        var context = new ApplicationInitializationContext(serviceProvider);
+
+        foreach (var module in modules)
+        {
+            module.OnApplicationInitialization(context);
+        }
     }
 }

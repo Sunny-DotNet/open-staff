@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using OpenStaff.Api.Services;
+using OpenStaff.Application.Agents;
+using OpenStaff.Application.Projects;
 
 namespace OpenStaff.Api.Controllers;
 

@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using OpenStaff.Agents;
-using OpenStaff.Agents.Orchestrator;
+using OpenStaff.Application.Orchestration;
 using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;

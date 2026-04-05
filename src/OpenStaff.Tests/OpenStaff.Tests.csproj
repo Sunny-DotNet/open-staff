@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OpenStaff.Core\OpenStaff.Core.csproj" />
     <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\OpenStaff.Application\OpenStaff.Application.csproj" />
     <ProjectReference Include="..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
     <ProjectReference Include="..\OpenStaff.Api\OpenStaff.Api.csproj" />
   </ItemGroup>

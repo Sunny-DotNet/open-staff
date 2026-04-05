@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using OpenStaff.Api.Services;
+using OpenStaff.Application.Settings;
 
 namespace OpenStaff.Api.Controllers;
 

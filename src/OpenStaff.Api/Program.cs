@@ -1,114 +1,32 @@
 using Microsoft.EntityFrameworkCore;
+using OpenStaff.Api;
 using OpenStaff.Api.Hubs;
 using OpenStaff.Api.Middleware;
-using OpenStaff.Api.Services;
-using OpenStaff.Agents;
-using OpenStaff.Agents.Orchestrator;
-using OpenStaff.Agents.Prompts;
-using OpenStaff.Agents.Roles;
-using OpenStaff.Agents.Tools;
-using OpenStaff.Core.Agents;
-using OpenStaff.Core.Notifications;
-using OpenStaff.Core.Orchestration;
-using OpenStaff.Infrastructure;
+using OpenStaff.Application.Models;
+using OpenStaff.Core.Modularity;
+using OpenStaff.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Aspire 服务默认值 / Aspire service defaults
 builder.AddServiceDefaults();
 
-// 数据库与基础设施 / Database and infrastructure
-// 默认使用 ~/.staff/openstaff.db / Default: ~/.staff/openstaff.db
-var staffDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".staff");
-Directory.CreateDirectory(staffDir);
-var defaultDbPath = Path.Combine(staffDir, "openstaff.db");
-
-var connectionString = builder.Configuration.GetConnectionString("openstaff")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? $"Data Source={defaultDbPath}";
-var encryptionKey = builder.Configuration["Security:EncryptionKey"];
-builder.Services.AddInfrastructure(connectionString, encryptionKey);
-
-// 智能体工具与提示词 / Agent tools and prompts
-builder.Services.AddSingleton<IAgentToolRegistry, AgentToolRegistry>();
-builder.Services.AddSingleton<IPromptLoader, EmbeddedPromptLoader>();
-
-// AI Agent 工厂 — 使用 microsoft/agent-framework 创建各供应商的 AIAgent
-builder.Services.AddSingleton<ChatClientFactory>();
-builder.Services.AddSingleton<AIAgentFactory>();
-
-// 智能体工厂 — 角色注册在 RoleSeedService 启动时完成（含提示词加载）
-builder.Services.AddSingleton<AgentFactory>(sp =>
-{
-    var toolRegistry = sp.GetRequiredService<IAgentToolRegistry>();
-    var aiAgentFactory = sp.GetRequiredService<AIAgentFactory>();
-    return new AgentFactory(sp, toolRegistry, aiAgentFactory);
-});
-
-// 统一通知服务 + SignalR / Unified notification service + SignalR
-builder.Services.AddSignalR();
-builder.Services.AddSingleton<SessionStreamManager>();
-builder.Services.AddSingleton<INotificationService, NotificationService>();
-
-// 编排服务（依赖 INotificationService） / Orchestration (depends on INotificationService)
-// OrchestrationService 是单例，但 IProviderResolver 是 Scoped（依赖 DbContext）
-// 使用工厂委托在运行时创建作用域解析
-builder.Services.AddSingleton<OrchestrationService>(sp =>
-{
-    var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-    var scopedResolver = new ScopedProviderResolverProxy(scopeFactory);
-    return new OrchestrationService(
-        sp.GetRequiredService<AgentFactory>(),
-        scopedResolver,
-        sp.GetRequiredService<INotificationService>(),
-        sp.GetRequiredService<ILogger<OrchestrationService>>());
-});
-builder.Services.AddSingleton<IOrchestrator>(sp => sp.GetRequiredService<OrchestrationService>());
-builder.Services.AddSingleton<SessionRunner>();
-
-// 控制器 / Controllers
-builder.Services.AddControllers()
-    .AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
-
-// CORS 跨域 / CORS
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.WithOrigins(
-                builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? new[] { "http://localhost:3000" })
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
-});
-
-// 应用服务 / Application services
-builder.Services.AddScoped<ProjectService>();
-builder.Services.AddScoped<AgentService>();
-builder.Services.AddScoped<SettingsService>();
-builder.Services.AddScoped<DbProviderService>();
-builder.Services.AddSingleton<ModelsDevService>();
-builder.Services.AddSingleton<CopilotTokenService>();
-builder.Services.AddScoped<ApiKeyResolver>();
-builder.Services.AddScoped<ProviderResolver>();
-builder.Services.AddScoped<OpenStaff.Core.Agents.IProviderResolver>(sp => sp.GetRequiredService<ProviderResolver>());
-builder.Services.AddHttpClient<GitHubDeviceAuthService>();
-builder.Services.AddHttpClient<ModelListingService>();
-
-// 数据库种子 / Database seed
-builder.Services.AddHostedService<OpenStaff.Api.Services.RoleSeedService>();
+// 模块化加载 / Modular loading
+builder.Services.AddOpenStaffModules<OpenStaffApiModule>(builder.Configuration);
 
 var app = builder.Build();
+
+// 模块初始化 / Module initialization
+app.Services.UseOpenStaffModules();
 
 // 自动迁移数据库 / Auto-migrate database on startup
 {
     using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<OpenStaff.Infrastructure.Persistence.AppDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
 }
 
-// 初始化 models.dev 数据（首次同步下载，之后异步更新）
+// 初始化 models.dev 数据
 await app.Services.GetRequiredService<ModelsDevService>().InitializeAsync();
 
 // 中间件 / Middleware
@@ -118,10 +36,10 @@ app.UseMiddleware<LocaleMiddleware>();
 app.UseCors();
 app.MapControllers();
 
-// SignalR — 统一通知 Hub / Unified notification hub
+// SignalR — 统一通知 Hub
 app.MapHub<NotificationHub>("/hubs/notification");
 
-// Aspire 健康检查端点 / Aspire health check endpoints
+// Aspire 健康检查端点
 app.MapDefaultEndpoints();
 
 app.Run();

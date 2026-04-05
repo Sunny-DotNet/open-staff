@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using OpenStaff.Api.Hubs;
+using OpenStaff.Application.Sessions;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Notifications;
 

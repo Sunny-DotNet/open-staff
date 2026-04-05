@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using OpenStaff.Api.Services;
+using OpenStaff.Application.Projects;
 
 namespace OpenStaff.Api.Controllers;
 

@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
-using OpenStaff.Api.Services;
+using OpenStaff.Application.Sessions;
 using OpenStaff.Core.Models;
 
 namespace OpenStaff.Api.Hubs;

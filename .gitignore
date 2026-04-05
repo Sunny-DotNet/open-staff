@@ -8,6 +8,7 @@ src/**/obj/
 src/**/*.user
 src/**/*.suo
 src/**/.vs/
+src/**/*.DotSettings.user
 *.DotSettings.user
 
 # Node / Vue
@@ -15,6 +16,8 @@ web/node_modules/
 web/dist/
 web/.vite/
 web/*.local
+web/.turbo
+web/.cache
 
 # IDE
 .idea/
@@ -22,6 +25,7 @@ web/*.local
 *.swp
 *.swo
 *~
+*.sln.ref
 
 # OS
 .DS_Store
@@ -37,13 +41,37 @@ desktop.ini
 # Docker
 docker-compose.override.yml
 
-# Workspaces (runtime project files)
+# Runtime generated directories (should be ignored)
 workspaces/
-
-# Plugins (runtime)
-plugins/
+runtime/
 
 # Logs
 *.log
 logs/
 .playwright-mcp/
+
+# Test results
+test-results/
+coverage/
+*.coverage
+
+# Build artifacts
+build/
+dist/
+*.zip
+*.tar.gz
+
+# Database (local development)
+*.db
+*.db-shm
+*.db-wal
+!src/**/*.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# NOTE: src/plugins/ contains important plugin implementations and should NOT be ignored
+# NOTE: Only ignore runtime/ generated plugin directories, not source code
