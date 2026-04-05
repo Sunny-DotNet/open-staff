@@ -5,9 +5,8 @@
 		<Nullable>enable</Nullable>
 		<RootNamespace>OpenStaff.Provider</RootNamespace>
 	</PropertyGroup>
-
 	<ItemGroup>
-		<ProjectReference Include="..\..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
+	  <ProjectReference Include="..\..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
 	</ItemGroup>
 
 </Project>

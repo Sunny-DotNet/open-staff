@@ -14,10 +14,17 @@ using OpenStaff.Core.Modularity;
 using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure;
 using OpenStaff.Plugins.ModelDataSource;
+using OpenStaff.Provider;
+using OpenStaff.Provider.Protocols;
 
 namespace OpenStaff.Application;
 
-[DependsOn(typeof(OpenStaffAgentsModule), typeof(OpenStaffInfrastructureModule), typeof(ModelDataSourceModule))]
+[DependsOn(
+    typeof(ProviderAbstractionsModule),
+    typeof(OpenStaffProviderOpenAIModule),
+    typeof(OpenStaffAgentsModule),
+    typeof(OpenStaffInfrastructureModule), 
+    typeof(ModelDataSourceModule))]
 public class OpenStaffApplicationModule : OpenStaffModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
@@ -61,5 +68,18 @@ public class OpenStaffApplicationModule : OpenStaffModule
 
         // 数据库种子
         services.AddHostedService<RoleSeedService>();
+    }
+
+
+    public override void OnApplicationInitialization(ApplicationInitializationContext context)
+    {
+        Task.Run(async () => {
+            var protocols=context.ServiceProvider.GetRequiredService<IProtocolFactory>().AllProtocols();
+            foreach (var protocol in protocols)
+            {
+                var models =await  protocol.ModelsAsync();
+                Console.WriteLine();
+            }
+        });
     }
 }

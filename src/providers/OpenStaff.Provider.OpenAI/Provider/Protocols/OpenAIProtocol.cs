@@ -5,12 +5,9 @@ using System.Text;
 
 namespace OpenStaff.Provider.Protocols;
 
-internal class OpenAIProtocol : ProtocolBase
+internal class OpenAIProtocol(IServiceProvider serviceProvider) : VendorProtocolBase(serviceProvider)
 {
-    public override string ProviderName => "open-ai";
+    public override string ProviderName => "openai";
 
-    public override Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
-    }
+    public override ModelProtocolType ProtocolType => ModelProtocolType.OpenAIChatCompletions | ModelProtocolType.OpenAIResponse;
 }

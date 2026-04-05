@@ -12,10 +12,14 @@
     <ProjectReference Include="..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
     <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
     <ProjectReference Include="..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
+    <ProjectReference Include="..\providers\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
+    <ProjectReference Include="..\providers\OpenStaff.Provider.Anthropic\OpenStaff.Provider.Anthropic.csproj" />
+    <ProjectReference Include="..\providers\OpenStaff.Provider.Google\OpenStaff.Provider.Google.csproj" />
+    <ProjectReference Include="..\providers\OpenStaff.Provider.NewApi\OpenStaff.Provider.NewApi.csproj" />
+    <ProjectReference Include="..\providers\OpenStaff.Provider.OpenAI\OpenStaff.Provider.OpenAI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="System.Reactive" />
   </ItemGroup>
 
