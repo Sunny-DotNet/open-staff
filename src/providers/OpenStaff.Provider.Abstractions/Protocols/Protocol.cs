@@ -13,13 +13,19 @@ public interface IProtocol {
     string ProviderName { get; }
     Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default);
 }
-public abstract class ProtocolBase : IProtocol
+public interface IProtocolMustEnv<TProtocolEnv> where TProtocolEnv : ProtocolEnvBase
+{
+    void Initialize(TProtocolEnv env);
+}
+public abstract class ProtocolBase<TProtocolEnv> : IProtocol, IProtocolMustEnv<TProtocolEnv>
+    where TProtocolEnv : ProtocolEnvBase
 {
     public abstract bool IsVendor { get; }
     public abstract string ProviderName { get; }
     protected IServiceProvider ServiceProvider { get; }
     protected ILogger Logger { get; }
     protected IModelDataSource ModelDataSource { get; }
+    protected virtual TProtocolEnv Env { get; private set; } = null!;
 
     protected ProtocolBase(IServiceProvider serviceProvider) {
         ServiceProvider = serviceProvider;
@@ -28,9 +34,15 @@ public abstract class ProtocolBase : IProtocol
     }
 
     public abstract Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default);
+
+    public void Initialize(TProtocolEnv env)
+    {
+        Env = env;
+    }
 }
 
-public abstract class VendorProtocolBase(IServiceProvider serviceProvider) : ProtocolBase(serviceProvider)
+public abstract class VendorProtocolBase<TProtocolEnv>(IServiceProvider serviceProvider) : ProtocolBase<TProtocolEnv>(serviceProvider)
+    where TProtocolEnv : ProtocolEnvBase
 {
     public override bool IsVendor => true;
     public abstract ModelProtocolType ProtocolType { get; }
@@ -52,3 +64,4 @@ public abstract class VendorProtocolBase(IServiceProvider serviceProvider) : Pro
         );
     }
 }
+public abstract class ProtocolEnvBase { }

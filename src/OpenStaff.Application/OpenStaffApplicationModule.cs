@@ -74,7 +74,9 @@ public class OpenStaffApplicationModule : OpenStaffModule
     public override void OnApplicationInitialization(ApplicationInitializationContext context)
     {
         Task.Run(async () => {
-            var protocols=context.ServiceProvider.GetRequiredService<IProtocolFactory>().AllProtocols();
+            var protocolFactory=context.ServiceProvider.GetRequiredService<IProtocolFactory>();
+            var protocols= protocolFactory.AllProtocols();
+            protocolFactory.CreateProtocol<NewApiProtocol, NewApiProtocolEnv>(new NewApiProtocolEnv() { BaseUrl="http://localhost:3000",ApiKey= "sk-KmssOEvvBWftuRGUbBgoJFytubLVFXEh7caQGZH5KqrNAqcg" });
             foreach (var protocol in protocols)
             {
                 var models =await  protocol.ModelsAsync();

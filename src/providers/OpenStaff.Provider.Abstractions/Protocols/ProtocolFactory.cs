@@ -11,6 +11,9 @@ public interface IProtocolFactory
 {
     IEnumerable<IProtocol> AllProtocols();
     TProtocol CreateProtocol<TProtocol>() where TProtocol : IProtocol;
+    TProtocol CreateProtocol<TProtocol, TProtocolEnv>(TProtocolEnv env)
+        where TProtocolEnv : ProtocolEnvBase
+        where TProtocol : IProtocol,IProtocolMustEnv<TProtocolEnv>;
 }
 
 internal class ProtocolFactory : IProtocolFactory
@@ -23,6 +26,14 @@ internal class ProtocolFactory : IProtocolFactory
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ServiceProvider = serviceProvider;
         ProviderOptions = providerOptions;
+    }
+    public TProtocol CreateProtocol<TProtocol, TProtocolEnv>(TProtocolEnv env)
+        where TProtocol : IProtocol,IProtocolMustEnv<TProtocolEnv>
+        where TProtocolEnv : ProtocolEnvBase
+    {
+        var protocol = ActivatorUtilities.CreateInstance<TProtocol>(ServiceProvider);
+        protocol.Initialize(env);
+        return protocol;
     }
     public virtual TProtocol CreateProtocol<TProtocol>() where TProtocol : IProtocol
     {
@@ -42,4 +53,5 @@ internal class ProtocolFactory : IProtocolFactory
         }
         return protocols;
     }
+
 }
