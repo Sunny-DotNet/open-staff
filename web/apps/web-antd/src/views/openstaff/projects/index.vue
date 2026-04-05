@@ -65,14 +65,15 @@ async function handleCreate() {
   }
   creating.value = true;
   try {
-    await createProjectApi({
+    const result = await createProjectApi({
       name: createForm.value.name.trim(),
       description: createForm.value.description.trim() || undefined,
     });
-    message.success('项目已创建');
+    message.success('项目已创建，跳转到配置页...');
     showCreateModal.value = false;
     createForm.value = { name: '', description: '' };
-    await fetchProjects();
+    const project = (result as any)?.data ?? result;
+    router.push(`/projects/${project.id}/settings`);
   } catch {
     message.error('创建失败');
   } finally {
@@ -187,6 +188,13 @@ onMounted(fetchProjects);
                   @click.stop="goToProject(project)"
                 >
                   💬 进入群聊
+                </Button>
+                <Button
+                  size="small"
+                  type="link"
+                  @click.stop="router.push(`/projects/${project.id}/settings`)"
+                >
+                  ⚙ 配置
                 </Button>
                 <Button
                   danger

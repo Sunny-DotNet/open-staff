@@ -90,7 +90,6 @@ public class ProjectService
         {
             Name = request.Name,
             Description = request.Description,
-            TechStack = request.TechStack,
             Language = request.Language ?? "zh-CN"
         };
 
@@ -106,8 +105,10 @@ public class ProjectService
 
         if (request.Name != null) project.Name = request.Name;
         if (request.Description != null) project.Description = request.Description;
-        if (request.TechStack != null) project.TechStack = request.TechStack;
         if (request.Language != null) project.Language = request.Language;
+        if (request.DefaultProviderId.HasValue) project.DefaultProviderId = request.DefaultProviderId;
+        if (request.DefaultModelName != null) project.DefaultModelName = request.DefaultModelName;
+        if (request.ExtraConfig != null) project.ExtraConfig = request.ExtraConfig;
         project.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -225,6 +226,41 @@ public class ProjectService
 
         return await _importer.ImportAsync(tempFile, workspacesRoot, ct);
     }
+
+    /// <summary>获取项目的员工列表（含角色详情）</summary>
+    public async Task<List<ProjectAgent>> GetProjectAgentsAsync(Guid projectId, CancellationToken ct)
+    {
+        return await _db.ProjectAgents
+            .Where(pa => pa.ProjectId == projectId)
+            .Include(pa => pa.AgentRole)
+            .OrderBy(pa => pa.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>批量设置项目参与的员工（全量替换）</summary>
+    public async Task SetProjectAgentsAsync(Guid projectId, List<Guid> agentRoleIds, CancellationToken ct)
+    {
+        var project = await _db.Projects.FindAsync(new object[] { projectId }, ct);
+        if (project == null) throw new InvalidOperationException($"Project {projectId} not found");
+
+        // 移除现有的
+        var existing = await _db.ProjectAgents.Where(pa => pa.ProjectId == projectId).ToListAsync(ct);
+        _db.ProjectAgents.RemoveRange(existing);
+
+        // 添加新的
+        foreach (var roleId in agentRoleIds.Distinct())
+        {
+            _db.ProjectAgents.Add(new ProjectAgent
+            {
+                ProjectId = projectId,
+                AgentRoleId = roleId
+            });
+        }
+
+        project.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Project {ProjectId} agents updated: {Count} roles", projectId, agentRoleIds.Count);
+    }
 }
 
 // 请求模型 / Request models
@@ -232,7 +268,6 @@ public class CreateProjectRequest
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public string? TechStack { get; set; }
     public string? Language { get; set; }
 }
 
@@ -240,6 +275,8 @@ public class UpdateProjectRequest
 {
     public string? Name { get; set; }
     public string? Description { get; set; }
-    public string? TechStack { get; set; }
     public string? Language { get; set; }
+    public Guid? DefaultProviderId { get; set; }
+    public string? DefaultModelName { get; set; }
+    public string? ExtraConfig { get; set; }
 }

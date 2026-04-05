@@ -57,6 +57,18 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'ProjectSettings',
+        path: '/projects/:id/settings',
+        component: () =>
+          import('#/views/openstaff/project-settings/index.vue'),
+        meta: {
+          icon: 'lucide:settings',
+          title: '项目配置',
+          hideInMenu: true,
+          activePath: '/projects',
+        },
+      },
+      {
         name: 'CodeDiff',
         path: '/projects/:id/diff',
         component: () => import('#/views/openstaff/code-diff/index.vue'),

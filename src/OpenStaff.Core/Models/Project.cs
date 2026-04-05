@@ -8,12 +8,17 @@ public class Project
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public string? TechStack { get; set; } // JSON 格式的技术栈信息
     public string Language { get; set; } = "zh-CN"; // 交互语言
     public string? WorkspacePath { get; set; } // 工作空间路径
-    public string? GitConfig { get; set; } // JSON: remote url, branch 等
     public string Status { get; set; } = ProjectStatus.Initializing;
     public string? Metadata { get; set; } // JSON 额外元数据
+
+    /// <summary>项目备用模型供应商 ID</summary>
+    public Guid? DefaultProviderId { get; set; }
+    /// <summary>项目备用模型名称</summary>
+    public string? DefaultModelName { get; set; }
+    /// <summary>扩展参数 (JSON 键值对，用于存储环境变量等)</summary>
+    public string? ExtraConfig { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

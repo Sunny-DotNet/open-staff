@@ -5,9 +5,13 @@ export namespace ProjectApi {
     id: string;
     name: string;
     description: string;
+    language: string;
     status: string;
     mainSessionId?: string;
     workspacePath?: string;
+    defaultProviderId?: string;
+    defaultModelName?: string;
+    extraConfig?: string;
     createdAt: string;
     updatedAt: string;
   }
@@ -20,6 +24,24 @@ export namespace ProjectApi {
   export interface UpdateParams {
     name?: string;
     description?: string;
+    language?: string;
+    defaultProviderId?: string | null;
+    defaultModelName?: string | null;
+    extraConfig?: string | null;
+  }
+
+  export interface ProjectAgent {
+    id: string;
+    projectId: string;
+    agentRoleId: string;
+    status: string;
+    currentTask?: string;
+    agentRole?: {
+      id: string;
+      name: string;
+      roleType: string;
+      description?: string;
+    };
   }
 }
 
@@ -56,4 +78,23 @@ export async function initializeProjectApi(id: string) {
   return requestClient.post<ProjectApi.Project>(
     `/projects/${id}/initialize`,
   );
+}
+
+/** 获取项目员工列表 */
+export async function getProjectAgentsApi(
+  id: string,
+): Promise<ProjectApi.ProjectAgent[]> {
+  const resp = await requestClient.get(`/projects/${id}/agents`);
+  return (resp as any)?.data ?? resp ?? [];
+}
+
+/** 批量设置项目员工 */
+export async function setProjectAgentsApi(
+  id: string,
+  agentRoleIds: string[],
+) {
+  const resp = await requestClient.put(`/projects/${id}/agents`, {
+    agentRoleIds,
+  });
+  return (resp as any)?.data ?? resp;
 }
