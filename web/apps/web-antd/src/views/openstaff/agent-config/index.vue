@@ -698,10 +698,10 @@ onUnmounted(() => {
         style="
           margin-bottom: 16px;
           padding: 10px 12px;
-          background: #f6f8fa;
+          background: hsl(var(--accent));
           border-radius: 6px;
           font-size: 12px;
-          color: #666;
+          color: hsl(var(--muted-foreground));
           line-height: 1.6;
         "
       >
@@ -751,7 +751,7 @@ onUnmounted(() => {
               {{ m.id }}
               <span
                 v-if="m.displayName"
-                style="color: #999; margin-left: 6px; font-size: 12px"
+                style="color: hsl(var(--muted-foreground)); margin-left: 6px; font-size: 12px"
               >
                 {{ m.displayName }}
               </span>
@@ -867,8 +867,8 @@ onUnmounted(() => {
               wordBreak: 'break-word',
               lineHeight: '1.6',
               ...(msg.role === 'user'
-                ? { background: '#1677ff', color: '#fff' }
-                : { background: '#f5f5f5', color: '#333' }),
+                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+                : { background: 'hsl(var(--accent))', color: 'hsl(var(--foreground))' }),
             }"
           >
             {{ msg.content }}
@@ -883,7 +883,7 @@ onUnmounted(() => {
             style="
               padding: 10px 16px;
               border-radius: 12px;
-              background: #f5f5f5;
+              background: hsl(var(--accent));
             "
           >
             <Badge color="blue" status="processing" text="思考中..." />
@@ -894,7 +894,7 @@ onUnmounted(() => {
       <!-- 输入区域 -->
       <div
         style="
-          border-top: 1px solid #f0f0f0;
+          border-top: 1px solid hsl(var(--border));
           padding: 12px 20px;
           display: flex;
           gap: 8px;
@@ -938,11 +938,11 @@ onUnmounted(() => {
 .staff-card {
   border-radius: 10px;
   transition: all 0.3s ease;
-  border: 1px solid #f0f0f0;
+  border: 1px solid hsl(var(--border));
 }
 
 .staff-card:hover {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 20px hsl(var(--foreground) / 0.08);
   transform: translateY(-2px);
 }
 </style>

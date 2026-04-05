@@ -260,7 +260,7 @@ onMounted(loadTasks);
 
 <style scoped>
 .kanban-column {
-  background: #fafafa;
+  background: hsl(var(--accent));
   border-radius: 8px;
   min-height: 500px;
   padding: 12px;
@@ -272,11 +272,11 @@ onMounted(loadTasks);
   justify-content: space-between;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .task-count {
-  color: #999;
+  color: hsl(var(--muted-foreground));
   font-size: 13px;
 }
 
@@ -292,7 +292,7 @@ onMounted(loadTasks);
 }
 
 .task-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px hsl(var(--foreground) / 0.1);
 }
 
 .task-title {
@@ -301,7 +301,7 @@ onMounted(loadTasks);
 }
 
 .task-desc {
-  color: #666;
+  color: hsl(var(--muted-foreground));
   font-size: 12px;
   margin-bottom: 8px;
   overflow: hidden;

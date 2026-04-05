@@ -486,7 +486,7 @@ onUnmounted(stopPolling);
         <Typography.Title :level="4">
           请在 GitHub 中输入以下代码：
         </Typography.Title>
-        <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: #f5f5f5; border-radius: 8px; margin: 16px 0">
+        <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: hsl(var(--accent)); border-radius: 8px; margin: 16px 0">
           {{ deviceAuth.userCode }}
         </div>
         <Typography.Text type="secondary">
