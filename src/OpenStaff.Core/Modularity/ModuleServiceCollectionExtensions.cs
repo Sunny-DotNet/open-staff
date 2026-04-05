@@ -18,7 +18,9 @@ public static class ModuleServiceCollectionExtensions
 
         foreach (var module in modules)
         {
+            module.ServiceConfigurationContext = context;
             module.ConfigureServices(context);
+            module.ServiceConfigurationContext = null;
         }
 
         // 将模块实例存入 DI，供 UseOpenStaffModules 使用
