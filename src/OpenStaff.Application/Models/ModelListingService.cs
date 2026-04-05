@@ -2,23 +2,24 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using OpenStaff.Core.Models;
 using OpenStaff.Infrastructure.Security;
+using OpenStaff.Plugins.ModelDataSource;
 
 namespace OpenStaff.Application.Models;
 
 /// <summary>
-/// 模型列表服务 — 优先从 models.dev 本地缓存获取，也支持直接调用供应商 API
+/// 模型列表服务 — 优先从 IModelDataSource 获取，也支持直接调用供应商 API
 /// </summary>
 public class ModelListingService
 {
     private readonly HttpClient _httpClient;
     private readonly EncryptionService _encryption;
-    private readonly ModelsDevService _modelsDev;
+    private readonly IModelDataSource _dataSource;
     private readonly ILogger<ModelListingService> _logger;
 
     /// <summary>
-    /// ProviderType → models.dev 的 key 映射
+    /// ProviderType → models.dev 的 vendor key 映射
     /// </summary>
-    private static readonly Dictionary<string, string> ProviderTypeToModelsDevKey = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> ProviderTypeToVendorKey = new(StringComparer.OrdinalIgnoreCase)
     {
         [ProviderTypes.OpenAI] = "openai",
         [ProviderTypes.Google] = "google",
@@ -26,34 +27,34 @@ public class ModelListingService
         [ProviderTypes.GitHubCopilot] = "github-copilot",
     };
 
-    public ModelListingService(HttpClient httpClient, EncryptionService encryption, ModelsDevService modelsDev, ILogger<ModelListingService> logger)
+    public ModelListingService(HttpClient httpClient, EncryptionService encryption, IModelDataSource dataSource, ILogger<ModelListingService> logger)
     {
         _httpClient = httpClient;
         _encryption = encryption;
-        _modelsDev = modelsDev;
+        _dataSource = dataSource;
         _logger = logger;
     }
 
     public record ModelInfo(string Id, string? DisplayName, long? ContextWindow = null, long? MaxOutput = null, bool? Reasoning = null);
 
     /// <summary>
-    /// 获取供应商的可用模型列表 — 优先从 models.dev 缓存获取
+    /// 获取供应商的可用模型列表 — 优先从数据源缓存获取
     /// </summary>
     public async Task<List<ModelInfo>> ListModelsAsync(ModelProvider provider, CancellationToken ct = default)
     {
-        // 1. 尝试从 models.dev 本地缓存获取
-        if (_modelsDev.IsLoaded && ProviderTypeToModelsDevKey.TryGetValue(provider.ProviderType, out var devKey))
+        // 1. 尝试从数据源获取
+        if (_dataSource.IsReady && ProviderTypeToVendorKey.TryGetValue(provider.ProviderType, out var vendorKey))
         {
-            var devModels = _modelsDev.GetModels(devKey);
-            if (devModels.Count > 0)
+            var models = await _dataSource.GetModelsByVendorAsync(vendorKey, ct);
+            if (models.Count > 0)
             {
-                _logger.LogDebug("Returning {Count} models for {Provider} from models.dev cache", devModels.Count, provider.Name);
-                return devModels.Select(m => new ModelInfo(
+                _logger.LogDebug("Returning {Count} models for {Provider} from {Source}", models.Count, provider.Name, _dataSource.SourceId);
+                return models.Select(m => new ModelInfo(
                     m.Id,
                     m.Name != m.Id ? m.Name : null,
-                    m.ContextWindow,
-                    m.MaxOutput,
-                    m.Reasoning
+                    m.Limits.ContextWindow,
+                    m.Limits.MaxOutput,
+                    m.Capabilities.HasFlag(ModelCapability.Reasoning) ? true : null
                 )).ToList();
             }
         }
@@ -98,13 +99,13 @@ public class ModelListingService
     }
 
     /// <summary>
-    /// 获取指定模型的详细参数（从 models.dev 缓存）
+    /// 获取指定模型的详细参数（从数据源缓存）
     /// </summary>
-    public ModelsDevModel? GetModelDetails(string providerType, string modelId)
+    public async Task<ModelData?> GetModelDetailsAsync(string providerType, string modelId, CancellationToken ct = default)
     {
-        if (ProviderTypeToModelsDevKey.TryGetValue(providerType, out var devKey))
+        if (ProviderTypeToVendorKey.TryGetValue(providerType, out var vendorKey))
         {
-            return _modelsDev.GetModel(devKey, modelId);
+            return await _dataSource.GetModelAsync(vendorKey, modelId, ct);
         }
         return null;
     }

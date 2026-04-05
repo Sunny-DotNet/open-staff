@@ -2,9 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using OpenStaff.Api;
 using OpenStaff.Api.Hubs;
 using OpenStaff.Api.Middleware;
-using OpenStaff.Application.Models;
 using OpenStaff.Core.Modularity;
 using OpenStaff.Infrastructure.Persistence;
+using OpenStaff.Plugins.ModelDataSource;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,8 +26,8 @@ app.Services.UseOpenStaffModules();
     await db.Database.MigrateAsync();
 }
 
-// 初始化 models.dev 数据
-await app.Services.GetRequiredService<ModelsDevService>().InitializeAsync();
+// 初始化模型数据源
+await app.Services.GetRequiredService<IModelDataSource>().InitializeAsync();
 
 // 中间件 / Middleware
 app.UseMiddleware<ErrorHandlingMiddleware>();

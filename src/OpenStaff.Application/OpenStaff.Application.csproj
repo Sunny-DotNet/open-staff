@@ -11,6 +11,7 @@
     <ProjectReference Include="..\OpenStaff.Core\OpenStaff.Core.csproj" />
     <ProjectReference Include="..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
     <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
   </ItemGroup>
 
   <ItemGroup>

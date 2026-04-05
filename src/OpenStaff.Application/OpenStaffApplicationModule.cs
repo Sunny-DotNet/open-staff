@@ -13,10 +13,11 @@ using OpenStaff.Core.Agents;
 using OpenStaff.Core.Modularity;
 using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure;
+using OpenStaff.Plugins.ModelDataSource;
 
 namespace OpenStaff.Application;
 
-[DependsOn(typeof(OpenStaffAgentsModule), typeof(OpenStaffInfrastructureModule))]
+[DependsOn(typeof(OpenStaffAgentsModule), typeof(OpenStaffInfrastructureModule), typeof(ModelDataSourceModule))]
 public class OpenStaffApplicationModule : OpenStaffModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
@@ -51,8 +52,7 @@ public class OpenStaffApplicationModule : OpenStaffModule
         services.AddScoped<ProviderResolver>();
         services.AddScoped<IProviderResolver>(sp => sp.GetRequiredService<ProviderResolver>());
 
-        // 模型服务
-        services.AddSingleton<ModelsDevService>();
+        // 模型列表服务
         services.AddHttpClient<ModelListingService>();
 
         // 认证服务
