@@ -10,7 +10,7 @@ import {
   cancelSessionApi, createSessionApi, getChatMessagesApi,
   getSessionEventsApi, sendSessionMessageApi,
 } from '#/api/openstaff/agent';
-import { getProjectApi } from '#/api/openstaff/project';
+import { getProjectApi, getProjectAgentsApi } from '#/api/openstaff/project';
 import type { ProjectApi } from '#/api/openstaff/project';
 import { useNotification } from '#/composables/useNotification';
 import { $t } from '#/locales';
@@ -32,7 +32,10 @@ const AGENT_STATES: Record<string, string> = {
 };
 
 function roleColor(role: string) { return ROLE_COLORS[role] || '#8c8c8c'; }
-function roleName(role: string) { return ROLE_NAMES[role] || role; }
+function roleName(role: string) {
+  const pa = projectAgents.value.find((a) => a.agentRole?.roleType === role);
+  return pa?.agentRole?.name || ROLE_NAMES[role] || role;
+}
 
 interface ChatMessage {
   id: string;
@@ -62,9 +65,8 @@ const agentDrawerOpen = ref(false);
 const taskDrawerOpen = ref(false);
 const statsDrawerOpen = ref(false);
 const chatContainerRef = ref<HTMLElement | null>(null);
-const agentStatuses = ref<AgentStatus[]>(
-  Object.keys(ROLE_COLORS).map((role) => ({ role, state: 'idle' })),
-);
+const projectAgents = ref<ProjectApi.ProjectAgent[]>([]);
+const agentStatuses = ref<AgentStatus[]>([]);
 const tokenUsage = ref({ events: 0 });
 let streamSub: { dispose: () => void } | null = null;
 const { connected, streamSession } = useNotification();
@@ -205,6 +207,14 @@ async function initPage() {
   loading.value = true;
   try {
     project.value = await getProjectApi(projectId.value);
+    // 加载项目配置的智能体
+    try {
+      projectAgents.value = await getProjectAgentsApi(projectId.value);
+      agentStatuses.value = projectAgents.value.map((pa) => ({
+        role: pa.agentRole?.roleType || pa.agentRoleId,
+        state: 'idle' as const,
+      }));
+    } catch { agentStatuses.value = []; }
     const mainSid = (project.value as any)?.mainSessionId || (project.value as any)?.sessionId;
     if (mainSid) {
       sessionId.value = mainSid;
@@ -357,7 +367,8 @@ watch(connected, (val) => {
 
     <!-- Agent status drawer -->
     <Drawer v-model:open="agentDrawerOpen" title="智能体状态" placement="right" :width="320">
-      <div class="agent-list">
+      <Empty v-if="agentStatuses.length === 0" description="该项目尚未配置员工，请在项目设置中添加" />
+      <div v-else class="agent-list">
         <div v-for="agent in agentStatuses" :key="agent.role" class="agent-item">
           <Avatar :style="{ backgroundColor: roleColor(agent.role) }" :size="32">{{ roleName(agent.role).charAt(0) }}</Avatar>
           <div class="agent-info">
