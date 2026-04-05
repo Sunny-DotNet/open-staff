@@ -7,4 +7,8 @@
     <RootNamespace>OpenStaff.Plugins.ModelDataSource</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\OpenStaff.Core\OpenStaff.Core.csproj" />
+  </ItemGroup>
+
 </Project>
