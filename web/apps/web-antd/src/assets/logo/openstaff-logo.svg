@@ -1,151 +1,51 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1a1a2e"/>
-      <stop offset="100%" stop-color="#16213e"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
     </linearGradient>
-    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4facfe"/>
-      <stop offset="100%" stop-color="#00f2fe"/>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
     </linearGradient>
-    <linearGradient id="nodeGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4facfe"/>
-      <stop offset="100%" stop-color="#00f2fe"/>
+    <linearGradient id="accent2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
     </linearGradient>
-    <linearGradient id="nodeGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#a18cd1"/>
-      <stop offset="100%" stop-color="#fbc2eb"/>
-    </linearGradient>
-    <linearGradient id="nodeGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f093fb"/>
-      <stop offset="100%" stop-color="#f5576c"/>
-    </linearGradient>
-    <linearGradient id="nodeGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#43e97b"/>
-      <stop offset="100%" stop-color="#38f9d7"/>
-    </linearGradient>
-    <linearGradient id="nodeGrad5" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fa709a"/>
-      <stop offset="100%" stop-color="#fee140"/>
-    </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-    <filter id="softGlow">
-      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
 
   <!-- Background -->
-  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
 
-  <!-- Subtle grid pattern -->
-  <g opacity="0.04" stroke="#ffffff" stroke-width="1">
-    <line x1="128" y1="0" x2="128" y2="512"/>
-    <line x1="256" y1="0" x2="256" y2="512"/>
-    <line x1="384" y1="0" x2="384" y2="512"/>
-    <line x1="0" y1="128" x2="512" y2="128"/>
-    <line x1="0" y1="256" x2="512" y2="256"/>
-    <line x1="0" y1="384" x2="512" y2="384"/>
+  <!-- Abstract agent network — 3 connected nodes forming a triangle -->
+  <!-- Connection lines -->
+  <g stroke="url(#accent)" stroke-width="3" opacity="0.25">
+    <line x1="256" y1="148" x2="164" y2="308"/>
+    <line x1="256" y1="148" x2="348" y2="308"/>
+    <line x1="164" y1="308" x2="348" y2="308"/>
   </g>
 
-  <!-- Connection lines between nodes -->
-  <g stroke="url(#accentGrad)" stroke-width="2" opacity="0.3" filter="url(#softGlow)">
-    <!-- Center to top -->
-    <line x1="256" y1="240" x2="256" y2="145"/>
-    <!-- Center to top-right -->
-    <line x1="268" y1="232" x2="338" y2="178"/>
-    <!-- Center to bottom-right -->
-    <line x1="268" y1="268" x2="338" y2="322"/>
-    <!-- Center to bottom-left -->
-    <line x1="244" y1="268" x2="174" y2="322"/>
-    <!-- Center to top-left -->
-    <line x1="244" y1="232" x2="174" y2="178"/>
-    <!-- Outer ring connections -->
-    <line x1="256" y1="145" x2="338" y2="178" opacity="0.5"/>
-    <line x1="338" y1="178" x2="338" y2="322" opacity="0.5"/>
-    <line x1="338" y1="322" x2="256" y2="370" opacity="0.5"/>
-    <line x1="256" y1="370" x2="174" y2="322" opacity="0.5"/>
-    <line x1="174" y1="322" x2="174" y2="178" opacity="0.5"/>
-    <line x1="174" y1="178" x2="256" y2="145" opacity="0.5"/>
+  <!-- Center hub circle (orchestrator) -->
+  <circle cx="256" cy="244" r="48" fill="url(#accent)" opacity="0.1"/>
+  <circle cx="256" cy="244" r="32" fill="url(#accent)" opacity="0.2"/>
+
+  <!-- Top node -->
+  <circle cx="256" cy="148" r="20" fill="url(#accent)"/>
+  <!-- Bottom-left node -->
+  <circle cx="164" cy="308" r="16" fill="url(#accent2)" opacity="0.85"/>
+  <!-- Bottom-right node -->
+  <circle cx="348" cy="308" r="16" fill="url(#accent2)" opacity="0.85"/>
+
+  <!-- Center dot -->
+  <circle cx="256" cy="244" r="8" fill="#38bdf8"/>
+
+  <!-- Lines from center to nodes -->
+  <g stroke="#38bdf8" stroke-width="2" opacity="0.4">
+    <line x1="256" y1="244" x2="256" y2="168"/>
+    <line x1="256" y1="244" x2="174" y2="298"/>
+    <line x1="256" y1="244" x2="338" y2="298"/>
   </g>
 
-  <!-- Center node (Orchestrator) -->
-  <g filter="url(#glow)">
-    <circle cx="256" cy="250" r="32" fill="url(#accentGrad)" opacity="0.15"/>
-    <circle cx="256" cy="250" r="22" fill="url(#accentGrad)"/>
-    <path d="M248 250 L256 242 L264 250 L258 250 L258 258 L254 258 L254 250 Z" fill="#1a1a2e" opacity="0.9"/>
-  </g>
-
-  <!-- Top node (Communicator) -->
-  <g filter="url(#glow)">
-    <circle cx="256" cy="135" r="22" fill="url(#nodeGrad2)" opacity="0.15"/>
-    <circle cx="256" cy="135" r="16" fill="url(#nodeGrad2)"/>
-    <path d="M250 131 Q256 127 262 131 L262 138 Q256 142 250 138 Z" fill="#1a1a2e" opacity="0.7" transform="translate(0,-1)"/>
-  </g>
-
-  <!-- Top-right node (Decision Maker) -->
-  <g filter="url(#glow)">
-    <circle cx="345" cy="175" r="22" fill="url(#nodeGrad3)" opacity="0.15"/>
-    <circle cx="345" cy="175" r="16" fill="url(#nodeGrad3)"/>
-    <path d="M340 170 L350 175 L340 180 Z" fill="#1a1a2e" opacity="0.7"/>
-  </g>
-
-  <!-- Bottom-right node (Producer) -->
-  <g filter="url(#glow)">
-    <circle cx="345" cy="325" r="22" fill="url(#nodeGrad4)" opacity="0.15"/>
-    <circle cx="345" cy="325" r="16" fill="url(#nodeGrad4)"/>
-    <rect x="339" y="319" width="12" height="12" rx="2" fill="#1a1a2e" opacity="0.7"/>
-  </g>
-
-  <!-- Bottom-left node (Debugger) -->
-  <g filter="url(#glow)">
-    <circle cx="167" cy="325" r="22" fill="url(#nodeGrad5)" opacity="0.15"/>
-    <circle cx="167" cy="325" r="16" fill="url(#nodeGrad5)"/>
-    <circle cx="167" cy="325" r="6" fill="none" stroke="#1a1a2e" stroke-width="2" opacity="0.7"/>
-    <circle cx="167" cy="325" r="1.5" fill="#1a1a2e" opacity="0.7"/>
-  </g>
-
-  <!-- Top-left node (Architect) -->
-  <g filter="url(#glow)">
-    <circle cx="167" cy="175" r="22" fill="url(#accentGrad)" opacity="0.15"/>
-    <circle cx="167" cy="175" r="16" fill="url(#accentGrad)"/>
-    <path d="M160 178 L167 168 L174 178 Z" fill="#1a1a2e" opacity="0.7"/>
-    <line x1="167" y1="178" x2="167" y2="183" stroke="#1a1a2e" stroke-width="1.5" opacity="0.7"/>
-  </g>
-
-  <!-- Bottom node (6th agent) -->
-  <g filter="url(#glow)">
-    <circle cx="256" cy="375" r="18" fill="url(#nodeGrad2)" opacity="0.12"/>
-    <circle cx="256" cy="375" r="12" fill="url(#nodeGrad2)" opacity="0.8"/>
-  </g>
-
-  <!-- Orbiting particles -->
-  <g opacity="0.6">
-    <circle cx="130" cy="250" r="2" fill="#4facfe">
-      <animate attributeName="opacity" values="0.2;0.8;0.2" dur="3s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="382" cy="250" r="2" fill="#f093fb">
-      <animate attributeName="opacity" values="0.2;0.8;0.2" dur="2.5s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="256" cy="95" r="1.5" fill="#43e97b">
-      <animate attributeName="opacity" values="0.3;0.9;0.3" dur="2s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="256" cy="410" r="1.5" fill="#fa709a">
-      <animate attributeName="opacity" values="0.3;0.9;0.3" dur="2.8s" repeatCount="indefinite"/>
-    </circle>
-  </g>
-
-  <!-- Text: "OS" monogram at bottom -->
-  <text x="256" y="462" text-anchor="middle" font-family="'SF Pro Display', 'Inter', system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="4" fill="url(#accentGrad)">
-    OS
-  </text>
+  <!-- "OS" text -->
+  <text x="256" y="430" text-anchor="middle" font-family="'Inter', 'SF Pro Display', system-ui, sans-serif" font-size="64" font-weight="800" letter-spacing="8" fill="url(#accent)">OS</text>
 </svg>
