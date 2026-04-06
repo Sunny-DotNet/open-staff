@@ -725,9 +725,6 @@ onUnmounted(() => {
               :value="p.id"
             >
               {{ p.name }}
-              <Tag v-if="p.defaultModel" color="default" style="margin-left: 8px">
-                {{ p.defaultModel }}
-              </Tag>
             </SelectOption>
           </Select>
         </FormItem>
@@ -738,7 +735,7 @@ onUnmounted(() => {
             :disabled="!editForm.modelProviderId"
             :filter-option="filterModelOption"
             :loading="loadingModels"
-            :placeholder="selectedProvider?.defaultModel || '请先选择供应商'"
+            :placeholder="'请先选择供应商'"
             allow-clear
             show-search
             style="width: 100%"
@@ -749,21 +746,8 @@ onUnmounted(() => {
               :value="m.id"
             >
               {{ m.id }}
-              <span
-                v-if="m.displayName"
-                style="color: hsl(var(--muted-foreground)); margin-left: 6px; font-size: 12px"
-              >
-                {{ m.displayName }}
-              </span>
             </SelectOption>
           </Select>
-          <Typography.Text
-            v-if="selectedProvider?.defaultModel && !editForm.modelName"
-            type="secondary"
-            style="font-size: 12px"
-          >
-            留空将使用提供商默认模型：{{ selectedProvider.defaultModel }}
-          </Typography.Text>
         </FormItem>
 
         <FormItem label="温度">

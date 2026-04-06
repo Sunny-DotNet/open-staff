@@ -69,7 +69,8 @@ export namespace SettingsApi {
 
   export interface ProviderModel {
     id: string;
-    displayName: string | null;
+    vendor: string;
+    protocols: string;
   }
 }
 

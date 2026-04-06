@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using OpenStaff.Application.Providers;
 using OpenStaff.Application.Auth;
-using OpenStaff.Application.Models;
+using OpenStaff.Provider.Protocols;
 
 namespace OpenStaff.Api.Controllers;
 
@@ -14,13 +14,13 @@ public class ProviderAccountsController : ControllerBase
 {
     private readonly ProviderAccountService _accountService;
     private readonly GitHubDeviceAuthService _deviceAuthService;
-    private readonly ModelListingService _modelListingService;
+    private readonly IProtocolFactory _protocolFactory;
 
-    public ProviderAccountsController(ProviderAccountService accountService, GitHubDeviceAuthService deviceAuthService, ModelListingService modelListingService)
+    public ProviderAccountsController(ProviderAccountService accountService, GitHubDeviceAuthService deviceAuthService, IProtocolFactory protocolFactory)
     {
         _accountService = accountService;
         _deviceAuthService = deviceAuthService;
-        _modelListingService = modelListingService;
+        _protocolFactory = protocolFactory;
     }
 
     [HttpGet]
@@ -99,14 +99,14 @@ public class ProviderAccountsController : ControllerBase
 
         try
         {
-            var models = await _modelListingService.ListModelsAsync(account, cancellationToken);
+            var envJson = _accountService.DecryptEnvConfig(account) ?? "{}";
+            var protocol = _protocolFactory.CreateProtocolWithEnv(account.ProtocolType, envJson);
+            var models = await protocol.ModelsAsync(cancellationToken);
             return Ok(models.Select(m => new
             {
-                m.Id,
-                m.DisplayName,
-                contextWindow = m.ContextWindow,
-                maxOutput = m.MaxOutput,
-                reasoning = m.Reasoning
+                id = m.ModelSlug,
+                vendor = m.VenderSlug,
+                protocols = m.ModelProtocols.ToString()
             }));
         }
         catch (HttpRequestException ex)

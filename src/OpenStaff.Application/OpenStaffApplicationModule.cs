@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenStaff.Agents;
 using OpenStaff.Application.Agents;
 using OpenStaff.Application.Auth;
-using OpenStaff.Application.Models;
 using OpenStaff.Application.Orchestration;
 using OpenStaff.Application.Projects;
 using OpenStaff.Application.Providers;
@@ -61,9 +60,6 @@ public class OpenStaffApplicationModule : OpenStaffModule
         services.AddScoped<ApiKeyResolver>();
         services.AddScoped<ProviderResolver>();
         services.AddScoped<IProviderResolver>(sp => sp.GetRequiredService<ProviderResolver>());
-
-        // 模型列表服务
-        services.AddHttpClient<ModelListingService>();
 
         // 认证服务
         services.AddSingleton<CopilotTokenService>();
