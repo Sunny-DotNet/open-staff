@@ -125,6 +125,16 @@ const routes: RouteRecordRaw[] = [
   },
   {
     meta: {
+      icon: 'lucide:sliders-horizontal',
+      order: 56,
+      title: 'MCP 配置',
+    },
+    name: 'McpConfigs',
+    path: '/mcp-configs',
+    component: () => import('#/views/openstaff/mcp-configs/index.vue'),
+  },
+  {
+    meta: {
       icon: 'lucide:cloud',
       order: 60,
       title: '供应商管理',

@@ -2,6 +2,7 @@
 import type { McpApi, McpMarketplaceApi } from '#/api/openstaff/mcp';
 
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -27,7 +28,7 @@ import {
   installFromMarketplaceApi,
 } from '#/api/openstaff/mcp';
 
-import McpConfigModal from './McpConfigModal.vue';
+const router = useRouter();
 
 // ===== 图标映射 =====
 const ICON_MAP: Record<string, string> = {
@@ -92,10 +93,6 @@ const activeCategory = ref('');
 const nextCursor = ref<null | string>(null);
 const loadingMore = ref(false);
 const installingIds = ref(new Set<string>());
-
-// Modal
-const showConfigModal = ref(false);
-const selectedServer = ref<McpApi.McpServer | null>(null);
 
 // ===== 计算属性 =====
 const configCountMap = computed(() => {
@@ -176,21 +173,6 @@ async function fetchAll() {
 }
 
 // ===== 操作 =====
-function openConfigModal(server: McpMarketplaceApi.MarketplaceServer) {
-  selectedServer.value = {
-    id: server.id,
-    name: server.name,
-    description: server.description,
-    icon: server.icon,
-    category: server.category,
-    transportType: server.transportTypes[0] ?? 'stdio',
-    source: server.source,
-    defaultConfig: server.defaultConfig,
-    marketplaceUrl: server.repositoryUrl,
-  } as McpApi.McpServer;
-  showConfigModal.value = true;
-}
-
 async function handleInstall(server: McpMarketplaceApi.MarketplaceServer) {
   installingIds.value.add(server.id);
   try {
@@ -208,8 +190,8 @@ async function handleInstall(server: McpMarketplaceApi.MarketplaceServer) {
   }
 }
 
-function handleConfigSaved() {
-  fetchConfigs();
+function goToConfigs(server: McpMarketplaceApi.MarketplaceServer) {
+  router.push({ path: '/mcp-configs', query: { serverId: server.id } });
 }
 
 // ===== Watch =====
@@ -278,7 +260,7 @@ onMounted(fetchAll);
           v-for="server in filteredItems"
           :key="server.id"
           class="server-card"
-          @click="(server.isInstalled || activeSource === 'internal') && openConfigModal(server)"
+          @click="(server.isInstalled || activeSource === 'internal') && goToConfigs(server)"
         >
           <!-- 图标区 -->
           <div class="card-icon">
@@ -339,7 +321,7 @@ onMounted(fetchAll);
               <Tooltip v-if="server.isInstalled || activeSource === 'internal'" title="管理配置">
                 <Button
                   size="small"
-                  @click.stop="openConfigModal(server)"
+                  @click.stop="goToConfigs(server)"
                 >
                   <template #icon><IconifyIcon icon="lucide:settings" :width="14" /></template>
                   配置
@@ -358,14 +340,6 @@ onMounted(fetchAll);
         </Button>
       </div>
     </template>
-
-    <!-- 配置 Modal -->
-    <McpConfigModal
-      :open="showConfigModal"
-      :server="selectedServer"
-      @update:open="showConfigModal = $event"
-      @saved="handleConfigSaved"
-    />
   </Page>
 </template>
 
