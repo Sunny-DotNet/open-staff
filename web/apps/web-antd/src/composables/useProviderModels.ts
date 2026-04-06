@@ -2,10 +2,19 @@ import { ref, watch, type Ref } from 'vue';
 
 import type { SettingsApi } from '#/api/openstaff/settings';
 
-import { getProviderModelsApi } from '#/api/openstaff/settings';
-
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
+
+/**
+ * 直接用 fetch 获取模型列表，绕过 Axios 可能的请求取消问题
+ */
+async function fetchModelsFromApi(
+  pid: string,
+): Promise<SettingsApi.ProviderModel[]> {
+  const resp = await fetch(`/api/provider-accounts/${pid}/models`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
 
 /**
  * 供应商 → 模型列表联动 composable
@@ -16,35 +25,38 @@ export function useProviderModels(providerId: Ref<string>) {
   const models = ref<SettingsApi.ProviderModel[]>([]);
   const loading = ref(false);
   const error = ref(false);
-  let lastFetchedId = '';
+  let fetchSeq = 0;
 
   async function fetchModels(pid: string) {
     if (!pid) {
       models.value = [];
       error.value = false;
-      lastFetchedId = '';
       return;
     }
+
+    const seq = ++fetchSeq;
     loading.value = true;
     error.value = false;
-    models.value = [];
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (seq !== fetchSeq) return; // 被更新的调用取代
       try {
-        models.value = await getProviderModelsApi(pid);
-        lastFetchedId = pid;
+        const result = await fetchModelsFromApi(pid);
+        if (seq !== fetchSeq) return;
+        models.value = result;
         error.value = false;
-        break;
+        loading.value = false;
+        return;
       } catch {
         if (attempt < MAX_RETRIES) {
           await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-        } else {
-          models.value = [];
-          error.value = true;
         }
       }
     }
 
+    if (seq !== fetchSeq) return;
+    models.value = [];
+    error.value = true;
     loading.value = false;
   }
 
@@ -55,28 +67,23 @@ export function useProviderModels(providerId: Ref<string>) {
     }
   }
 
-  /**
-   * 点击模型下拉框时调用：若列表为空且有供应商，自动重新加载
-   */
+  /** 点击模型下拉框时调用：若列表为空且有供应商，自动重新加载 */
   function ensureLoaded() {
-    if (
-      providerId.value &&
-      models.value.length === 0 &&
-      !loading.value
-    ) {
+    if (providerId.value && models.value.length === 0 && !loading.value) {
       fetchModels(providerId.value);
     }
   }
 
   watch(
     () => providerId.value,
-    async (newId) => {
+    (newId) => {
       if (newId) {
-        await fetchModels(newId);
+        fetchModels(newId);
       } else {
+        fetchSeq++;
         models.value = [];
         error.value = false;
-        lastFetchedId = '';
+        loading.value = false;
       }
     },
   );

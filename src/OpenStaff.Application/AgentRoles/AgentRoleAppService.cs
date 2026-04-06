@@ -220,30 +220,31 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         stream.Push(SessionEventTypes.UserInput, payload: JsonSerializer.Serialize(new { content = message }));
 
+        // 在 DI scope 存活时先查询 MCP 绑定和角色配置
+        var mcpBindings = await _db.AgentRoleMcpConfigs
+            .Include(b => b.McpServerConfig)
+            .Where(b => b.AgentRoleId == id && b.McpServerConfig!.IsEnabled)
+            .ToListAsync(ct);
+
+        var roleConfig = _agentFactory.GetRoleConfig(role.RoleType);
+        var systemPrompt = !string.IsNullOrEmpty(role.SystemPrompt)
+            ? role.SystemPrompt
+            : roleConfig?.SystemPrompt ?? "";
+        var modelName = !string.IsNullOrEmpty(role.ModelName)
+            ? role.ModelName
+            : roleConfig?.ModelName ?? "gpt-4o";
+
         _ = Task.Run(async () =>
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                // 加载角色配置获取系统提示词和模型名
-                var roleConfig = _agentFactory.GetRoleConfig(role.RoleType);
-                var systemPrompt = !string.IsNullOrEmpty(role.SystemPrompt)
-                    ? role.SystemPrompt
-                    : roleConfig?.SystemPrompt ?? "";
-                var modelName = !string.IsNullOrEmpty(role.ModelName)
-                    ? role.ModelName
-                    : roleConfig?.ModelName ?? "gpt-4o";
-
                 // 直接创建 IChatClient 做流式输出
                 var chatClient = _chatClientFactory.Create(
                     account.ProtocolType, apiKey, modelName, endpointOverride);
 
                 // 加载 MCP 工具
                 var mcpTools = new List<AITool>();
-                var mcpBindings = await _db.AgentRoleMcpConfigs
-                    .Include(b => b.McpServerConfig)
-                    .Where(b => b.AgentRoleId == id && b.McpServerConfig!.IsEnabled)
-                    .ToListAsync(ct);
 
                 foreach (var binding in mcpBindings)
                 {

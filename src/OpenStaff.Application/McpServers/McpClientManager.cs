@@ -69,8 +69,9 @@ public class McpClientManager : IDisposable
 
     private async Task<McpClient> CreateClientAsync(McpServerConfig config, CancellationToken ct)
     {
+        var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         var connConfig = !string.IsNullOrEmpty(config.ConnectionConfig)
-            ? JsonSerializer.Deserialize<ConnectionConfigModel>(config.ConnectionConfig)
+            ? JsonSerializer.Deserialize<ConnectionConfigModel>(config.ConnectionConfig, jsonOptions)
             : null;
 
         // 解密环境变量
