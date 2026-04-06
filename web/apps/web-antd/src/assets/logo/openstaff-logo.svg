@@ -1,51 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#1e293b"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="0%" stop-color="#4f46e5"/>
       <stop offset="100%" stop-color="#06b6d4"/>
-    </linearGradient>
-    <linearGradient id="accent2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#818cf8"/>
-      <stop offset="100%" stop-color="#38bdf8"/>
     </linearGradient>
   </defs>
 
-  <!-- Background -->
-  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
 
-  <!-- Abstract agent network — 3 connected nodes forming a triangle -->
-  <!-- Connection lines -->
-  <g stroke="url(#accent)" stroke-width="3" opacity="0.25">
-    <line x1="256" y1="148" x2="164" y2="308"/>
-    <line x1="256" y1="148" x2="348" y2="308"/>
-    <line x1="164" y1="308" x2="348" y2="308"/>
+  <!-- Bold white hub-and-spoke: center orchestrator + 3 agent nodes -->
+  <!-- Thick connection lines -->
+  <g stroke="#fff" stroke-width="28" stroke-linecap="round" opacity="0.6">
+    <line x1="256" y1="256" x2="256" y2="112"/>
+    <line x1="256" y1="256" x2="132" y2="344"/>
+    <line x1="256" y1="256" x2="380" y2="344"/>
   </g>
 
-  <!-- Center hub circle (orchestrator) -->
-  <circle cx="256" cy="244" r="48" fill="url(#accent)" opacity="0.1"/>
-  <circle cx="256" cy="244" r="32" fill="url(#accent)" opacity="0.2"/>
+  <!-- Center hub (orchestrator) -->
+  <circle cx="256" cy="256" r="56" fill="#fff"/>
 
-  <!-- Top node -->
-  <circle cx="256" cy="148" r="20" fill="url(#accent)"/>
-  <!-- Bottom-left node -->
-  <circle cx="164" cy="308" r="16" fill="url(#accent2)" opacity="0.85"/>
-  <!-- Bottom-right node -->
-  <circle cx="348" cy="308" r="16" fill="url(#accent2)" opacity="0.85"/>
-
-  <!-- Center dot -->
-  <circle cx="256" cy="244" r="8" fill="#38bdf8"/>
-
-  <!-- Lines from center to nodes -->
-  <g stroke="#38bdf8" stroke-width="2" opacity="0.4">
-    <line x1="256" y1="244" x2="256" y2="168"/>
-    <line x1="256" y1="244" x2="174" y2="298"/>
-    <line x1="256" y1="244" x2="338" y2="298"/>
-  </g>
-
-  <!-- "OS" text -->
-  <text x="256" y="430" text-anchor="middle" font-family="'Inter', 'SF Pro Display', system-ui, sans-serif" font-size="64" font-weight="800" letter-spacing="8" fill="url(#accent)">OS</text>
+  <!-- Top agent -->
+  <circle cx="256" cy="112" r="44" fill="#fff"/>
+  <!-- Bottom-left agent -->
+  <circle cx="132" cy="344" r="44" fill="#fff"/>
+  <!-- Bottom-right agent -->
+  <circle cx="380" cy="344" r="44" fill="#fff"/>
 </svg>
