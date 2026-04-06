@@ -24,4 +24,6 @@ public interface IMcpServerAppService
     // 员工 MCP 绑定
     Task<List<AgentMcpBindingDto>> GetAgentBindingsAsync(Guid agentRoleId, CancellationToken ct = default);
     Task SetAgentBindingsAsync(SetAgentBindingsRequest request, CancellationToken ct = default);
+    Task<AgentMcpBindingDto> AddAgentBindingAsync(CreateAgentBindingInput input, CancellationToken ct = default);
+    Task RemoveAgentBindingAsync(Guid agentRoleId, Guid mcpServerConfigId, CancellationToken ct = default);
 }

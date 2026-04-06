@@ -93,5 +93,16 @@ public class McpServersController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("agent-bindings")]
+    public async Task<IActionResult> AddAgentBinding([FromBody] CreateAgentBindingInput input, CancellationToken ct)
+        => Ok(await _mcpService.AddAgentBindingAsync(input, ct));
+
+    [HttpDelete("agent-bindings/{agentRoleId:guid}/{configId:guid}")]
+    public async Task<IActionResult> RemoveAgentBinding(Guid agentRoleId, Guid configId, CancellationToken ct)
+    {
+        await _mcpService.RemoveAgentBindingAsync(agentRoleId, configId, ct);
+        return NoContent();
+    }
+
     #endregion
 }

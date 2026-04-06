@@ -100,3 +100,10 @@ public class SetAgentBindingsRequest
     public Guid AgentRoleId { get; set; }
     public List<Guid> McpServerConfigIds { get; set; } = [];
 }
+
+public class CreateAgentBindingInput
+{
+    public Guid AgentRoleId { get; set; }
+    public Guid McpServerConfigId { get; set; }
+    public string? ToolFilter { get; set; }
+}

@@ -274,6 +274,47 @@ public class McpServerAppService : IMcpServerAppService
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task<AgentMcpBindingDto> AddAgentBindingAsync(CreateAgentBindingInput input, CancellationToken ct = default)
+    {
+        var exists = await _db.AgentRoleMcpConfigs
+            .AnyAsync(b => b.AgentRoleId == input.AgentRoleId && b.McpServerConfigId == input.McpServerConfigId, ct);
+        if (exists)
+            throw new InvalidOperationException("该 MCP 配置已绑定");
+
+        var binding = new AgentRoleMcpConfig
+        {
+            AgentRoleId = input.AgentRoleId,
+            McpServerConfigId = input.McpServerConfigId,
+            ToolFilter = input.ToolFilter
+        };
+        _db.AgentRoleMcpConfigs.Add(binding);
+        await _db.SaveChangesAsync(ct);
+
+        var config = await _db.McpServerConfigs.AsNoTracking()
+            .Include(c => c.McpServer)
+            .FirstAsync(c => c.Id == input.McpServerConfigId, ct);
+
+        return new AgentMcpBindingDto
+        {
+            McpServerConfigId = config.Id,
+            McpServerConfigName = config.Name,
+            McpServerName = config.McpServer?.Name ?? "",
+            Icon = config.McpServer?.Icon,
+            ToolFilter = input.ToolFilter
+        };
+    }
+
+    public async Task RemoveAgentBindingAsync(Guid agentRoleId, Guid mcpServerConfigId, CancellationToken ct = default)
+    {
+        var binding = await _db.AgentRoleMcpConfigs
+            .FirstOrDefaultAsync(b => b.AgentRoleId == agentRoleId && b.McpServerConfigId == mcpServerConfigId, ct);
+        if (binding != null)
+        {
+            _db.AgentRoleMcpConfigs.Remove(binding);
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
     #endregion
 
     private static McpServerConfigDto ToConfigDto(McpServerConfig c) => new()
