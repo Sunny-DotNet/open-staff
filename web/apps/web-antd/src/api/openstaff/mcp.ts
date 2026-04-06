@@ -123,6 +123,8 @@ export async function testMcpConnectionApi(
 ): Promise<McpApi.TestConnectionResult> {
   return requestClient.post<McpApi.TestConnectionResult>(
     `/mcp/configs/${configId}/test`,
+    undefined,
+    { timeout: 60_000 },
   );
 }
 
