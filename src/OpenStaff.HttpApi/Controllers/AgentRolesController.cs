@@ -42,17 +42,18 @@ public class AgentRolesController : ControllerBase
         => await _agentRoleAppService.DeleteAsync(id, ct) ? NoContent() : NotFound();
 
     [HttpPost("{id:guid}/test-chat")]
-    public async Task<IActionResult> TestChat(Guid id, [FromBody] TestChatRequest request, CancellationToken ct)
+    public async Task<IActionResult> TestChat(Guid id, [FromBody] TestChatBody body, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Message))
+        if (string.IsNullOrWhiteSpace(body.Message))
             return BadRequest(new { message = "消息不能为空" });
 
-        var sessionId = await _agentRoleAppService.TestChatAsync(id, request.Message, ct);
+        var request = new TestChatRequest { AgentRoleId = id, Message = body.Message };
+        var sessionId = await _agentRoleAppService.TestChatAsync(request, ct);
         return Ok(new { sessionId });
     }
 }
 
-public class TestChatRequest
+public class TestChatBody
 {
     public string Message { get; set; } = string.Empty;
 }

@@ -39,20 +39,20 @@ public class SessionAppService : ISessionAppService
         };
     }
 
-    public async Task<SendMessageOutput> SendMessageAsync(Guid sessionId, string input, CancellationToken ct)
+    public async Task<SendMessageOutput> SendMessageAsync(SendSessionMessageRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(input))
+        if (string.IsNullOrWhiteSpace(request.Input))
             throw new ArgumentException("Input is required");
 
-        var session = await _db.ChatSessions.FindAsync(new object[] { sessionId }, ct);
+        var session = await _db.ChatSessions.FindAsync(new object[] { request.SessionId }, ct);
         if (session == null) throw new KeyNotFoundException("Session not found");
 
-        await _runner.SendMessageAsync(sessionId, input);
+        await _runner.SendMessageAsync(request.SessionId, request.Input);
 
         return new SendMessageOutput
         {
             Status = "message_sent",
-            IsAwaitingInput = _runner.IsAwaitingInput(sessionId)
+            IsAwaitingInput = _runner.IsAwaitingInput(request.SessionId)
         };
     }
 
@@ -102,10 +102,10 @@ public class SessionAppService : ISessionAppService
             .ToListAsync(ct);
     }
 
-    public async Task<List<ChatMessageDto>> GetFrameMessagesAsync(Guid sessionId, Guid frameId, CancellationToken ct)
+    public async Task<List<ChatMessageDto>> GetFrameMessagesAsync(GetFrameMessagesRequest request, CancellationToken ct)
     {
         var messages = await _db.ChatMessages
-            .Where(m => m.SessionId == sessionId && m.FrameId == frameId)
+            .Where(m => m.SessionId == request.SessionId && m.FrameId == request.FrameId)
             .OrderBy(m => m.SequenceNo)
             .ToListAsync(ct);
 
@@ -132,12 +132,12 @@ public class SessionAppService : ISessionAppService
         return Task.CompletedTask;
     }
 
-    public async Task<List<SessionDto>> GetByProjectAsync(Guid projectId, int limit, CancellationToken ct)
+    public async Task<List<SessionDto>> GetByProjectAsync(GetSessionsByProjectRequest request, CancellationToken ct)
     {
         return await _db.ChatSessions
-            .Where(s => s.ProjectId == projectId)
+            .Where(s => s.ProjectId == request.ProjectId)
             .OrderByDescending(s => s.CreatedAt)
-            .Take(limit)
+            .Take(request.Limit)
             .Select(s => new SessionDto
             {
                 Id = s.Id,
@@ -151,13 +151,13 @@ public class SessionAppService : ISessionAppService
             .ToListAsync(ct);
     }
 
-    public async Task<ChatMessageListOutput> GetChatMessagesAsync(Guid sessionId, int skip, int take, CancellationToken ct)
+    public async Task<ChatMessageListOutput> GetChatMessagesAsync(GetChatMessagesRequest request, CancellationToken ct)
     {
         var messages = await _db.ChatMessages
-            .Where(m => m.SessionId == sessionId)
+            .Where(m => m.SessionId == request.SessionId)
             .OrderBy(m => m.CreatedAt)
-            .Skip(skip)
-            .Take(take)
+            .Skip(request.Skip)
+            .Take(request.Take)
             .Select(m => new ChatMessageDto
             {
                 Role = m.Role,
@@ -168,7 +168,7 @@ public class SessionAppService : ISessionAppService
             })
             .ToListAsync(ct);
 
-        var total = await _db.ChatMessages.CountAsync(m => m.SessionId == sessionId, ct);
+        var total = await _db.ChatMessages.CountAsync(m => m.SessionId == request.SessionId, ct);
 
         return new ChatMessageListOutput
         {

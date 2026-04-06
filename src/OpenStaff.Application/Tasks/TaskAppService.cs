@@ -15,12 +15,12 @@ public class TaskAppService : ITaskAppService
         _db = db;
     }
 
-    public async Task<List<TaskDto>> GetAllAsync(Guid projectId, string? status, CancellationToken ct)
+    public async Task<List<TaskDto>> GetAllAsync(GetAllTasksRequest request, CancellationToken ct)
     {
-        var query = _db.Tasks.Where(t => t.ProjectId == projectId);
+        var query = _db.Tasks.Where(t => t.ProjectId == request.ProjectId);
 
-        if (!string.IsNullOrEmpty(status))
-            query = query.Where(t => t.Status == status);
+        if (!string.IsNullOrEmpty(request.Status))
+            query = query.Where(t => t.Status == request.Status);
 
         var tasks = await query
             .Include(t => t.AssignedAgent).ThenInclude(a => a!.AgentRole)
@@ -31,37 +31,37 @@ public class TaskAppService : ITaskAppService
         return tasks.Select(MapToDto).ToList();
     }
 
-    public async Task<TaskDto?> GetByIdAsync(Guid projectId, Guid taskId, CancellationToken ct)
+    public async Task<TaskDto?> GetByIdAsync(GetTaskByIdRequest request, CancellationToken ct)
     {
         var task = await _db.Tasks
             .Include(t => t.Dependencies).ThenInclude(d => d.DependsOn)
             .Include(t => t.SubTasks)
             .Include(t => t.AssignedAgent).ThenInclude(a => a!.AgentRole)
-            .FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId, ct);
+            .FirstOrDefaultAsync(t => t.Id == request.TaskId && t.ProjectId == request.ProjectId, ct);
 
         return task == null ? null : MapToDto(task);
     }
 
-    public async Task<TaskDto> CreateAsync(Guid projectId, CreateTaskInput input, CancellationToken ct)
+    public async Task<TaskDto> CreateAsync(CreateTaskRequest request, CancellationToken ct)
     {
-        var project = await _db.Projects.FindAsync(new object[] { projectId }, ct);
+        var project = await _db.Projects.FindAsync(new object[] { request.ProjectId }, ct);
         if (project == null) throw new KeyNotFoundException("工程不存在 / Project not found");
 
         var task = new TaskItem
         {
-            ProjectId = projectId,
-            Title = input.Title,
-            Description = input.Description,
-            Priority = input.Priority,
-            ParentTaskId = input.ParentTaskId,
-            AssignedAgentId = input.AssignedAgentId
+            ProjectId = request.ProjectId,
+            Title = request.Input.Title,
+            Description = request.Input.Description,
+            Priority = request.Input.Priority,
+            ParentTaskId = request.Input.ParentTaskId,
+            AssignedAgentId = request.Input.AssignedAgentId
         };
 
         _db.Tasks.Add(task);
 
-        if (input.DependsOn?.Any() == true)
+        if (request.Input.DependsOn?.Any() == true)
         {
-            foreach (var depId in input.DependsOn)
+            foreach (var depId in request.Input.DependsOn)
             {
                 _db.TaskDependencies.Add(new TaskDependency
                 {
@@ -75,20 +75,20 @@ public class TaskAppService : ITaskAppService
         return MapToDto(task);
     }
 
-    public async Task<TaskDto?> UpdateAsync(Guid projectId, Guid taskId, UpdateTaskInput input, CancellationToken ct)
+    public async Task<TaskDto?> UpdateAsync(UpdateTaskRequest request, CancellationToken ct)
     {
-        var task = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId, ct);
+        var task = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == request.TaskId && t.ProjectId == request.ProjectId, ct);
         if (task == null) return null;
 
-        if (input.Title != null) task.Title = input.Title;
-        if (input.Description != null) task.Description = input.Description;
-        if (input.Priority.HasValue) task.Priority = input.Priority.Value;
-        if (input.AssignedAgentId.HasValue) task.AssignedAgentId = input.AssignedAgentId.Value;
+        if (request.Input.Title != null) task.Title = request.Input.Title;
+        if (request.Input.Description != null) task.Description = request.Input.Description;
+        if (request.Input.Priority.HasValue) task.Priority = request.Input.Priority.Value;
+        if (request.Input.AssignedAgentId.HasValue) task.AssignedAgentId = request.Input.AssignedAgentId.Value;
 
-        if (input.Status != null)
+        if (request.Input.Status != null)
         {
-            task.Status = input.Status;
-            if (input.Status == "done") task.CompletedAt = DateTime.UtcNow;
+            task.Status = request.Input.Status;
+            if (request.Input.Status == "done") task.CompletedAt = DateTime.UtcNow;
         }
 
         task.UpdatedAt = DateTime.UtcNow;
@@ -96,9 +96,9 @@ public class TaskAppService : ITaskAppService
         return MapToDto(task);
     }
 
-    public async Task<bool> DeleteAsync(Guid projectId, Guid taskId, CancellationToken ct)
+    public async Task<bool> DeleteAsync(DeleteTaskRequest request, CancellationToken ct)
     {
-        var task = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId, ct);
+        var task = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == request.TaskId && t.ProjectId == request.ProjectId, ct);
         if (task == null) return false;
 
         _db.Tasks.Remove(task);
@@ -106,10 +106,10 @@ public class TaskAppService : ITaskAppService
         return true;
     }
 
-    public async Task<List<TaskTimelineDto>> GetTimelineAsync(Guid projectId, Guid taskId, CancellationToken ct)
+    public async Task<List<TaskTimelineDto>> GetTimelineAsync(GetTaskTimelineRequest request, CancellationToken ct)
     {
         var events = await _db.AgentEvents
-            .Where(e => e.ProjectId == projectId && e.Metadata != null && e.Metadata.Contains(taskId.ToString()))
+            .Where(e => e.ProjectId == request.ProjectId && e.Metadata != null && e.Metadata.Contains(request.TaskId.ToString()))
             .OrderBy(e => e.CreatedAt)
             .Take(100)
             .ToListAsync(ct);
@@ -123,14 +123,14 @@ public class TaskAppService : ITaskAppService
         }).ToList();
     }
 
-    public async Task<int> BatchUpdateStatusAsync(Guid projectId, List<TaskStatusUpdateInput> updates, CancellationToken ct)
+    public async Task<int> BatchUpdateStatusAsync(BatchUpdateTaskStatusRequest request, CancellationToken ct)
     {
-        var taskIds = updates.Select(t => t.TaskId).ToList();
+        var taskIds = request.Updates.Select(t => t.TaskId).ToList();
         var tasks = await _db.Tasks
-            .Where(t => t.ProjectId == projectId && taskIds.Contains(t.Id))
+            .Where(t => t.ProjectId == request.ProjectId && taskIds.Contains(t.Id))
             .ToListAsync(ct);
 
-        foreach (var update in updates)
+        foreach (var update in request.Updates)
         {
             var task = tasks.FirstOrDefault(t => t.Id == update.TaskId);
             if (task != null)

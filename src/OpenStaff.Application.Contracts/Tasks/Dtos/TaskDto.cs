@@ -49,3 +49,46 @@ public class TaskTimelineDto
     public string? Data { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+public class GetAllTasksRequest
+{
+    public Guid ProjectId { get; set; }
+    public string? Status { get; set; }
+}
+
+public class GetTaskByIdRequest
+{
+    public Guid ProjectId { get; set; }
+    public Guid TaskId { get; set; }
+}
+
+public class CreateTaskRequest
+{
+    public Guid ProjectId { get; set; }
+    public CreateTaskInput Input { get; set; } = new();
+}
+
+public class UpdateTaskRequest
+{
+    public Guid ProjectId { get; set; }
+    public Guid TaskId { get; set; }
+    public UpdateTaskInput Input { get; set; } = new();
+}
+
+public class DeleteTaskRequest
+{
+    public Guid ProjectId { get; set; }
+    public Guid TaskId { get; set; }
+}
+
+public class GetTaskTimelineRequest
+{
+    public Guid ProjectId { get; set; }
+    public Guid TaskId { get; set; }
+}
+
+public class BatchUpdateTaskStatusRequest
+{
+    public Guid ProjectId { get; set; }
+    public List<TaskStatusUpdateInput> Updates { get; set; } = [];
+}

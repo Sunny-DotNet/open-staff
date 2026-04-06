@@ -26,12 +26,12 @@ public class FileAppService : IFileAppService
         return BuildFileTree(workspacePath, workspacePath, maxDepth: 5);
     }
 
-    public async Task<string?> GetFileContentAsync(Guid projectId, string path, CancellationToken ct)
+    public async Task<string?> GetFileContentAsync(GetFileContentRequest request, CancellationToken ct)
     {
-        var project = await _db.Projects.FindAsync(new object[] { projectId }, ct);
+        var project = await _db.Projects.FindAsync(new object[] { request.ProjectId }, ct);
         if (project == null) throw new KeyNotFoundException("工程不存在 / Project not found");
 
-        var fullPath = Path.GetFullPath(Path.Combine(project.WorkspacePath ?? "", path));
+        var fullPath = Path.GetFullPath(Path.Combine(project.WorkspacePath ?? "", request.Path));
         if (!fullPath.StartsWith(Path.GetFullPath(project.WorkspacePath ?? ""), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("路径越界 / Path traversal detected");
 
@@ -41,15 +41,15 @@ public class FileAppService : IFileAppService
         return await File.ReadAllTextAsync(fullPath, ct);
     }
 
-    public async Task<string?> GetDiffAsync(Guid projectId, string? commitSha, CancellationToken ct)
+    public async Task<string?> GetDiffAsync(GetDiffRequest request, CancellationToken ct)
     {
-        var project = await _db.Projects.FindAsync(new object[] { projectId }, ct);
+        var project = await _db.Projects.FindAsync(new object[] { request.ProjectId }, ct);
         if (project == null) throw new KeyNotFoundException("Project not found");
 
         var workspacePath = project.WorkspacePath;
         if (string.IsNullOrEmpty(workspacePath)) return "";
 
-        var args = string.IsNullOrEmpty(commitSha) ? "diff" : $"diff {commitSha}^..{commitSha}";
+        var args = string.IsNullOrEmpty(request.CommitSha) ? "diff" : $"diff {request.CommitSha}^..{request.CommitSha}";
         return RunGit(workspacePath, args);
     }
 

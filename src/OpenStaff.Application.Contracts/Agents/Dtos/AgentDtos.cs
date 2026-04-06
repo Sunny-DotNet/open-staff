@@ -21,3 +21,24 @@ public class AgentEventDto
     public string? Data { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+public class SetProjectAgentsRequest
+{
+    public Guid ProjectId { get; set; }
+    public List<Guid> AgentRoleIds { get; set; } = [];
+}
+
+public class GetAgentEventsRequest
+{
+    public Guid ProjectId { get; set; }
+    public Guid AgentId { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+}
+
+public class SendAgentMessageRequest
+{
+    public Guid ProjectId { get; set; }
+    public Guid AgentId { get; set; }
+    public string Message { get; set; } = string.Empty;
+}

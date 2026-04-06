@@ -26,9 +26,13 @@ public class SessionsController : ControllerBase
     }
 
     [HttpPost("{sessionId:guid}/messages")]
-    public async Task<IActionResult> SendMessage(Guid sessionId, [FromBody] ChatMessageRequest request, CancellationToken ct)
+    public async Task<IActionResult> SendMessage(Guid sessionId, [FromBody] ChatMessageRequest body, CancellationToken ct)
     {
-        var result = await _sessionAppService.SendMessageAsync(sessionId, request.Input, ct);
+        var result = await _sessionAppService.SendMessageAsync(new SendSessionMessageRequest
+        {
+            SessionId = sessionId,
+            Input = body.Input
+        }, ct);
         return Ok(result);
     }
 
@@ -45,7 +49,7 @@ public class SessionsController : ControllerBase
 
     [HttpGet("{sessionId:guid}/frames/{frameId:guid}/messages")]
     public async Task<IActionResult> GetFrameMessages(Guid sessionId, Guid frameId, CancellationToken ct)
-        => Ok(await _sessionAppService.GetFrameMessagesAsync(sessionId, frameId, ct));
+        => Ok(await _sessionAppService.GetFrameMessagesAsync(new GetFrameMessagesRequest { SessionId = sessionId, FrameId = frameId }, ct));
 
     [HttpPost("{sessionId:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid sessionId, CancellationToken ct)
@@ -63,11 +67,11 @@ public class SessionsController : ControllerBase
 
     [HttpGet("by-project/{projectId:guid}")]
     public async Task<IActionResult> GetByProject(Guid projectId, [FromQuery] int limit = 20, CancellationToken ct = default)
-        => Ok(await _sessionAppService.GetByProjectAsync(projectId, limit, ct));
+        => Ok(await _sessionAppService.GetByProjectAsync(new GetSessionsByProjectRequest { ProjectId = projectId, Limit = limit }, ct));
 
     [HttpGet("{sessionId:guid}/chat-messages")]
     public async Task<IActionResult> GetChatMessages(Guid sessionId, [FromQuery] int skip = 0, [FromQuery] int take = 50, CancellationToken ct = default)
-        => Ok(await _sessionAppService.GetChatMessagesAsync(sessionId, skip, take, ct));
+        => Ok(await _sessionAppService.GetChatMessagesAsync(new GetChatMessagesRequest { SessionId = sessionId, Skip = skip, Take = take }, ct));
 }
 
 public class ChatMessageRequest

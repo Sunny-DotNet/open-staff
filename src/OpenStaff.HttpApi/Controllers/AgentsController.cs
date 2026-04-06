@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using OpenStaff.Application.Contracts.Agents;
+using OpenStaff.Application.Contracts.Agents.Dtos;
 
 namespace OpenStaff.HttpApi.Controllers;
 
@@ -19,30 +20,45 @@ public class AgentsController : ControllerBase
         => Ok(await _agentAppService.GetProjectAgentsAsync(projectId, ct));
 
     [HttpPut]
-    public async Task<IActionResult> SetAgents(Guid projectId, [FromBody] SetAgentsRequest request, CancellationToken ct)
+    public async Task<IActionResult> SetAgents(Guid projectId, [FromBody] SetAgentsBody body, CancellationToken ct)
     {
-        await _agentAppService.SetProjectAgentsAsync(projectId, request.AgentRoleIds, ct);
+        await _agentAppService.SetProjectAgentsAsync(new SetProjectAgentsRequest
+        {
+            ProjectId = projectId,
+            AgentRoleIds = body.AgentRoleIds
+        }, ct);
         return Ok(new { message = "ok" });
     }
 
     [HttpGet("{agentId:guid}/events")]
     public async Task<IActionResult> GetEvents(Guid projectId, Guid agentId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
-        => Ok(await _agentAppService.GetEventsAsync(projectId, agentId, page, pageSize, ct));
+        => Ok(await _agentAppService.GetEventsAsync(new GetAgentEventsRequest
+        {
+            ProjectId = projectId,
+            AgentId = agentId,
+            Page = page,
+            PageSize = pageSize
+        }, ct));
 
     [HttpPost("{agentId:guid}/message")]
-    public async Task<IActionResult> SendMessage(Guid projectId, Guid agentId, [FromBody] SendAgentMessageRequest request, CancellationToken ct)
+    public async Task<IActionResult> SendMessage(Guid projectId, Guid agentId, [FromBody] SendMessageBody body, CancellationToken ct)
     {
-        await _agentAppService.SendMessageAsync(projectId, agentId, request.Message, ct);
+        await _agentAppService.SendMessageAsync(new SendAgentMessageRequest
+        {
+            ProjectId = projectId,
+            AgentId = agentId,
+            Message = body.Message
+        }, ct);
         return Ok(new { status = "sent" });
     }
 }
 
-public class SetAgentsRequest
+public class SetAgentsBody
 {
     public List<Guid> AgentRoleIds { get; set; } = [];
 }
 
-public class SendAgentMessageRequest
+public class SendMessageBody
 {
     public string Message { get; set; } = string.Empty;
 }

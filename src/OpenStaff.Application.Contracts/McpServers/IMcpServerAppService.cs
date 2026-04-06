@@ -5,7 +5,7 @@ namespace OpenStaff.Application.Contracts.McpServers;
 public interface IMcpServerAppService
 {
     // MCP Server 定义（市场）
-    Task<List<McpServerDto>> GetAllServersAsync(string? category = null, string? search = null, CancellationToken ct = default);
+    Task<List<McpServerDto>> GetAllServersAsync(GetAllServersRequest request, CancellationToken ct = default);
     Task<McpServerDto?> GetServerByIdAsync(Guid id, CancellationToken ct = default);
     Task<McpServerDto> CreateServerAsync(CreateMcpServerInput input, CancellationToken ct = default);
     Task<bool> DeleteServerAsync(Guid id, CancellationToken ct = default);
@@ -23,5 +23,5 @@ public interface IMcpServerAppService
 
     // 员工 MCP 绑定
     Task<List<AgentMcpBindingDto>> GetAgentBindingsAsync(Guid agentRoleId, CancellationToken ct = default);
-    Task SetAgentBindingsAsync(Guid agentRoleId, List<Guid> mcpServerConfigIds, CancellationToken ct = default);
+    Task SetAgentBindingsAsync(SetAgentBindingsRequest request, CancellationToken ct = default);
 }

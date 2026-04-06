@@ -16,3 +16,15 @@ public class CheckpointDto
     public string? CommitSha { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+public class GetFileContentRequest
+{
+    public Guid ProjectId { get; set; }
+    public string Path { get; set; } = string.Empty;
+}
+
+public class GetDiffRequest
+{
+    public Guid ProjectId { get; set; }
+    public string? CommitSha { get; set; }
+}

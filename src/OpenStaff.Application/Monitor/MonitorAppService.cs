@@ -102,18 +102,18 @@ public class MonitorAppService : IMonitorAppService
         };
     }
 
-    public async Task<PagedResult<EventDto>> GetEventsAsync(Guid projectId, int page, int pageSize, string? eventType, CancellationToken ct)
+    public async Task<PagedResult<EventDto>> GetEventsAsync(GetEventsRequest request, CancellationToken ct)
     {
-        var query = _db.AgentEvents.Where(e => e.ProjectId == projectId);
+        var query = _db.AgentEvents.Where(e => e.ProjectId == request.ProjectId);
 
-        if (!string.IsNullOrEmpty(eventType))
-            query = query.Where(e => e.EventType == eventType);
+        if (!string.IsNullOrEmpty(request.EventType))
+            query = query.Where(e => e.EventType == request.EventType);
 
         var total = await query.CountAsync(ct);
         var events = await query
             .OrderByDescending(e => e.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
             .Select(e => new EventDto
             {
                 Id = e.Id,
@@ -128,8 +128,8 @@ public class MonitorAppService : IMonitorAppService
         {
             Items = events,
             Total = total,
-            Page = page,
-            PageSize = pageSize
+            Page = request.Page,
+            PageSize = request.PageSize
         };
     }
 }

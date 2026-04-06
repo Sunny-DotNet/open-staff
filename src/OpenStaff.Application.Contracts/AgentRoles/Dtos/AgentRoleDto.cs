@@ -35,3 +35,9 @@ public class UpdateAgentRoleInput
     public string? ModelName { get; set; }
     public string? Config { get; set; }
 }
+
+public class TestChatRequest
+{
+    public Guid AgentRoleId { get; set; }
+    public string Message { get; set; } = string.Empty;
+}

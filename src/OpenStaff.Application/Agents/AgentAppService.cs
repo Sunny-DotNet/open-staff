@@ -27,14 +27,14 @@ public class AgentAppService : IAgentAppService
         }).ToList();
     }
 
-    public async Task SetProjectAgentsAsync(Guid projectId, List<Guid> agentRoleIds, CancellationToken ct)
+    public async Task SetProjectAgentsAsync(SetProjectAgentsRequest request, CancellationToken ct)
     {
-        await _projectService.SetProjectAgentsAsync(projectId, agentRoleIds, ct);
+        await _projectService.SetProjectAgentsAsync(request.ProjectId, request.AgentRoleIds, ct);
     }
 
-    public async Task<PagedAgentEventsDto> GetEventsAsync(Guid projectId, Guid agentId, int page, int pageSize, CancellationToken ct)
+    public async Task<PagedAgentEventsDto> GetEventsAsync(GetAgentEventsRequest request, CancellationToken ct)
     {
-        var events = await _agentService.GetAgentEventsAsync(projectId, agentId, page, pageSize, ct);
+        var events = await _agentService.GetAgentEventsAsync(request.ProjectId, request.AgentId, request.Page, request.PageSize, ct);
         return new PagedAgentEventsDto
         {
             Items = events.Select(e => new AgentEventDto
@@ -48,12 +48,12 @@ public class AgentAppService : IAgentAppService
         };
     }
 
-    public async Task SendMessageAsync(Guid projectId, Guid agentId, string message, CancellationToken ct)
+    public async Task SendMessageAsync(SendAgentMessageRequest request, CancellationToken ct)
     {
-        var request = new SendMessageRequest
+        var msg = new SendMessageRequest
         {
-            Content = message
+            Content = request.Message
         };
-        await _agentService.SendMessageAsync(projectId, agentId, request, ct);
+        await _agentService.SendMessageAsync(request.ProjectId, request.AgentId, msg, ct);
     }
 }

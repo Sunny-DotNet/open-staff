@@ -19,7 +19,7 @@ public class McpServersController : ControllerBase
 
     [HttpGet("servers")]
     public async Task<IActionResult> GetAllServers([FromQuery] string? category, [FromQuery] string? search, CancellationToken ct)
-        => Ok(await _mcpService.GetAllServersAsync(category, search, ct));
+        => Ok(await _mcpService.GetAllServersAsync(new GetAllServersRequest { Category = category, Search = search }, ct));
 
     [HttpGet("servers/{id:guid}")]
     public async Task<IActionResult> GetServerById(Guid id, CancellationToken ct)
@@ -85,7 +85,11 @@ public class McpServersController : ControllerBase
     [HttpPut("agent-bindings/{agentRoleId:guid}")]
     public async Task<IActionResult> SetAgentBindings(Guid agentRoleId, [FromBody] List<Guid> mcpServerConfigIds, CancellationToken ct)
     {
-        await _mcpService.SetAgentBindingsAsync(agentRoleId, mcpServerConfigIds, ct);
+        await _mcpService.SetAgentBindingsAsync(new SetAgentBindingsRequest
+        {
+            AgentRoleId = agentRoleId,
+            McpServerConfigIds = mcpServerConfigIds
+        }, ct);
         return NoContent();
     }
 

@@ -67,3 +67,28 @@ public class ChatMessageListOutput
     public List<ChatMessageDto> Messages { get; set; } = [];
     public int Total { get; set; }
 }
+
+public class SendSessionMessageRequest
+{
+    public Guid SessionId { get; set; }
+    public string Input { get; set; } = string.Empty;
+}
+
+public class GetChatMessagesRequest
+{
+    public Guid SessionId { get; set; }
+    public int Skip { get; set; } = 0;
+    public int Take { get; set; } = 50;
+}
+
+public class GetSessionsByProjectRequest
+{
+    public Guid ProjectId { get; set; }
+    public int Limit { get; set; } = 20;
+}
+
+public class GetFrameMessagesRequest
+{
+    public Guid SessionId { get; set; }
+    public Guid FrameId { get; set; }
+}

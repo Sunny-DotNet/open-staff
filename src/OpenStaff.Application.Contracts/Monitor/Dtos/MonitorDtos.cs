@@ -48,3 +48,11 @@ public class EventDto
     public string? AgentName { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+public class GetEventsRequest
+{
+    public Guid ProjectId { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+    public string? EventType { get; set; }
+}

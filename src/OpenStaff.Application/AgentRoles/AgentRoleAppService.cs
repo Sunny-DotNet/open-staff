@@ -185,8 +185,11 @@ public class AgentRoleAppService : IAgentRoleAppService
         return true;
     }
 
-    public async Task<Guid> TestChatAsync(Guid id, string message, CancellationToken ct)
+    public async Task<Guid> TestChatAsync(TestChatRequest request, CancellationToken ct)
     {
+        var id = request.AgentRoleId;
+        var message = request.Message;
+
         if (string.IsNullOrWhiteSpace(message))
             throw new ArgumentException("Message is required");
 

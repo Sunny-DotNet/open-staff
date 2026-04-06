@@ -7,5 +7,5 @@ public interface IMonitorAppService
 {
     Task<SystemStatsDto> GetStatsAsync(CancellationToken ct = default);
     Task<ProjectStatsDto> GetProjectStatsAsync(Guid projectId, CancellationToken ct = default);
-    Task<PagedResult<EventDto>> GetEventsAsync(Guid projectId, int page = 1, int pageSize = 50, string? eventType = null, CancellationToken ct = default);
+    Task<PagedResult<EventDto>> GetEventsAsync(GetEventsRequest request, CancellationToken ct = default);
 }

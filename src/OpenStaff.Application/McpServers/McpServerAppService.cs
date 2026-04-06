@@ -22,15 +22,15 @@ public class McpServerAppService : IMcpServerAppService
 
     #region MCP Server 定义
 
-    public async Task<List<McpServerDto>> GetAllServersAsync(string? category = null, string? search = null, CancellationToken ct = default)
+    public async Task<List<McpServerDto>> GetAllServersAsync(GetAllServersRequest request, CancellationToken ct = default)
     {
         var query = _db.McpServers.AsNoTracking().Where(s => s.IsEnabled);
 
-        if (!string.IsNullOrWhiteSpace(category))
-            query = query.Where(s => s.Category == category);
+        if (!string.IsNullOrWhiteSpace(request.Category))
+            query = query.Where(s => s.Category == request.Category);
 
-        if (!string.IsNullOrWhiteSpace(search))
-            query = query.Where(s => s.Name.Contains(search) || (s.Description != null && s.Description.Contains(search)));
+        if (!string.IsNullOrWhiteSpace(request.Search))
+            query = query.Where(s => s.Name.Contains(request.Search) || (s.Description != null && s.Description.Contains(request.Search)));
 
         var servers = await query.OrderBy(s => s.Name).ToListAsync(ct);
 
@@ -258,16 +258,16 @@ public class McpServerAppService : IMcpServerAppService
             .ToListAsync(ct);
     }
 
-    public async Task SetAgentBindingsAsync(Guid agentRoleId, List<Guid> mcpServerConfigIds, CancellationToken ct = default)
+    public async Task SetAgentBindingsAsync(SetAgentBindingsRequest request, CancellationToken ct = default)
     {
         var existing = await _db.AgentRoleMcpConfigs
-            .Where(b => b.AgentRoleId == agentRoleId)
+            .Where(b => b.AgentRoleId == request.AgentRoleId)
             .ToListAsync(ct);
         _db.AgentRoleMcpConfigs.RemoveRange(existing);
 
-        var newBindings = mcpServerConfigIds.Select(configId => new AgentRoleMcpConfig
+        var newBindings = request.McpServerConfigIds.Select(configId => new AgentRoleMcpConfig
         {
-            AgentRoleId = agentRoleId,
+            AgentRoleId = request.AgentRoleId,
             McpServerConfigId = configId
         });
         _db.AgentRoleMcpConfigs.AddRange(newBindings);

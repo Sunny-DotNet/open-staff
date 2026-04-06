@@ -88,3 +88,15 @@ public class AgentMcpBindingDto
     public string? Icon { get; set; }
     public string? ToolFilter { get; set; }
 }
+
+public class GetAllServersRequest
+{
+    public string? Category { get; set; }
+    public string? Search { get; set; }
+}
+
+public class SetAgentBindingsRequest
+{
+    public Guid AgentRoleId { get; set; }
+    public List<Guid> McpServerConfigIds { get; set; } = [];
+}
