@@ -61,7 +61,12 @@ watch(
       formState.name = props.editingAccount.name;
       formState.protocolType = props.editingAccount.protocolType;
       formState.isEnabled = props.editingAccount.isEnabled;
-      formState.envConfig = { ...(props.editingAccount.envConfig ?? {}) };
+      // 以 schema 默认值为基础，覆盖已有值（secret 字段后端不返回，保持空）
+      const proto = props.protocols.find(
+        (p) => p.providerKey === props.editingAccount!.protocolType,
+      );
+      const base = proto ? buildDefaultEnvConfig(proto) : {};
+      formState.envConfig = { ...base, ...(props.editingAccount.envConfig ?? {}) };
     } else {
       const defaultProto = props.protocols[0];
       formState.protocolType = defaultProto?.providerKey ?? '';

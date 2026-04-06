@@ -36,7 +36,7 @@ public class ProviderAccountAppService : IProviderAccountAppService
 
         var envConfig = _accountService.GetEnvConfigDict(account);
 
-        // Mask secret fields (e.g., ApiKey) — return "****" instead of actual value
+        // 移除 secret 字段 — 前端不显示，保存时为空则忽略
         if (envConfig != null)
         {
             var metadata = _protocolFactory.GetProtocolMetadata()
@@ -45,11 +45,8 @@ public class ProviderAccountAppService : IProviderAccountAppService
             {
                 foreach (var field in metadata.EnvSchema)
                 {
-                    if (field.FieldType == "secret" && envConfig.ContainsKey(field.Name))
-                    {
-                        var val = envConfig[field.Name]?.ToString();
-                        envConfig[field.Name] = string.IsNullOrEmpty(val) ? "" : "****";
-                    }
+                    if (field.FieldType == "secret")
+                        envConfig.Remove(field.Name);
                 }
             }
         }
@@ -89,6 +86,33 @@ public class ProviderAccountAppService : IProviderAccountAppService
 
     public async Task<ProviderAccountDto?> UpdateAsync(Guid id, UpdateProviderAccountInput input, CancellationToken ct)
     {
+        // secret 字段前端不提交（为空或不存在），需要回填原值
+        if (input.EnvConfig != null)
+        {
+            var existing = await _accountService.GetByIdAsync(id);
+            if (existing != null)
+            {
+                var oldEnv = _accountService.GetEnvConfigDict(existing);
+                var metadata = _protocolFactory.GetProtocolMetadata()
+                    .FirstOrDefault(m => m.ProviderKey == existing.ProtocolType);
+                if (oldEnv != null && metadata != null)
+                {
+                    foreach (var field in metadata.EnvSchema)
+                    {
+                        if (field.FieldType != "secret") continue;
+                        var hasNew = input.EnvConfig.TryGetValue(field.Name, out var newVal);
+                        var newStr = newVal?.ToString();
+                        // 前端未提交或为空 → 保留原值
+                        if (!hasNew || string.IsNullOrEmpty(newStr))
+                        {
+                            if (oldEnv.TryGetValue(field.Name, out var oldVal))
+                                input.EnvConfig[field.Name] = oldVal;
+                        }
+                    }
+                }
+            }
+        }
+
         var request = new UpdateProviderAccountRequest
         {
             Name = input.Name,
