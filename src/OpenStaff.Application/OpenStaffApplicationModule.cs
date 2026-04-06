@@ -32,6 +32,7 @@ using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure;
 using OpenStaff.Plugins.ModelDataSource;
 using OpenStaff.Provider;
+using OpenStaff.Vendor;
 
 using OpenStaff.Marketplace;
 using OpenStaff.Marketplace.Internal;
@@ -57,6 +58,11 @@ public class OpenStaffApplicationModule : OpenStaffModule
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
         var services = context.Services;
+
+        // Vendor 智能体供应商
+        services.AddSingleton<IVendorAgentProvider, OpenStaff.Vendor.Anthropic.AnthropicVendorProvider>();
+        services.AddSingleton<IVendorAgentProvider, OpenStaff.Vendor.Google.GoogleVendorProvider>();
+        services.AddSingleton<IVendorAgentProvider, OpenStaff.Vendor.GitHubCopilot.GitHubCopilotVendorProvider>();
 
         // 编排服务 — 依赖 AgentFactory + IProviderResolver + INotificationService
         services.AddSingleton<OrchestrationService>(sp =>

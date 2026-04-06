@@ -10,4 +10,5 @@ public interface IAgentRoleAppService
     Task<AgentRoleDto?> UpdateAsync(Guid id, UpdateAgentRoleInput input, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
     Task<Guid> TestChatAsync(TestChatRequest request, CancellationToken ct = default);
+    List<VendorSchemaDto> GetVendorSchemas();
 }

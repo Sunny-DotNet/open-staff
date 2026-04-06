@@ -42,12 +42,12 @@ public class OrchestrationService : IOrchestrator
     {
         _logger.LogInformation("Handling user input for project {ProjectId}", projectId);
 
-        // 使用 orchestrator 角色决定路由 / Use orchestrator role for routing decision
-        var routingAgent = await GetOrCreateAgentAsync(projectId, "orchestrator");
+        // 使用 secretary 角色作为默认入口
+        var routingAgent = await GetOrCreateAgentAsync(projectId, "secretary");
         if (routingAgent == null)
         {
-            // 无 orchestrator 角色，默认路由到 communicator
-            return await RouteToAgentAsync(projectId, BuiltinRoleTypes.Communicator,
+            // 无 secretary 角色，无法处理
+            return await RouteToAgentAsync(projectId, BuiltinRoleTypes.Secretary,
                 new AgentMessage { Content = input, FromRole = "user", Timestamp = DateTime.UtcNow }, cancellationToken);
         }
 
@@ -61,7 +61,7 @@ public class OrchestrationService : IOrchestrator
         var routingResult = await routingAgent.ProcessAsync(routingMessage, cancellationToken);
 
         // 解析路由结果 / Parse routing result
-        var targetRole = ParseRoutingTarget(routingResult.Content) ?? BuiltinRoleTypes.Communicator;
+        var targetRole = ParseRoutingTarget(routingResult.Content) ?? BuiltinRoleTypes.Secretary;
 
         var preview = input.Length > 50 ? input.Substring(0, 50) + "..." : input;
         await _notification.NotifyAsync(Channels.Project(projectId), EventTypes.Decision, new
@@ -100,7 +100,7 @@ public class OrchestrationService : IOrchestrator
 
         foreach (var roleType in _agentFactory.RegisteredRoleTypes)
         {
-            if (roleType == BuiltinRoleTypes.Orchestrator) continue; // orchestrator 按需创建
+            if (roleType == BuiltinRoleTypes.Secretary) continue; // secretary 按需创建
             await GetOrCreateAgentAsync(projectId, roleType);
         }
 

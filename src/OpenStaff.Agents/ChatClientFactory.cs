@@ -1,5 +1,3 @@
-using Anthropic;
-using Google.GenAI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using OpenAI;
@@ -10,7 +8,8 @@ using System.ClientModel.Primitives;
 namespace OpenStaff.Agents;
 
 /// <summary>
-/// IChatClient 工厂 — 根据协议类型创建统一的 IChatClient 实例
+/// IChatClient 工厂 — 仅处理 OpenAI 兼容协议（openai, github-copilot, NewApi 等）
+/// Vendor 智能体（Anthropic, Google）通过各自的 Vendor 项目直接创建
 /// </summary>
 public class ChatClientFactory
 {
@@ -22,7 +21,7 @@ public class ChatClientFactory
     }
 
     /// <summary>
-    /// 创建 IChatClient — 根据协议类型选择正确的 SDK
+    /// 创建 IChatClient — 仅支持 OpenAI 兼容协议
     /// </summary>
     public IChatClient Create(string protocolType, string apiKey, string model, string? baseUrl = null)
     {
@@ -33,8 +32,6 @@ public class ChatClientFactory
         {
             "openai" => CreateOpenAIChatClient(apiKey, model, baseUrl),
             "github-copilot" => CreateCopilotChatClient(apiKey, model, baseUrl),
-            "anthropic" => CreateAnthropicChatClient(apiKey, model),
-            "google" => CreateGoogleChatClient(apiKey, model),
             // NewApi 和其他 OpenAI 兼容协议
             _ => CreateOpenAIChatClient(apiKey, model, baseUrl)
         };
@@ -46,8 +43,6 @@ public class ChatClientFactory
         OpenAIClientOptions? options = null;
         if (!string.IsNullOrEmpty(baseUrl))
         {
-            // OpenAI SDK v2 使用 {endpoint}/chat/completions 路径，
-            // 对于 OpenAI 兼容 API（NewAPI/OneAPI 等），需要确保 endpoint 包含 /v1
             var uri = baseUrl.TrimEnd('/');
             if (!uri.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
                 uri += "/v1";
@@ -70,18 +65,6 @@ public class ChatClientFactory
 
         var client = new OpenAIClient(credential, options);
         return client.GetChatClient(model).AsIChatClient();
-    }
-
-    private static IChatClient CreateAnthropicChatClient(string apiKey, string model)
-    {
-        var client = new AnthropicClient { ApiKey = apiKey };
-        return client.AsIChatClient(model);
-    }
-
-    private static IChatClient CreateGoogleChatClient(string apiKey, string model)
-    {
-        var client = new Client(vertexAI: false, apiKey: apiKey);
-        return client.AsIChatClient(model);
     }
 
     private sealed class CopilotHeaderPolicy : PipelinePolicy

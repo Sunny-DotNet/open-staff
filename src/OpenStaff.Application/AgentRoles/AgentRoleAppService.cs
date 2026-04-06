@@ -79,6 +79,8 @@ public class AgentRoleAppService : IAgentRoleAppService
             RoleType = input.RoleType,
             Description = input.Description,
             SystemPrompt = input.SystemPrompt,
+            Source = input.Source,
+            VendorType = input.VendorType,
             ModelProviderId = string.IsNullOrEmpty(input.ModelProviderId) ? null : Guid.Parse(input.ModelProviderId),
             ModelName = input.ModelName,
             Config = input.Config,
@@ -430,6 +432,33 @@ public class AgentRoleAppService : IAgentRoleAppService
         chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.Tool, toolResultContents));
     }
 
+    public List<VendorSchemaDto> GetVendorSchemas()
+    {
+        return _agentFactory.VendorProviders.Values.Select(p =>
+        {
+            var schema = p.GetConfigSchema();
+            return new VendorSchemaDto
+            {
+                VendorType = p.VendorType,
+                DisplayName = p.DisplayName,
+                Fields = schema.Fields.Select(f => new VendorFieldDto
+                {
+                    Key = f.Key,
+                    Label = f.Label,
+                    FieldType = f.FieldType.ToString().ToLowerInvariant(),
+                    Required = f.Required,
+                    DefaultValue = f.DefaultValue,
+                    Placeholder = f.Placeholder,
+                    Options = f.Options?.Select(o => new VendorFieldOptionDto
+                    {
+                        Value = o.Value,
+                        Label = o.Label
+                    }).ToList()
+                }).ToList()
+            };
+        }).ToList();
+    }
+
     private static AgentRoleDto MapToDto(AgentRole role) => new()
     {
         Id = role.Id,
@@ -441,6 +470,8 @@ public class AgentRoleAppService : IAgentRoleAppService
         ModelProviderName = role.ProviderAccount?.Name,
         ModelName = role.ModelName,
         IsBuiltin = role.IsBuiltin,
+        Source = role.Source,
+        VendorType = role.VendorType,
         Config = role.Config,
         Soul = role.Soul != null ? new AgentSoulDto
         {

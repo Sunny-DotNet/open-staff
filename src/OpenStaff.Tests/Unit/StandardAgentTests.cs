@@ -42,15 +42,15 @@ public class StandardAgentTests
     [Fact]
     public void Constructor_SetsRoleTypeFromConfig_Communicator()
     {
-        var agent = CreateAgent(config: CreateConfig(BuiltinRoleTypes.Communicator));
-        Assert.Equal(BuiltinRoleTypes.Communicator, agent.RoleType);
+        var agent = CreateAgent(config: CreateConfig("communicator"));
+        Assert.Equal("communicator", agent.RoleType);
     }
 
     [Fact]
     public void Constructor_SetsRoleTypeFromConfig_DecisionMaker()
     {
-        var agent = CreateAgent(config: CreateConfig(BuiltinRoleTypes.DecisionMaker));
-        Assert.Equal(BuiltinRoleTypes.DecisionMaker, agent.RoleType);
+        var agent = CreateAgent(config: CreateConfig("decision_maker"));
+        Assert.Equal("decision_maker", agent.RoleType);
     }
 
     [Fact]

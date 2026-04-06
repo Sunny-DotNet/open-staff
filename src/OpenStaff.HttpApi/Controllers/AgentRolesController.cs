@@ -51,6 +51,10 @@ public class AgentRolesController : ControllerBase
         var sessionId = await _agentRoleAppService.TestChatAsync(request, ct);
         return Ok(new { sessionId });
     }
+
+    [HttpGet("vendor-schemas")]
+    public IActionResult GetVendorSchemas()
+        => Ok(_agentRoleAppService.GetVendorSchemas());
 }
 
 public class TestChatBody

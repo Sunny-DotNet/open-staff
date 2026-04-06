@@ -7,27 +7,30 @@ namespace OpenStaff.Tests.Unit;
 public class RoleConfigLoaderTests
 {
     [Fact]
-    public void LoadAll_Returns8RoleConfigs()
+    public void LoadBuiltin_ReturnsOnlySecretary()
     {
-        var configs = RoleConfigLoader.LoadAll();
+        var configs = RoleConfigLoader.LoadBuiltin();
 
-        Assert.Equal(8, configs.Count);
+        Assert.Single(configs);
+        Assert.Equal(BuiltinRoleTypes.Secretary, configs[0].RoleType);
     }
 
     [Fact]
-    public void LoadAll_ContainsAllExpectedRoleTypes()
+    public void LoadAll_ReturnsAllEmbeddedConfigs()
+    {
+        var configs = RoleConfigLoader.LoadAll();
+
+        // 9 total: secretary + 8 legacy templates
+        Assert.Equal(9, configs.Count);
+    }
+
+    [Fact]
+    public void LoadAll_ContainsSecretary()
     {
         var configs = RoleConfigLoader.LoadAll();
         var roleTypes = configs.Select(c => c.RoleType).ToHashSet();
 
-        Assert.Contains(BuiltinRoleTypes.Orchestrator, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.Communicator, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.DecisionMaker, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.Architect, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.Producer, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.Debugger, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.ImageCreator, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.VideoCreator, roleTypes);
+        Assert.Contains(BuiltinRoleTypes.Secretary, roleTypes);
     }
 
     [Fact]
@@ -81,7 +84,6 @@ public class RoleConfigLoaderTests
 
         Assert.All(configs, config =>
         {
-            // System prompt should be "{roleType}.system"
             Assert.Equal($"{config.RoleType}.system", config.SystemPrompt);
         });
     }
@@ -107,14 +109,13 @@ public class RoleConfigLoaderTests
     }
 
     [Fact]
-    public void LoadAll_CommunicatorConfigHasExpectedRouting()
+    public void LoadBuiltin_SecretaryHasExpectedConfig()
     {
-        var configs = RoleConfigLoader.LoadAll();
-        var communicator = configs.First(c => c.RoleType == BuiltinRoleTypes.Communicator);
+        var configs = RoleConfigLoader.LoadBuiltin();
+        var secretary = configs.First(c => c.RoleType == BuiltinRoleTypes.Secretary);
 
-        Assert.NotNull(communicator.Routing);
-        Assert.NotNull(communicator.Routing!.Markers);
-        Assert.Contains("REQUIREMENTS_COMPLETE", communicator.Routing.Markers.Keys);
+        Assert.Equal("秘书", secretary.Name);
+        Assert.NotNull(secretary.Routing);
     }
 
     [Fact]
@@ -124,7 +125,6 @@ public class RoleConfigLoaderTests
 
         Assert.All(configs, config =>
         {
-            // ModelParameters may be null for some configs, but if set should be valid
             if (config.ModelParameters != null)
             {
                 Assert.True(config.ModelParameters.Temperature >= 0);

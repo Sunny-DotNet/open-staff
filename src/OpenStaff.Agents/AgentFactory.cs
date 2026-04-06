@@ -1,11 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenStaff.Core.Agents;
+using OpenStaff.Core.Models;
+using OpenStaff.Vendor;
 
 namespace OpenStaff.Agents;
 
 /// <summary>
-/// 智能体工厂 — 从 RoleConfig 创建 StandardAgent / Agent factory — creates StandardAgent from RoleConfig
+/// 智能体工厂 — 根据 AgentSource 路由创建不同类型的智能体
 /// </summary>
 public class AgentFactory
 {
@@ -14,15 +16,20 @@ public class AgentFactory
     private readonly AIAgentFactory _aiAgentFactory;
     private readonly Dictionary<string, RoleConfig> _roleConfigs = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Core.Models.AgentRole> _dbRoles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IVendorAgentProvider> _vendorProviders = new(StringComparer.OrdinalIgnoreCase);
 
     public AgentFactory(
         IServiceProvider serviceProvider,
         IAgentToolRegistry toolRegistry,
-        AIAgentFactory aiAgentFactory)
+        AIAgentFactory aiAgentFactory,
+        IEnumerable<IVendorAgentProvider> vendorProviders)
     {
         _serviceProvider = serviceProvider;
         _toolRegistry = toolRegistry;
         _aiAgentFactory = aiAgentFactory;
+
+        foreach (var provider in vendorProviders)
+            _vendorProviders[provider.VendorType] = provider;
     }
 
     /// <summary>注册角色配置 / Register role configuration</summary>
@@ -41,7 +48,7 @@ public class AgentFactory
     public Core.Models.AgentRole? GetDbRole(string roleType) =>
         _dbRoles.GetValueOrDefault(roleType);
 
-    /// <summary>创建智能体实例 / Create agent instance</summary>
+    /// <summary>创建智能体实例（Builtin/Custom 通过 RoleConfig）</summary>
     public IAgent CreateAgent(string roleType)
     {
         if (!_roleConfigs.TryGetValue(roleType, out var config))
@@ -52,15 +59,21 @@ public class AgentFactory
     }
 
     /// <summary>
-    /// 从数据库角色动态创建智能体（用于自定义角色，无需预注册 RoleConfig）
+    /// 从数据库角色创建智能体 — 根据 Source 路由到不同的创建流程
     /// </summary>
     public IAgent CreateAgentFromDbRole(Core.Models.AgentRole dbRole)
     {
+        // Vendor 类型：委托给对应的 VendorProvider
+        if (dbRole.Source == AgentSource.Vendor && !string.IsNullOrEmpty(dbRole.VendorType))
+        {
+            return CreateVendorAgent(dbRole);
+        }
+
+        // Builtin / Custom：走 StandardAgent 流程
         RoleConfig config;
 
         if (_roleConfigs.TryGetValue(dbRole.RoleType, out var existingConfig))
         {
-            // 内置角色：以 JSON 配置为基础，用数据库值覆盖
             config = existingConfig.Clone();
             if (!string.IsNullOrEmpty(dbRole.ModelName))
                 config.ModelName = dbRole.ModelName;
@@ -76,6 +89,28 @@ public class AgentFactory
         return new StandardAgent(config, _toolRegistry, _aiAgentFactory, logger);
     }
 
+    /// <summary>创建 Vendor 智能体</summary>
+    private IAgent CreateVendorAgent(Core.Models.AgentRole dbRole)
+    {
+        if (!_vendorProviders.TryGetValue(dbRole.VendorType!, out var provider))
+            throw new InvalidOperationException($"Vendor type '{dbRole.VendorType}' is not registered");
+
+        // 从 Config JSON 解析 VendorConfig
+        var vendorConfig = new VendorConfig();
+        if (!string.IsNullOrEmpty(dbRole.Config))
+        {
+            try
+            {
+                var values = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(dbRole.Config);
+                if (values != null)
+                    vendorConfig.Values = values;
+            }
+            catch { /* ignore parse errors */ }
+        }
+
+        return provider.CreateAgent(dbRole, vendorConfig);
+    }
+
     /// <summary>从数据库角色构建 RoleConfig</summary>
     private static RoleConfig BuildRoleConfigFromDb(Core.Models.AgentRole dbRole)
     {
@@ -89,7 +124,6 @@ public class AgentFactory
             ModelName = dbRole.ModelName,
         };
 
-        // 解析 config JSON 中的 modelParameters 和 tools
         if (!string.IsNullOrEmpty(dbRole.Config))
         {
             try
@@ -131,4 +165,7 @@ public class AgentFactory
     /// <summary>获取角色配置 / Get role configuration</summary>
     public RoleConfig? GetRoleConfig(string roleType) =>
         _roleConfigs.GetValueOrDefault(roleType);
+
+    /// <summary>获取所有已注册的 Vendor Provider</summary>
+    public IReadOnlyDictionary<string, IVendorAgentProvider> VendorProviders => _vendorProviders;
 }

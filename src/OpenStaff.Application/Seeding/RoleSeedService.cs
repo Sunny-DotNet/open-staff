@@ -28,7 +28,7 @@ public class RoleSeedService : IHostedService
         var agentFactory = scope.ServiceProvider.GetRequiredService<OpenStaff.Agents.AgentFactory>();
         var promptLoader = scope.ServiceProvider.GetRequiredService<IPromptLoader>();
 
-        var roleConfigs = RoleConfigLoader.LoadAll();
+        var roleConfigs = RoleConfigLoader.LoadBuiltin();
         var language = "zh-CN"; // 默认语言
 
         foreach (var config in roleConfigs)
@@ -49,6 +49,7 @@ public class RoleSeedService : IHostedService
                     Description = config.Description,
                     SystemPrompt = fullPrompt,
                     ModelName = config.ModelName,
+                    Source = OpenStaff.Core.Models.AgentSource.Builtin,
                     IsBuiltin = true,
                     IsActive = true,
                     Config = System.Text.Json.JsonSerializer.Serialize(new

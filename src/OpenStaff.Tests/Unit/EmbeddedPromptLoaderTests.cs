@@ -1,5 +1,4 @@
 using OpenStaff.Agents.Prompts;
-using OpenStaff.Core.Models;
 using Xunit;
 
 namespace OpenStaff.Tests.Unit;
@@ -47,14 +46,15 @@ public class EmbeddedPromptLoaderTests
     }
 
     [Theory]
-    [InlineData(BuiltinRoleTypes.Communicator)]
-    [InlineData(BuiltinRoleTypes.Architect)]
-    [InlineData(BuiltinRoleTypes.DecisionMaker)]
-    [InlineData(BuiltinRoleTypes.Producer)]
-    [InlineData(BuiltinRoleTypes.Debugger)]
-    [InlineData(BuiltinRoleTypes.Orchestrator)]
-    [InlineData(BuiltinRoleTypes.ImageCreator)]
-    [InlineData(BuiltinRoleTypes.VideoCreator)]
+    [InlineData("secretary")]
+    [InlineData("communicator")]
+    [InlineData("architect")]
+    [InlineData("decision_maker")]
+    [InlineData("producer")]
+    [InlineData("debugger")]
+    [InlineData("orchestrator")]
+    [InlineData("image_creator")]
+    [InlineData("video_creator")]
     public void Load_AllBuiltinRoles_HaveSystemPrompts(string roleType)
     {
         var content = _loader.Load($"{roleType}.system", "zh-CN");

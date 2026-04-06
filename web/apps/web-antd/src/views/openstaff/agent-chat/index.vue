@@ -122,7 +122,7 @@ function handleSessionEvent(evt: AgentApi.SessionEvent) {
     case 'awaiting_input': {
       sessionStatus.value = 'awaiting_input';
       thinkingAgent.value = null;
-      addMsg({ sender: 'system', content: `⏳ ${roleName(p.agent || 'communicator')}: ${p.message || '等待您的输入...'}`, timestamp: evt.createdAt });
+      addMsg({ sender: 'system', content: `⏳ ${roleName(p.agent || 'secretary')}: ${p.message || '等待您的输入...'}`, timestamp: evt.createdAt });
       break;
     }
     case 'resumed_by_user': sessionStatus.value = 'active'; break;

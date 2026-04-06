@@ -19,7 +19,7 @@ import {
 
 import { getAgentRolesApi } from '#/api/openstaff/agent';
 import { getProjectAgentsApi, setProjectAgentsApi } from '#/api/openstaff/project';
-import { ROLE_COLORS } from '#/constants/agent';
+import { AgentSource, ROLE_COLORS, SOURCE_LABELS } from '#/constants/agent';
 
 const props = defineProps<{
   projectId: string;
@@ -117,6 +117,13 @@ onMounted(fetchRoles);
                     size="small"
                   >
                     {{ role.roleType }}
+                  </Tag>
+                  <Tag
+                    v-if="role.source !== undefined"
+                    :color="role.source === AgentSource.Vendor ? 'purple' : role.source === AgentSource.Builtin ? 'blue' : 'default'"
+                    size="small"
+                  >
+                    {{ SOURCE_LABELS[role.source] || '自定义' }}
                   </Tag>
                 </div>
                 <Typography.Text type="secondary" style="font-size: 12px">

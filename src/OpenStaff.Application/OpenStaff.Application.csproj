@@ -23,6 +23,10 @@
     <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Abstractions\OpenStaff.Marketplace.Abstractions.csproj" />
     <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Internal\OpenStaff.Marketplace.Internal.csproj" />
     <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Registry\OpenStaff.Marketplace.Registry.csproj" />
+    <ProjectReference Include="..\vendors\OpenStaff.Vendor.Abstractions\OpenStaff.Vendor.Abstractions.csproj" />
+    <ProjectReference Include="..\vendors\OpenStaff.Vendor.Anthropic\OpenStaff.Vendor.Anthropic.csproj" />
+    <ProjectReference Include="..\vendors\OpenStaff.Vendor.Google\OpenStaff.Vendor.Google.csproj" />
+    <ProjectReference Include="..\vendors\OpenStaff.Vendor.GitHubCopilot\OpenStaff.Vendor.GitHubCopilot.csproj" />
   </ItemGroup>
 
   <ItemGroup>

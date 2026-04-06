@@ -9,6 +9,30 @@ namespace OpenStaff.Agents.Roles;
 /// </summary>
 public static class RoleConfigLoader
 {
+    /// <summary>加载内置角色配置（仅 secretary）</summary>
+    public static IReadOnlyList<RoleConfig> LoadBuiltin()
+    {
+        var assembly = typeof(RoleConfigLoader).Assembly;
+        var configs = new List<RoleConfig>();
+
+        var resourceName = assembly.GetManifestResourceNames()
+            .FirstOrDefault(n => n.Contains(".Roles.secretary.json", StringComparison.OrdinalIgnoreCase));
+
+        if (resourceName != null)
+        {
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream != null)
+            {
+                var config = JsonSerializer.Deserialize<RoleConfig>(stream);
+                if (config != null)
+                    configs.Add(config);
+            }
+        }
+
+        return configs;
+    }
+
+    /// <summary>加载所有嵌入的角色配置（包括旧模板，仅供参考）</summary>
     public static IReadOnlyList<RoleConfig> LoadAll()
     {
         var assembly = typeof(RoleConfigLoader).Assembly;

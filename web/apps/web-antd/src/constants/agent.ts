@@ -1,37 +1,32 @@
+/** 智能体来源 */
+export enum AgentSource {
+  Custom = 0,
+  Builtin = 1,
+  Remote = 2,
+  Vendor = 3,
+}
+
+/** 来源标签 */
+export const SOURCE_LABELS: Record<number, string> = {
+  [AgentSource.Custom]: '自定义',
+  [AgentSource.Builtin]: '内置',
+  [AgentSource.Remote]: '远程',
+  [AgentSource.Vendor]: '厂商',
+};
+
 /** 角色类型 → 颜色映射 */
 export const ROLE_COLORS: Record<string, string> = {
-  communicator: '#1890ff',
-  decision_maker: '#722ed1',
-  architect: '#13c2c2',
-  producer: '#52c41a',
-  debugger: '#fa8c16',
-  orchestrator: '#faad14',
-  image_creator: '#eb2f96',
-  video_creator: '#f5222d',
+  secretary: '#1890ff',
 };
 
 /** 角色类型 → 图标 emoji 映射 */
 export const ROLE_ICONS: Record<string, string> = {
-  orchestrator: '🎯',
-  communicator: '💬',
-  decision_maker: '🧠',
-  architect: '📐',
-  producer: '⚙️',
-  debugger: '🔍',
-  image_creator: '🎨',
-  video_creator: '🎬',
+  secretary: '📋',
 };
 
 /** 角色类型 → 中文名称映射 */
 export const ROLE_NAMES: Record<string, string> = {
-  communicator: '对话者',
-  decision_maker: '决策者',
-  architect: '架构者',
-  producer: '生产者',
-  debugger: '调试者',
-  image_creator: '图片创造者',
-  video_creator: '视频创造者',
-  orchestrator: '调度者',
+  secretary: '秘书',
 };
 
 /** 智能体状态 → 中文标签 */

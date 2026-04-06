@@ -11,6 +11,8 @@ export namespace AgentApi {
     modelName: string | null;
     modelProviderName: string | null;
     isBuiltin: boolean;
+    source: number;
+    vendorType: string | null;
     config: string | null;
     soul: AgentSoul | null;
     createdAt: string;
@@ -125,6 +127,8 @@ export async function createAgentRoleApi(data: {
   roleType: string;
   description?: string;
   systemPrompt?: string;
+  source?: number;
+  vendorType?: string;
   modelProviderId?: string;
   modelName?: string;
   config?: string;
@@ -212,4 +216,27 @@ export async function getSessionEventsApi(
   return requestClient.get<AgentApi.SessionEvent[]>(
     `/sessions/${sessionId}/events`,
   );
+}
+
+// ===== Vendor Schema API =====
+
+export interface VendorSchema {
+  vendorType: string;
+  displayName: string;
+  configSchema: {
+    fields: Array<{
+      key: string;
+      label: string;
+      fieldType: string;
+      required: boolean;
+      defaultValue: string | null;
+      placeholder: string | null;
+      options: Array<{ value: string; label: string }> | null;
+    }>;
+  };
+}
+
+/** 获取所有 Vendor 的配置 Schema */
+export async function getVendorSchemasApi(): Promise<VendorSchema[]> {
+  return requestClient.get<VendorSchema[]>('/agent-roles/vendor-schemas');
 }

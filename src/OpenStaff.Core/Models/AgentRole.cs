@@ -12,6 +12,8 @@ public class AgentRole
     public string? SystemPrompt { get; set; } // 系统提示词
     public Guid? ModelProviderId { get; set; } // 绑定的模型供应商
     public string? ModelName { get; set; } // 使用的具体模型
+    public AgentSource Source { get; set; } = AgentSource.Custom;
+    public string? VendorType { get; set; } // 仅 Source=Vendor 时有值（"anthropic", "google", "github-copilot"）
     public bool IsBuiltin { get; set; } = false;
     public bool IsActive { get; set; } = true;
     public Guid? PluginId { get; set; } // 关联插件(自定义角色)
@@ -32,12 +34,5 @@ public class AgentRole
 /// </summary>
 public static class BuiltinRoleTypes
 {
-    public const string Orchestrator = "orchestrator"; // 调度器
-    public const string Communicator = "communicator"; // 对话者
-    public const string DecisionMaker = "decision_maker"; // 决策者
-    public const string Architect = "architect"; // 架构者
-    public const string Producer = "producer"; // 生产者
-    public const string Debugger = "debugger"; // 调试者
-    public const string ImageCreator = "image_creator"; // 图片创造者
-    public const string VideoCreator = "video_creator"; // 视频创造者
+    public const string Secretary = "secretary"; // 秘书（唯一内置角色）
 }

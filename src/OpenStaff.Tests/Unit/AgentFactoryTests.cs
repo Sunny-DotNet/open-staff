@@ -17,7 +17,7 @@ public class AgentFactoryTests
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
         var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
-        return new AgentFactory(services, toolRegistry, aiAgentFactory);
+        return new AgentFactory(services, toolRegistry, aiAgentFactory, []);
     }
 
     private static RoleConfig CreateRoleConfig(string roleType) => new()
@@ -32,23 +32,23 @@ public class AgentFactoryTests
     public void IsRegistered_ShouldReturnFalseWhenNothingRegistered()
     {
         var factory = CreateFactory();
-        Assert.False(factory.IsRegistered(BuiltinRoleTypes.Communicator));
+        Assert.False(factory.IsRegistered("secretary"));
     }
 
     [Fact]
     public void RegisterRole_ShouldMakeRoleRegistered()
     {
         var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Communicator));
+        factory.RegisterRole(CreateRoleConfig("secretary"));
 
-        Assert.True(factory.IsRegistered(BuiltinRoleTypes.Communicator));
+        Assert.True(factory.IsRegistered("secretary"));
     }
 
     [Fact]
     public void IsRegistered_ShouldReturnFalseForUnknownRole()
     {
         var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Producer));
+        factory.RegisterRole(CreateRoleConfig("producer"));
 
         Assert.False(factory.IsRegistered("nonexistent_role"));
     }
@@ -57,15 +57,15 @@ public class AgentFactoryTests
     public void RegisteredRoleTypes_ShouldListAllRegisteredRoles()
     {
         var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Communicator));
-        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Producer));
-        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Debugger));
+        factory.RegisterRole(CreateRoleConfig("secretary"));
+        factory.RegisterRole(CreateRoleConfig("producer"));
+        factory.RegisterRole(CreateRoleConfig("debugger"));
 
         var roles = factory.RegisteredRoleTypes;
         Assert.Equal(3, roles.Count);
-        Assert.Contains(BuiltinRoleTypes.Communicator, roles);
-        Assert.Contains(BuiltinRoleTypes.Producer, roles);
-        Assert.Contains(BuiltinRoleTypes.Debugger, roles);
+        Assert.Contains("secretary", roles);
+        Assert.Contains("producer", roles);
+        Assert.Contains("debugger", roles);
     }
 
     [Fact]
@@ -86,24 +86,24 @@ public class AgentFactoryTests
     public void CreateAgent_ShouldReturnStandardAgentInstance()
     {
         var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig(BuiltinRoleTypes.Architect));
+        factory.RegisterRole(CreateRoleConfig("architect"));
 
-        var agent = factory.CreateAgent(BuiltinRoleTypes.Architect);
+        var agent = factory.CreateAgent("architect");
         Assert.NotNull(agent);
         Assert.IsType<StandardAgent>(agent);
-        Assert.Equal(BuiltinRoleTypes.Architect, agent.RoleType);
+        Assert.Equal("architect", agent.RoleType);
     }
 
     [Fact]
     public void GetRoleConfig_ShouldReturnConfigForRegisteredRole()
     {
         var factory = CreateFactory();
-        var config = CreateRoleConfig(BuiltinRoleTypes.Communicator);
+        var config = CreateRoleConfig("secretary");
         factory.RegisterRole(config);
 
-        var result = factory.GetRoleConfig(BuiltinRoleTypes.Communicator);
+        var result = factory.GetRoleConfig("secretary");
         Assert.NotNull(result);
-        Assert.Equal(BuiltinRoleTypes.Communicator, result!.RoleType);
+        Assert.Equal("secretary", result!.RoleType);
     }
 
     [Fact]

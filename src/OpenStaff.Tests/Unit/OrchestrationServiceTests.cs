@@ -21,7 +21,7 @@ public class OrchestrationServiceTests
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
         var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
-        var factory = new AgentFactory(services, toolRegistry, aiAgentFactory);
+        var factory = new AgentFactory(services, toolRegistry, aiAgentFactory, []);
 
         foreach (var roleType in roleTypes)
         {
@@ -41,12 +41,10 @@ public class OrchestrationServiceTests
     private static OrchestrationService CreateService(AgentFactory? factory = null)
     {
         factory ??= CreateFactoryWithRoles(
-            BuiltinRoleTypes.Orchestrator,
-            BuiltinRoleTypes.Communicator,
-            BuiltinRoleTypes.DecisionMaker,
-            BuiltinRoleTypes.Architect,
-            BuiltinRoleTypes.Producer,
-            BuiltinRoleTypes.Debugger);
+            BuiltinRoleTypes.Secretary,
+            "architect",
+            "producer",
+            "debugger");
 
         var notificationMock = new Mock<INotificationService>();
         notificationMock
@@ -83,9 +81,9 @@ public class OrchestrationServiceTests
     public async Task GetAgentStatusesAsync_ReturnsStatusForAllProjectAgents()
     {
         var factory = CreateFactoryWithRoles(
-            BuiltinRoleTypes.Communicator,
-            BuiltinRoleTypes.Architect,
-            BuiltinRoleTypes.Producer);
+            "architect",
+            "producer",
+            "debugger");
 
         var service = CreateService(factory);
         var projectId = Guid.NewGuid();
@@ -95,9 +93,9 @@ public class OrchestrationServiceTests
 
         Assert.Equal(3, statuses.Count);
         var roleTypes = statuses.Select(s => s.RoleType).ToHashSet();
-        Assert.Contains(BuiltinRoleTypes.Communicator, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.Architect, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.Producer, roleTypes);
+        Assert.Contains("architect", roleTypes);
+        Assert.Contains("producer", roleTypes);
+        Assert.Contains("debugger", roleTypes);
     }
 
     [Fact]
@@ -125,7 +123,7 @@ public class OrchestrationServiceTests
     [Fact]
     public async Task RouteToAgentAsync_UnregisteredRole_ReturnsError()
     {
-        var factory = CreateFactoryWithRoles(BuiltinRoleTypes.Communicator);
+        var factory = CreateFactoryWithRoles("secretary");
         var service = CreateService(factory);
         var projectId = Guid.NewGuid();
 
@@ -137,11 +135,11 @@ public class OrchestrationServiceTests
     }
 
     [Fact]
-    public async Task InitializeProjectAgentsAsync_ExcludesOrchestrator()
+    public async Task InitializeProjectAgentsAsync_ExcludesSecretary()
     {
         var factory = CreateFactoryWithRoles(
-            BuiltinRoleTypes.Orchestrator,
-            BuiltinRoleTypes.Communicator);
+            BuiltinRoleTypes.Secretary,
+            "architect");
         var service = CreateService(factory);
         var projectId = Guid.NewGuid();
 
@@ -149,9 +147,9 @@ public class OrchestrationServiceTests
         var statuses = await service.GetAgentStatusesAsync(projectId);
 
         var roleTypes = statuses.Select(s => s.RoleType).ToList();
-        // Orchestrator is excluded from batch initialization
-        Assert.DoesNotContain(BuiltinRoleTypes.Orchestrator, roleTypes);
-        Assert.Contains(BuiltinRoleTypes.Communicator, roleTypes);
+        // Secretary is excluded from batch initialization (created on-demand)
+        Assert.DoesNotContain(BuiltinRoleTypes.Secretary, roleTypes);
+        Assert.Contains("architect", roleTypes);
     }
 
     [Fact]
@@ -173,7 +171,7 @@ public class OrchestrationServiceTests
     [Fact]
     public async Task GetAgentStatusesAsync_ReturnsRoleNames()
     {
-        var factory = CreateFactoryWithRoles(BuiltinRoleTypes.Communicator);
+        var factory = CreateFactoryWithRoles("secretary");
         var service = CreateService(factory);
         var projectId = Guid.NewGuid();
 
