@@ -117,21 +117,11 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:puzzle',
       order: 55,
-      title: 'MCP 市场',
+      title: 'MCP 管理',
     },
-    name: 'McpMarket',
-    path: '/mcp-market',
-    component: () => import('#/views/openstaff/mcp-market/index.vue'),
-  },
-  {
-    meta: {
-      icon: 'lucide:sliders-horizontal',
-      order: 56,
-      title: 'MCP 配置',
-    },
-    name: 'McpConfigs',
-    path: '/mcp-configs',
-    component: () => import('#/views/openstaff/mcp-configs/index.vue'),
+    name: 'McpManagement',
+    path: '/mcp',
+    component: () => import('#/views/openstaff/mcp/index.vue'),
   },
   {
     meta: {

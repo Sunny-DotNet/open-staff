@@ -1,11 +1,13 @@
 <script lang="ts" setup>
 import type { AgentApi } from '#/api/openstaff/agent';
+import type { McpApi } from '#/api/openstaff/mcp';
 import type { SettingsApi } from '#/api/openstaff/settings';
 
 import { computed, ref, watch } from 'vue';
 
 import {
   Button,
+  Col,
   Collapse,
   CollapsePanel,
   Divider,
@@ -14,8 +16,8 @@ import {
   FormItem,
   Input,
   InputNumber,
+  message,
   Row,
-  Col,
   Select,
   SelectOption,
   Slider,
@@ -23,18 +25,17 @@ import {
   Spin,
   Tag,
   Typography,
-  message,
 } from 'ant-design-vue';
 
-import { getRoleIcon } from '#/constants/agent';
-import { useProviderModels } from '#/composables/useProviderModels';
 import {
-  getAgentMcpBindingsApi,
-  getMcpConfigsApi,
   createAgentMcpBindingApi,
   deleteAgentMcpBindingApi,
+  getAgentMcpBindingsApi,
+  getMcpConfigsApi,
 } from '#/api/openstaff/mcp';
-import type { McpApi } from '#/api/openstaff/mcp';
+import { useProviderModels } from '#/composables/useProviderModels';
+import { getRoleIcon } from '#/constants/agent';
+
 import SoulConfigSection from './SoulConfigSection.vue';
 
 interface SoulConfig {
@@ -55,6 +56,18 @@ interface EditFormState {
   tools: string[];
 }
 
+const props = defineProps<{
+  editingRole: AgentApi.AgentRole | undefined;
+  mode: 'create' | 'edit';
+  open: boolean;
+  providers: SettingsApi.ProviderAccount[];
+}>();
+
+const emit = defineEmits<{
+  (e: 'update:open', value: boolean): void;
+  (e: 'save', form: EditFormState): void;
+}>();
+
 const DEFAULT_FORM: EditFormState = {
   name: '',
   description: '',
@@ -65,18 +78,6 @@ const DEFAULT_FORM: EditFormState = {
   tools: [],
   soul: { traits: [], style: '', attitudes: [], custom: '' },
 };
-
-const props = defineProps<{
-  open: boolean;
-  mode: 'create' | 'edit';
-  editingRole: AgentApi.AgentRole | undefined;
-  providers: SettingsApi.ProviderAccount[];
-}>();
-
-const emit = defineEmits<{
-  (e: 'update:open', value: boolean): void;
-  (e: 'save', form: EditFormState): void;
-}>();
 
 const editForm = ref<EditFormState>({ ...DEFAULT_FORM, soul: { ...DEFAULT_FORM.soul } });
 
@@ -105,7 +106,7 @@ watch(
   },
 );
 
-function parseConfig(configStr: string | null): AgentApi.AgentRoleConfig & { soul?: SoulConfig } {
+function parseConfig(configStr: null | string): AgentApi.AgentRoleConfig & { soul?: SoulConfig } {
   try {
     return configStr ? JSON.parse(configStr) : {};
   } catch {
@@ -186,8 +187,8 @@ async function addMcpBinding() {
     selectedMcpConfigId.value = undefined;
     await loadMcpData(props.editingRole.id);
     message.success('MCP 工具已绑定');
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
     message.error('绑定失败: ' + msg);
   }
 }
@@ -198,8 +199,8 @@ async function removeMcpBinding(configId: string) {
     await deleteAgentMcpBindingApi(props.editingRole.id, configId);
     await loadMcpData(props.editingRole.id);
     message.success('已移除');
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
     message.error('移除失败: ' + msg);
   }
 }
@@ -228,7 +229,7 @@ async function removeMcpBinding(configId: string) {
     </template>
 
     <!-- 基本信息区 -->
-    <Divider orientation="left" style="margin: 0 0 16px 0">基本信息</Divider>
+    <Divider orientation="left" style="margin: 0 0 16px">基本信息</Divider>
     <Form :label-col="{ span: 6 }" size="small">
       <FormItem label="名称" required>
         <Input
@@ -251,7 +252,7 @@ async function removeMcpBinding(configId: string) {
     <SoulConfigSection v-model:soul="editForm.soul" />
 
     <!-- 模型配置区 -->
-    <Divider orientation="left" style="margin: 8px 0 16px 0">模型配置</Divider>
+    <Divider orientation="left" style="margin: 8px 0 16px">模型配置</Divider>
     <Form :label-col="{ span: 6 }" size="small">
       <FormItem label="供应商">
         <Select
@@ -355,8 +356,8 @@ async function removeMcpBinding(configId: string) {
               style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; margin-bottom: 4px; background: var(--ant-color-bg-container-disabled); border-radius: 6px"
             >
               <Space>
-                <Tag color="cyan">{{ binding.serverName }}</Tag>
-                <span style="font-size: 13px">{{ binding.configName }}</span>
+                <Tag color="cyan">{{ binding.mcpServerName }}</Tag>
+                <span style="font-size: 13px">{{ binding.mcpServerConfigName }}</span>
               </Space>
               <Button
                 type="text"
