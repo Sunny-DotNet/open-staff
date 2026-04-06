@@ -47,7 +47,7 @@ public class AgentRolesController : ControllerBase
         if (string.IsNullOrWhiteSpace(body.Message))
             return BadRequest(new { message = "消息不能为空" });
 
-        var request = new TestChatRequest { AgentRoleId = id, Message = body.Message };
+        var request = new TestChatRequest { AgentRoleId = id, Message = body.Message, Override = body.Override };
         var sessionId = await _agentRoleAppService.TestChatAsync(request, ct);
         return Ok(new { sessionId });
     }
@@ -56,4 +56,5 @@ public class AgentRolesController : ControllerBase
 public class TestChatBody
 {
     public string Message { get; set; } = string.Empty;
+    public AgentRoleInput? Override { get; set; }
 }

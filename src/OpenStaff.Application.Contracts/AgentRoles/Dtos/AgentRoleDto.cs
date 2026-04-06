@@ -40,4 +40,21 @@ public class TestChatRequest
 {
     public Guid AgentRoleId { get; set; }
     public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 可选的实时配置覆盖，不保存到数据库。
+    /// 允许在不修改角色配置的情况下测试不同的提示词/模型等。
+    /// </summary>
+    public AgentRoleInput? Override { get; set; }
+}
+
+/// <summary>
+/// 用于临时覆盖角色配置的输入（测试聊天使用）
+/// </summary>
+public class AgentRoleInput
+{
+    public string? SystemPrompt { get; set; }
+    public string? ModelName { get; set; }
+    public string? ModelProviderId { get; set; }
+    public double? Temperature { get; set; }
 }

@@ -189,6 +189,7 @@ public class AgentRoleAppService : IAgentRoleAppService
     {
         var id = request.AgentRoleId;
         var message = request.Message;
+        var liveOverride = request.Override;
 
         if (string.IsNullOrWhiteSpace(message))
             throw new ArgumentException("Message is required");
@@ -196,13 +197,18 @@ public class AgentRoleAppService : IAgentRoleAppService
         var role = await _db.AgentRoles.FirstOrDefaultAsync(r => r.Id == id && r.IsActive, ct);
         if (role == null) throw new KeyNotFoundException("Agent role not found");
 
+        // 解析供应商和密钥（支持 Override 覆盖）
+        var providerId = !string.IsNullOrEmpty(liveOverride?.ModelProviderId)
+            ? Guid.Parse(liveOverride.ModelProviderId)
+            : role.ModelProviderId;
+
         ProviderAccount? account = null;
         string? apiKey = null;
         string? endpointOverride = null;
 
-        if (role.ModelProviderId.HasValue)
+        if (providerId.HasValue)
         {
-            var resolved = await _providerResolver.ResolveAsync(role.ModelProviderId.Value, ct);
+            var resolved = await _providerResolver.ResolveAsync(providerId.Value, ct);
             if (resolved != null)
             {
                 account = resolved.Account;
@@ -218,199 +224,230 @@ public class AgentRoleAppService : IAgentRoleAppService
                 : "请先在设置页面配置供应商的 API Key");
         }
 
+        // 解析角色配置（支持 Override 覆盖）
+        var roleConfig = _agentFactory.GetRoleConfig(role.RoleType);
+        var systemPrompt = liveOverride?.SystemPrompt
+            ?? (!string.IsNullOrEmpty(role.SystemPrompt) ? role.SystemPrompt : roleConfig?.SystemPrompt ?? "");
+        var modelName = liveOverride?.ModelName
+            ?? (!string.IsNullOrEmpty(role.ModelName) ? role.ModelName : roleConfig?.ModelName ?? "gpt-4o");
+        var temperature = liveOverride?.Temperature;
+
         var sessionId = Guid.NewGuid();
         var stream = _streamManager.Create(sessionId);
 
         stream.Push(SessionEventTypes.UserInput, payload: JsonSerializer.Serialize(new { content = message }));
 
-        // 在 DI scope 存活时先查询 MCP 绑定和角色配置
+        // 查询 MCP 绑定
         var mcpBindings = await _db.AgentRoleMcpConfigs
             .Include(b => b.McpServerConfig)
             .Where(b => b.AgentRoleId == id && b.McpServerConfig!.IsEnabled)
             .ToListAsync(ct);
 
-        var roleConfig = _agentFactory.GetRoleConfig(role.RoleType);
-        var systemPrompt = !string.IsNullOrEmpty(role.SystemPrompt)
-            ? role.SystemPrompt
-            : roleConfig?.SystemPrompt ?? "";
-        var modelName = !string.IsNullOrEmpty(role.ModelName)
-            ? role.ModelName
-            : roleConfig?.ModelName ?? "gpt-4o";
+        _ = Task.Run(() => RunTestChatStream(
+            stream, sessionId, account, apiKey, modelName, endpointOverride,
+            systemPrompt, message, temperature, mcpBindings, role));
 
-        _ = Task.Run(async () =>
+        return sessionId;
+    }
+
+    private async Task RunTestChatStream(
+        SessionStream stream,
+        Guid sessionId,
+        ProviderAccount account,
+        string apiKey,
+        string modelName,
+        string? endpointOverride,
+        string systemPrompt,
+        string userMessage,
+        double? temperature,
+        List<AgentRoleMcpConfig> mcpBindings,
+        AgentRole role)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var bgCt = cts.Token;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        try
         {
-            // Task.Run 脱离了 HTTP 请求生命周期，不能使用原始 ct（已被取消）
-            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            var bgCt = cts.Token;
+            var chatClient = _chatClientFactory.Create(
+                account.ProtocolType, apiKey, modelName, endpointOverride);
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            // 加载 MCP 工具
+            var mcpTools = await LoadMcpToolsAsync(stream, mcpBindings, bgCt);
+
+            var chatOptions = new ChatOptions();
+            if (mcpTools.Count > 0) chatOptions.Tools = mcpTools;
+            if (temperature.HasValue) chatOptions.Temperature = (float)temperature.Value;
+
+            var chatMessages = new List<Microsoft.Extensions.AI.ChatMessage>();
+            if (!string.IsNullOrEmpty(systemPrompt))
+                chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt));
+            chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userMessage));
+
+            // 流式推送（含工具调用循环）
+            var fullContent = new StringBuilder();
+            var thinkingContent = new StringBuilder();
+            int? inputTokens = null;
+            int? outputTokens = null;
+            long? firstTokenMs = null;
+            const int maxToolRounds = 10;
+
+            for (int toolRound = 0; toolRound < maxToolRounds; toolRound++)
+            {
+                var pendingToolCalls = new List<FunctionCallContent>();
+
+                await foreach (var update in chatClient.GetStreamingResponseAsync(
+                    (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages, chatOptions, bgCt))
+                {
+                    ProcessStreamingUpdate(update, stream, fullContent, thinkingContent,
+                        ref inputTokens, ref outputTokens, ref firstTokenMs, stopwatch, pendingToolCalls);
+                }
+
+                if (pendingToolCalls.Count == 0) break;
+
+                await ExecuteToolCallsAsync(chatMessages, pendingToolCalls, mcpTools, stream, bgCt);
+            }
+
+            stopwatch.Stop();
+            stream.Push(SessionEventTypes.StreamingDone,
+                payload: JsonSerializer.Serialize(new
+                {
+                    role = role.RoleType,
+                    roleName = role.Name,
+                    model = modelName,
+                    content = fullContent.ToString(),
+                    thinking = thinkingContent.Length > 0 ? thinkingContent.ToString() : null,
+                    usage = new { inputTokens, outputTokens, totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0) },
+                    timing = new { totalMs = stopwatch.ElapsedMilliseconds, firstTokenMs }
+                }));
+
+            _streamManager.CompleteTransient(sessionId);
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            stream.Push(SessionEventTypes.Error,
+                payload: JsonSerializer.Serialize(new { error = ex.Message }));
+            _streamManager.CompleteTransient(sessionId);
+        }
+    }
+
+    private async Task<List<AITool>> LoadMcpToolsAsync(
+        SessionStream stream, List<AgentRoleMcpConfig> mcpBindings, CancellationToken ct)
+    {
+        var mcpTools = new List<AITool>();
+        foreach (var binding in mcpBindings)
+        {
             try
             {
-                // 直接创建 IChatClient 做流式输出
-                var chatClient = _chatClientFactory.Create(
-                    account.ProtocolType, apiKey, modelName, endpointOverride);
-                // 加载 MCP 工具
-                var mcpTools = new List<AITool>();
-
-                foreach (var binding in mcpBindings)
+                var tools = await _mcpClientManager.ListToolsAsync(binding.McpServerConfig!, ct);
+                if (!string.IsNullOrEmpty(binding.ToolFilter))
                 {
-                    try
-                    {
-                        var tools = await _mcpClientManager.ListToolsAsync(binding.McpServerConfig!, bgCt);
-                        if (!string.IsNullOrEmpty(binding.ToolFilter))
-                        {
-                            var filter = JsonSerializer.Deserialize<string[]>(binding.ToolFilter);
-                            if (filter?.Length > 0)
-                                tools = tools.Where(t => filter.Contains(t.Name)).ToList();
-                        }
-                        mcpTools.AddRange(tools);
-                    }
-                    catch (Exception ex)
-                    {
-                        stream.Push(SessionEventTypes.Error,
-                            payload: JsonSerializer.Serialize(new { error = $"MCP 工具加载失败 ({binding.McpServerConfig!.Name}): {ex.Message}" }));
-                    }
+                    var filter = JsonSerializer.Deserialize<string[]>(binding.ToolFilter);
+                    if (filter?.Length > 0)
+                        tools = tools.Where(t => filter.Contains(t.Name)).ToList();
                 }
-
-                var chatOptions = mcpTools.Count > 0 ? new ChatOptions { Tools = mcpTools } : null;
-
-                var chatMessages = new List<Microsoft.Extensions.AI.ChatMessage>();
-                if (!string.IsNullOrEmpty(systemPrompt))
-                    chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt));
-                chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, message));
-
-                // 流式推送每个 token（含思考过程和用量统计），支持工具调用循环
-                var fullContent = new StringBuilder();
-                var thinkingContent = new StringBuilder();
-                int? inputTokens = null;
-                int? outputTokens = null;
-                long? firstTokenMs = null;
-                const int maxToolRounds = 10;
-
-                for (int toolRound = 0; toolRound < maxToolRounds; toolRound++)
-                {
-                    var pendingToolCalls = new List<FunctionCallContent>();
-
-                    await foreach (var update in chatClient.GetStreamingResponseAsync(
-                        (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages, chatOptions, bgCt))
-                    {
-                        foreach (var thinking in update.Contents.OfType<TextReasoningContent>())
-                        {
-                            if (!string.IsNullOrEmpty(thinking.Text))
-                            {
-                                thinkingContent.Append(thinking.Text);
-                                stream.Push(SessionEventTypes.StreamingThinking,
-                                    payload: JsonSerializer.Serialize(new { token = thinking.Text }));
-                            }
-                        }
-
-                        foreach (var part in update.Contents.OfType<TextContent>())
-                        {
-                            if (!string.IsNullOrEmpty(part.Text))
-                            {
-                                firstTokenMs ??= stopwatch.ElapsedMilliseconds;
-                                fullContent.Append(part.Text);
-                                stream.Push(SessionEventTypes.StreamingToken,
-                                    payload: JsonSerializer.Serialize(new { token = part.Text }));
-                            }
-                        }
-
-                        foreach (var fc in update.Contents.OfType<FunctionCallContent>())
-                        {
-                            pendingToolCalls.Add(fc);
-                        }
-
-                        foreach (var usage in update.Contents.OfType<Microsoft.Extensions.AI.UsageContent>())
-                        {
-                            if (usage.Details != null)
-                            {
-                                inputTokens = (inputTokens ?? 0) + (int)(usage.Details.InputTokenCount ?? 0);
-                                outputTokens = (outputTokens ?? 0) + (int)(usage.Details.OutputTokenCount ?? 0);
-                            }
-                        }
-                    }
-
-                    // 没有工具调用，结束循环
-                    if (pendingToolCalls.Count == 0)
-                        break;
-
-                    // 执行工具调用并将结果加入对话历史
-                    var assistantMsg = new Microsoft.Extensions.AI.ChatMessage(ChatRole.Assistant,
-                        pendingToolCalls.Select(fc => (AIContent)fc).ToList());
-                    chatMessages.Add(assistantMsg);
-
-                    var toolResultContents = new List<AIContent>();
-                    foreach (var toolCall in pendingToolCalls)
-                    {
-                        stream.Push(SessionEventTypes.ToolCall,
-                            payload: JsonSerializer.Serialize(new { name = toolCall.Name, arguments = toolCall.Arguments }));
-
-                        try
-                        {
-                            // 查找并执行工具
-                            var tool = mcpTools.FirstOrDefault(t => t.Name == toolCall.Name);
-                            if (tool is AIFunction aiFunc)
-                            {
-                                var result = await aiFunc.InvokeAsync(
-                                    toolCall.Arguments != null ? new AIFunctionArguments(toolCall.Arguments) : null, bgCt);
-                                var resultStr = result?.ToString() ?? "";
-                                toolResultContents.Add(new FunctionResultContent(toolCall.CallId, resultStr));
-                                stream.Push(SessionEventTypes.ToolResult,
-                                    payload: JsonSerializer.Serialize(new { name = toolCall.Name, result = resultStr.Length > 500 ? resultStr[..500] + "..." : resultStr }));
-                            }
-                            else
-                            {
-                                toolResultContents.Add(new FunctionResultContent(toolCall.CallId, "Tool not found"));
-                            }
-                        }
-                        catch (Exception toolEx)
-                        {
-                            toolResultContents.Add(new FunctionResultContent(toolCall.CallId, $"Error: {toolEx.Message}"));
-                            stream.Push(SessionEventTypes.ToolError,
-                                payload: JsonSerializer.Serialize(new { name = toolCall.Name, error = toolEx.Message }));
-                        }
-                    }
-
-                    chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.Tool, toolResultContents));
-                }
-
-                stopwatch.Stop();
-
-                stream.Push(SessionEventTypes.StreamingDone,
-                    payload: JsonSerializer.Serialize(new
-                    {
-                        role = role.RoleType,
-                        roleName = role.Name,
-                        model = modelName,
-                        content = fullContent.ToString(),
-                        thinking = thinkingContent.Length > 0 ? thinkingContent.ToString() : null,
-                        usage = new
-                        {
-                            inputTokens,
-                            outputTokens,
-                            totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0)
-                        },
-                        timing = new
-                        {
-                            totalMs = stopwatch.ElapsedMilliseconds,
-                            firstTokenMs
-                        }
-                    }));
-
-                _streamManager.CompleteTransient(sessionId);
+                mcpTools.AddRange(tools);
             }
             catch (Exception ex)
             {
-                stopwatch.Stop();
-                stream.Push(SessionEventTypes.Error, payload: JsonSerializer.Serialize(new
-                {
-                    error = ex.Message
-                }));
-                _streamManager.CompleteTransient(sessionId);
+                stream.Push(SessionEventTypes.Error,
+                    payload: JsonSerializer.Serialize(new { error = $"MCP 工具加载失败 ({binding.McpServerConfig!.Name}): {ex.Message}" }));
             }
-        });
+        }
+        return mcpTools;
+    }
 
-        return sessionId;
+    private static void ProcessStreamingUpdate(
+        ChatResponseUpdate update,
+        SessionStream stream,
+        StringBuilder fullContent,
+        StringBuilder thinkingContent,
+        ref int? inputTokens,
+        ref int? outputTokens,
+        ref long? firstTokenMs,
+        System.Diagnostics.Stopwatch stopwatch,
+        List<FunctionCallContent> pendingToolCalls)
+    {
+        foreach (var thinking in update.Contents.OfType<TextReasoningContent>())
+        {
+            if (!string.IsNullOrEmpty(thinking.Text))
+            {
+                thinkingContent.Append(thinking.Text);
+                stream.Push(SessionEventTypes.StreamingThinking,
+                    payload: JsonSerializer.Serialize(new { token = thinking.Text }));
+            }
+        }
+
+        foreach (var part in update.Contents.OfType<TextContent>())
+        {
+            if (!string.IsNullOrEmpty(part.Text))
+            {
+                firstTokenMs ??= stopwatch.ElapsedMilliseconds;
+                fullContent.Append(part.Text);
+                stream.Push(SessionEventTypes.StreamingToken,
+                    payload: JsonSerializer.Serialize(new { token = part.Text }));
+            }
+        }
+
+        foreach (var fc in update.Contents.OfType<FunctionCallContent>())
+        {
+            pendingToolCalls.Add(fc);
+        }
+
+        foreach (var usage in update.Contents.OfType<Microsoft.Extensions.AI.UsageContent>())
+        {
+            if (usage.Details != null)
+            {
+                inputTokens = (inputTokens ?? 0) + (int)(usage.Details.InputTokenCount ?? 0);
+                outputTokens = (outputTokens ?? 0) + (int)(usage.Details.OutputTokenCount ?? 0);
+            }
+        }
+    }
+
+    private static async Task ExecuteToolCallsAsync(
+        List<Microsoft.Extensions.AI.ChatMessage> chatMessages,
+        List<FunctionCallContent> pendingToolCalls,
+        List<AITool> mcpTools,
+        SessionStream stream,
+        CancellationToken ct)
+    {
+        var assistantMsg = new Microsoft.Extensions.AI.ChatMessage(ChatRole.Assistant,
+            pendingToolCalls.Select(fc => (AIContent)fc).ToList());
+        chatMessages.Add(assistantMsg);
+
+        var toolResultContents = new List<AIContent>();
+        foreach (var toolCall in pendingToolCalls)
+        {
+            stream.Push(SessionEventTypes.ToolCall,
+                payload: JsonSerializer.Serialize(new { name = toolCall.Name, arguments = toolCall.Arguments }));
+
+            try
+            {
+                var tool = mcpTools.FirstOrDefault(t => t.Name == toolCall.Name);
+                if (tool is AIFunction aiFunc)
+                {
+                    var result = await aiFunc.InvokeAsync(
+                        toolCall.Arguments != null ? new AIFunctionArguments(toolCall.Arguments) : null, ct);
+                    var resultStr = result?.ToString() ?? "";
+                    toolResultContents.Add(new FunctionResultContent(toolCall.CallId, resultStr));
+                    stream.Push(SessionEventTypes.ToolResult,
+                        payload: JsonSerializer.Serialize(new { name = toolCall.Name, result = resultStr.Length > 500 ? resultStr[..500] + "..." : resultStr }));
+                }
+                else
+                {
+                    toolResultContents.Add(new FunctionResultContent(toolCall.CallId, "Tool not found"));
+                }
+            }
+            catch (Exception toolEx)
+            {
+                toolResultContents.Add(new FunctionResultContent(toolCall.CallId, $"Error: {toolEx.Message}"));
+                stream.Push(SessionEventTypes.ToolError,
+                    payload: JsonSerializer.Serialize(new { name = toolCall.Name, error = toolEx.Message }));
+            }
+        }
+
+        chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.Tool, toolResultContents));
     }
 
     private static AgentRoleDto MapToDto(AgentRole role) => new()

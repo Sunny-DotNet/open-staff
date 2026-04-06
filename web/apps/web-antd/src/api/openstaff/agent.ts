@@ -37,6 +37,13 @@ export namespace AgentApi {
     systemPrompt?: string;
   }
 
+  export interface AgentRoleOverride {
+    systemPrompt?: string;
+    modelName?: string;
+    modelProviderId?: string;
+    temperature?: number;
+  }
+
   // Session-based conversation interfaces
   export interface CreateSessionParams {
     projectId: string;
@@ -123,10 +130,11 @@ export async function deleteAgentRoleApi(id: string): Promise<void> {
 export async function testAgentChatApi(
   roleId: string,
   message: string,
+  override?: AgentApi.AgentRoleOverride,
 ): Promise<AgentApi.TestChatResult> {
   return requestClient.post<AgentApi.TestChatResult>(
     `/agent-roles/${roleId}/test-chat`,
-    { message },
+    { message, override },
   );
 }
 
