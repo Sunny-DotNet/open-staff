@@ -246,7 +246,6 @@ public class AgentRoleAppService : IAgentRoleAppService
                 // 直接创建 IChatClient 做流式输出
                 var chatClient = _chatClientFactory.Create(
                     account.ProtocolType, apiKey, modelName, endpointOverride);
-
                 // 加载 MCP 工具
                 var mcpTools = new List<AITool>();
 

@@ -13,7 +13,7 @@ public class OpenStaffMarketplaceRegistryModule : OpenStaffModule
         context.Services.AddHttpClient<RegistryApiClient>(client =>
         {
             client.BaseAddress = new Uri(RegistryApiClient.DefaultBaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(15);
+            client.Timeout = TimeSpan.FromSeconds(60);
             client.DefaultRequestHeaders.Add("User-Agent", "OpenStaff/1.0");
         });
 
