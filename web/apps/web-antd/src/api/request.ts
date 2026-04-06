@@ -28,6 +28,11 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     },
   });
 
+  // 自动解包 AxiosResponse.data
+  client.addResponseInterceptor({
+    fulfilled: (response: any) => response.data,
+  });
+
   // 通用的错误处理
   client.addResponseInterceptor(
     errorMessageResponseInterceptor((msg: string, error) => {

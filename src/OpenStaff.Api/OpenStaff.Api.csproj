@@ -8,9 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenStaff.Application\OpenStaff.Application.csproj" />
-    <ProjectReference Include="..\OpenStaff.Core\OpenStaff.Core.csproj" />
-    <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
-    <ProjectReference Include="..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
+    <ProjectReference Include="..\OpenStaff.HttpApi\OpenStaff.HttpApi.csproj" />
     <ProjectReference Include="..\OpenStaff.ServiceDefaults\OpenStaff.ServiceDefaults.csproj" />
   </ItemGroup>
 
@@ -19,6 +17,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="System.Reactive" />
   </ItemGroup>
 

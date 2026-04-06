@@ -103,7 +103,7 @@ public class ModelListingService
     /// <summary>
     /// 获取指定模型的详细参数（从数据源缓存）
     /// </summary>
-    public async Task<ModelData?> GetModelDetailsAsync(string protocolType, string modelId, CancellationToken ct = default)
+    public async Task<Plugins.ModelDataSource.ModelData?> GetModelDetailsAsync(string protocolType, string modelId, CancellationToken ct = default)
     {
         if (ProtocolToVendorKey.TryGetValue(protocolType, out var vendorKey))
         {

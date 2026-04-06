@@ -27,6 +27,7 @@ import {
   getProjectsApi,
   initializeProjectApi,
 } from '#/api/openstaff/project';
+import { formatDate } from '#/utils/format';
 
 const router = useRouter();
 const projects = ref<ProjectApi.Project[]>([]);
@@ -50,7 +51,7 @@ async function fetchProjects() {
   loading.value = true;
   try {
     const data = await getProjectsApi();
-    projects.value = (data as any)?.data ?? data ?? [];
+    projects.value = data ?? [];
   } catch {
     projects.value = [];
   } finally {
@@ -72,7 +73,7 @@ async function handleCreate() {
     message.success('项目已创建，跳转到配置页...');
     showCreateModal.value = false;
     createForm.value = { name: '', description: '' };
-    const project = (result as any)?.data ?? result;
+    const project = result;
     router.push(`/projects/${project.id}/settings`);
   } catch {
     message.error('创建失败');
@@ -110,19 +111,11 @@ async function handleInitialize(project: ProjectApi.Project) {
     await initializeProjectApi(project.id);
     message.success('项目初始化成功');
     await fetchProjects();
-  } catch (e: any) {
-    message.error('初始化失败: ' + (e?.message || e));
+  } catch (e: unknown) {
+    message.error('初始化失败: ' + (e instanceof Error ? e.message : String(e)));
   } finally {
     initializingIds.value.delete(project.id);
   }
-}
-
-function formatDate(isoStr: string): string {
-  return new Date(isoStr).toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
 }
 
 onMounted(fetchProjects);

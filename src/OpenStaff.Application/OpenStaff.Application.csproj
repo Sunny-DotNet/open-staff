@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
+    <ProjectReference Include="..\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
     <ProjectReference Include="..\OpenStaff.Core\OpenStaff.Core.csproj" />
     <ProjectReference Include="..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
     <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />

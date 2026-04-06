@@ -5,6 +5,7 @@ using OpenStaff.Api.Middleware;
 using OpenStaff.Core.Modularity;
 using OpenStaff.Infrastructure.Persistence;
 using OpenStaff.Plugins.ModelDataSource;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +36,17 @@ app.UseMiddleware<LocaleMiddleware>();
 
 app.UseCors();
 app.MapControllers();
+
+// OpenAPI + Scalar (dev only)
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("OpenStaff API");
+        options.WithTheme(ScalarTheme.DeepSpace);
+    });
+}
 
 // SignalR — 统一通知 Hub
 app.MapHub<NotificationHub>("/hubs/notification");

@@ -71,8 +71,8 @@ async function loadTasks() {
   try {
     const result = await getTasksApi(projectId.value);
     tasks.value = Array.isArray(result) ? result : [];
-  } catch (e: any) {
-    message.error('加载任务失败: ' + (e.message || e));
+  } catch (e: unknown) {
+    message.error('加载任务失败: ' + (e instanceof Error ? e.message : String(e)));
   } finally {
     loading.value = false;
   }
@@ -117,8 +117,8 @@ async function handleSave() {
     }
     showModal.value = false;
     await loadTasks();
-  } catch (e: any) {
-    message.error('保存失败: ' + (e.message || e));
+  } catch (e: unknown) {
+    message.error('保存失败: ' + (e instanceof Error ? e.message : String(e)));
   }
 }
 
@@ -126,8 +126,8 @@ async function handleStatusChange(taskId: string, newStatus: string) {
   try {
     await updateTaskApi(projectId.value, taskId, { status: newStatus });
     await loadTasks();
-  } catch (e: any) {
-    message.error('更新状态失败: ' + (e.message || e));
+  } catch (e: unknown) {
+    message.error('更新状态失败: ' + (e instanceof Error ? e.message : String(e)));
   }
 }
 
@@ -136,8 +136,8 @@ async function handleDelete(taskId: string) {
     await deleteTaskApi(projectId.value, taskId);
     message.success('任务已删除');
     await loadTasks();
-  } catch (e: any) {
-    message.error('删除失败: ' + (e.message || e));
+  } catch (e: unknown) {
+    message.error('删除失败: ' + (e instanceof Error ? e.message : String(e)));
   }
 }
 

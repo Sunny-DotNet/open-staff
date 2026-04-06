@@ -48,7 +48,7 @@ async function fetchSettings() {
 async function handleSave() {
   saving.value = true;
   try {
-    await updateSettingsApi(settings.value as any);
+    await updateSettingsApi(settings.value);
     message.success('设置已保存');
   } catch {
     message.error('保存失败');

@@ -35,24 +35,25 @@ export namespace TaskApi {
 }
 
 /** 获取项目任务列表 */
-export async function getTasksApi(projectId: string, status?: string) {
+export async function getTasksApi(
+  projectId: string,
+  status?: string,
+): Promise<TaskApi.Task[]> {
   const query = status ? `?status=${status}` : '';
-  const resp = await requestClient.get(
+  return requestClient.get<TaskApi.Task[]>(
     `/projects/${projectId}/tasks${query}`,
   );
-  return (resp as any)?.data ?? resp;
 }
 
 /** 创建任务 */
 export async function createTaskApi(
   projectId: string,
   data: TaskApi.CreateParams,
-) {
-  const resp = await requestClient.post(
+): Promise<TaskApi.Task> {
+  return requestClient.post<TaskApi.Task>(
     `/projects/${projectId}/tasks`,
     data,
   );
-  return (resp as any)?.data ?? resp;
 }
 
 /** 更新任务 */
@@ -60,27 +61,28 @@ export async function updateTaskApi(
   projectId: string,
   taskId: string,
   data: TaskApi.UpdateParams,
-) {
-  const resp = await requestClient.put(
+): Promise<TaskApi.Task> {
+  return requestClient.put<TaskApi.Task>(
     `/projects/${projectId}/tasks/${taskId}`,
     data,
   );
-  return (resp as any)?.data ?? resp;
 }
 
 /** 删除任务 */
-export async function deleteTaskApi(projectId: string, taskId: string) {
+export async function deleteTaskApi(
+  projectId: string,
+  taskId: string,
+): Promise<void> {
   await requestClient.delete(`/projects/${projectId}/tasks/${taskId}`);
 }
 
 /** 批量更新任务状态 */
 export async function batchUpdateTaskStatusApi(
   projectId: string,
-  tasks: Array<{ taskId: string; status: string }>,
-) {
-  const resp = await requestClient.patch(
+  tasks: Array<{ status: string; taskId: string }>,
+): Promise<void> {
+  await requestClient.patch(
     `/projects/${projectId}/tasks/batch-status`,
     { tasks },
   );
-  return (resp as any)?.data ?? resp;
 }

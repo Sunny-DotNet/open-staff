@@ -15,7 +15,9 @@
   <Project Path="OpenStaff.Api/OpenStaff.Api.csproj" />
   <Project Path="OpenStaff.AppHost/OpenStaff.AppHost.csproj" />
   <Project Path="OpenStaff.Application/OpenStaff.Application.csproj" />
+  <Project Path="OpenStaff.Application.Contracts/OpenStaff.Application.Contracts.csproj" />
   <Project Path="OpenStaff.Core/OpenStaff.Core.csproj" />
+  <Project Path="OpenStaff.HttpApi/OpenStaff.HttpApi.csproj" />
   <Project Path="OpenStaff.Infrastructure/OpenStaff.Infrastructure.csproj" />
   <Project Path="OpenStaff.ServiceDefaults/OpenStaff.ServiceDefaults.csproj" />
   <Project Path="OpenStaff.Tests/OpenStaff.Tests.csproj" />

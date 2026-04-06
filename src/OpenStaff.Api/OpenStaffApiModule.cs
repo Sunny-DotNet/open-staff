@@ -3,10 +3,11 @@ using OpenStaff.Api.Services;
 using OpenStaff.Application;
 using OpenStaff.Core.Modularity;
 using OpenStaff.Core.Notifications;
+using OpenStaff.HttpApi;
 
 namespace OpenStaff.Api;
 
-[DependsOn(typeof(OpenStaffApplicationModule))]
+[DependsOn(typeof(OpenStaffApplicationModule), typeof(OpenStaffHttpApiModule))]
 public class OpenStaffApiModule : OpenStaffModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
@@ -17,13 +18,11 @@ public class OpenStaffApiModule : OpenStaffModule
         // SignalR
         services.AddSignalR();
 
+        // OpenAPI (Scalar)
+        services.AddOpenApi();
+
         // 通知服务（依赖 SignalR IHubContext，必须在 Api 层注册）
         services.AddSingleton<INotificationService, NotificationService>();
-
-        // 控制器
-        services.AddControllers()
-            .AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler =
-                System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
 
         // CORS
         services.AddCors(options =>
@@ -32,7 +31,7 @@ public class OpenStaffApiModule : OpenStaffModule
             {
                 policy.WithOrigins(
                         configuration.GetSection("Cors:Origins").Get<string[]>()
-                        ?? new[] { "http://localhost:3000" })
+                        ?? ["http://localhost:3000"])
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials();

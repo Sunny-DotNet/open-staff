@@ -1,21 +1,14 @@
 <script lang="ts" setup>
 import type { SettingsApi } from '#/api/openstaff/settings';
 
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
 import {
-  Badge,
   Button,
-  Form,
-  FormItem,
-  Input,
-  InputPassword,
   message,
-  Modal,
   Popconfirm,
-  Select,
   Space,
   Switch,
   Table,
@@ -24,74 +17,29 @@ import {
 } from 'ant-design-vue';
 
 import {
-  cancelDeviceAuthApi,
-  createProviderAccountApi,
   deleteProviderAccountApi,
   getProtocolsApi,
   getProviderAccountsApi,
-  initiateDeviceAuthApi,
-  pollDeviceAuthApi,
   updateProviderAccountApi,
 } from '#/api/openstaff/settings';
+import { formatDateTime } from '#/utils/format';
+import { getLogoUrl, getProtocolColor } from '#/constants/provider';
 
-// 将后端 Logo 字段转为 @lobehub/icons-static-svg CDN URL
-function getLogoUrl(logo: string): string {
-  if (!logo) return '';
-  // PascalCase.Variant → lowercase-variant, e.g. "Claude.Color" → "claude-color"
-  const slug = logo
-    .replace(/\.([A-Za-z])/g, '-$1')
-    .replace(/([a-z])([A-Z])/g, '$1$2')
-    .toLowerCase();
-  return `https://unpkg.com/@lobehub/icons-static-svg@latest/icons/${slug}.svg`;
-}
+import DeviceAuthModal from './DeviceAuthModal.vue';
+import ProviderFormModal from './ProviderFormModal.vue';
 
-// 协议颜色映射
-const PROTOCOL_COLORS: Record<string, string> = {
-  openai: '#10a37f',
-  anthropic: '#d97706',
-  google: '#4285f4',
-  'github-copilot': '#6e40c9',
-  newapi: '#1890ff',
-};
-
-function getProtocolColor(key: string) {
-  return PROTOCOL_COLORS[key] ?? '#8c8c8c';
-}
-
-// 状态
+// ===== 状态 =====
 const protocols = ref<SettingsApi.ProtocolMetadata[]>([]);
 const accounts = ref<SettingsApi.ProviderAccount[]>([]);
 const loading = ref(false);
-const showModal = ref(false);
+const showFormModal = ref(false);
 const editingAccount = ref<SettingsApi.ProviderAccount | null>(null);
-const saving = ref(false);
-
-// 表单
-const formState = reactive({
-  name: '',
-  protocolType: '',
-  isEnabled: true,
-  envConfig: {} as Record<string, any>,
-});
-
-// 当前选中协议的元数据
-const currentProtocol = computed(() =>
-  protocols.value.find((p) => p.providerKey === formState.protocolType),
-);
 
 // 设备码授权
-const deviceAuth = reactive({
-  accountId: null as string | null,
-  userCode: '',
-  verificationUri: '',
-  expiresIn: 0,
-  interval: 5,
-  polling: false,
-  status: '',
-});
-let pollTimer: ReturnType<typeof setTimeout> | null = null;
+const showDeviceAuth = ref(false);
+const deviceAuthAccount = ref<SettingsApi.ProviderAccount | null>(null);
 
-// 表格列
+// ===== 表格列 =====
 const columns = [
   { title: '名称', dataIndex: 'name', key: 'name', width: 200 },
   { title: '协议', dataIndex: 'protocolType', key: 'protocolType', width: 180 },
@@ -100,10 +48,20 @@ const columns = [
   { title: '操作', key: 'actions', width: 220, fixed: 'right' as const },
 ];
 
+// ===== 计算属性 =====
+const protocolMetaMap = computed(() => {
+  const map = new Map<string, SettingsApi.ProtocolMetadata>();
+  for (const p of protocols.value) {
+    map.set(p.providerKey, p);
+  }
+  return map;
+});
+
 function getProtocolMeta(key: string) {
-  return protocols.value.find((p) => p.providerKey === key);
+  return protocolMetaMap.value.get(key);
 }
 
+// ===== 数据加载 =====
 async function fetchData() {
   loading.value = true;
   try {
@@ -121,79 +79,15 @@ async function fetchData() {
   }
 }
 
-function buildDefaultEnvConfig(proto: SettingsApi.ProtocolMetadata): Record<string, any> {
-  const config: Record<string, any> = {};
-  for (const field of proto.envSchema) {
-    config[field.name] = field.defaultValue ?? (field.fieldType === 'bool' ? false : '');
-  }
-  return config;
-}
-
+// ===== 操作 =====
 function openCreateModal() {
   editingAccount.value = null;
-  const defaultProto = protocols.value[0];
-  formState.protocolType = defaultProto?.providerKey ?? '';
-  formState.name = '';
-  formState.isEnabled = true;
-  formState.envConfig = defaultProto ? buildDefaultEnvConfig(defaultProto) : {};
-  showModal.value = true;
+  showFormModal.value = true;
 }
 
 function openEditModal(account: SettingsApi.ProviderAccount) {
   editingAccount.value = account;
-  formState.name = account.name;
-  formState.protocolType = account.protocolType;
-  formState.isEnabled = account.isEnabled;
-  formState.envConfig = { ...(account.envConfig ?? {}) };
-  showModal.value = true;
-}
-
-function onProtocolTypeChange(key: string) {
-  const proto = protocols.value.find((p) => p.providerKey === key);
-  if (proto && !editingAccount.value) {
-    formState.envConfig = buildDefaultEnvConfig(proto);
-  }
-}
-
-async function handleSave() {
-  if (!formState.name.trim()) {
-    message.warning('请输入供应商名称');
-    return;
-  }
-  saving.value = true;
-  try {
-    const envConfig = { ...formState.envConfig };
-    if (editingAccount.value) {
-      const proto = currentProtocol.value;
-      if (proto) {
-        for (const field of proto.envSchema) {
-          if (field.fieldType === 'secret' && !envConfig[field.name]) {
-            delete envConfig[field.name];
-          }
-        }
-      }
-      await updateProviderAccountApi(editingAccount.value.id, {
-        name: formState.name,
-        envConfig,
-        isEnabled: formState.isEnabled,
-      });
-      message.success('供应商已更新');
-    } else {
-      await createProviderAccountApi({
-        name: formState.name,
-        protocolType: formState.protocolType,
-        envConfig,
-        isEnabled: formState.isEnabled,
-      });
-      message.success('供应商已创建');
-    }
-    showModal.value = false;
-    await fetchData();
-  } catch (e: any) {
-    message.error('保存失败: ' + (e?.message || e));
-  } finally {
-    saving.value = false;
-  }
+  showFormModal.value = true;
 }
 
 async function handleDelete(id: string) {
@@ -201,8 +95,9 @@ async function handleDelete(id: string) {
     await deleteProviderAccountApi(id);
     message.success('供应商已删除');
     await fetchData();
-  } catch (e: any) {
-    message.error('删除失败: ' + (e?.message || e));
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    message.error('删除失败: ' + msg);
   }
 }
 
@@ -217,91 +112,12 @@ async function handleToggleEnabled(account: SettingsApi.ProviderAccount) {
   }
 }
 
-// ===== 设备码授权 =====
-
-async function startDeviceAuth(account: SettingsApi.ProviderAccount) {
-  try {
-    Object.assign(deviceAuth, {
-      accountId: account.id,
-      userCode: '',
-      verificationUri: '',
-      expiresIn: 0,
-      interval: 5,
-      polling: false,
-      status: 'initiating',
-    });
-
-    const result = await initiateDeviceAuthApi(account.id);
-    deviceAuth.userCode = result.userCode;
-    deviceAuth.verificationUri = result.verificationUri;
-    deviceAuth.expiresIn = result.expiresIn;
-    deviceAuth.interval = result.interval;
-    deviceAuth.status = 'waiting';
-    deviceAuth.polling = true;
-
-    window.open(result.verificationUri, '_blank');
-    startPolling();
-  } catch {
-    message.error('无法发起设备码授权');
-    deviceAuth.status = '';
-    deviceAuth.accountId = null;
-  }
-}
-
-function startPolling() {
-  stopPolling();
-  const interval = (deviceAuth.interval || 5) * 1000;
-  pollTimer = setTimeout(doPollDeviceAuth, interval);
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearTimeout(pollTimer);
-    pollTimer = null;
-  }
-  deviceAuth.polling = false;
-}
-
-async function doPollDeviceAuth() {
-  if (!deviceAuth.accountId) return;
-  try {
-    const result = await pollDeviceAuthApi(deviceAuth.accountId);
-    if (result.status === 'success') {
-      stopPolling();
-      deviceAuth.status = 'success';
-      message.success('GitHub 授权成功！');
-      await fetchData();
-    } else if (result.status === 'pending') {
-      startPolling();
-    } else {
-      stopPolling();
-      deviceAuth.status = result.status;
-      message.error(result.message || '授权失败');
-    }
-  } catch {
-    stopPolling();
-    deviceAuth.status = 'error';
-  }
-}
-
-async function cancelAuth() {
-  if (deviceAuth.accountId) {
-    try {
-      await cancelDeviceAuthApi(deviceAuth.accountId);
-    } catch { /* ignore */ }
-  }
-  stopPolling();
-  deviceAuth.status = '';
-  deviceAuth.accountId = null;
-}
-
-function formatDate(dateStr: string) {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleString('zh-CN');
+function startDeviceAuth(account: SettingsApi.ProviderAccount) {
+  deviceAuthAccount.value = account;
+  showDeviceAuth.value = true;
 }
 
 onMounted(fetchData);
-onUnmounted(stopPolling);
 </script>
 
 <template>
@@ -355,7 +171,7 @@ onUnmounted(stopPolling);
         <!-- 创建时间 -->
         <template v-if="column.key === 'createdAt'">
           <Typography.Text type="secondary" style="font-size: 12px">
-            {{ formatDate(record.createdAt) }}
+            {{ formatDateTime(record.createdAt) }}
           </Typography.Text>
         </template>
 
@@ -370,7 +186,6 @@ onUnmounted(stopPolling);
               size="small"
               type="link"
               @click="startDeviceAuth(record)"
-              :disabled="deviceAuth.accountId === record.id && deviceAuth.polling"
             >
               🐙 授权
             </Button>
@@ -402,123 +217,20 @@ onUnmounted(stopPolling);
     </Table>
 
     <!-- 设备码授权 Modal -->
-    <Modal
-      :open="deviceAuth.status === 'waiting'"
-      title="GitHub 设备码授权"
-      :footer="null"
-      @cancel="cancelAuth"
-    >
-      <div style="text-align: center; padding: 20px 0">
-        <Typography.Title :level="4">
-          请在 GitHub 中输入以下代码：
-        </Typography.Title>
-        <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: var(--ant-color-fill-secondary, #f5f5f5); border-radius: 8px; margin: 16px 0">
-          {{ deviceAuth.userCode }}
-        </div>
-        <Typography.Text type="secondary">
-          浏览器应已自动打开验证页面
-        </Typography.Text>
-        <br />
-        <Button
-          type="link"
-          :href="deviceAuth.verificationUri"
-          target="_blank"
-          style="margin-top: 8px"
-        >
-          手动打开验证页面 →
-        </Button>
-        <br /><br />
-        <Badge status="processing" text="等待授权中..." />
-        <br /><br />
-        <Button @click="cancelAuth">取消</Button>
-      </div>
-    </Modal>
+    <DeviceAuthModal
+      :open="showDeviceAuth"
+      :account="deviceAuthAccount"
+      @update:open="showDeviceAuth = $event"
+      @success="fetchData"
+    />
 
     <!-- 新建/编辑 Modal -->
-    <Modal
-      v-model:open="showModal"
-      :title="editingAccount ? '编辑供应商' : '添加供应商'"
-      :confirm-loading="saving"
-      @ok="handleSave"
-      :okText="editingAccount ? '保存' : '创建'"
-      cancelText="取消"
-      :width="560"
-    >
-      <Form layout="vertical" style="margin-top: 16px">
-        <!-- 协议类型 -->
-        <FormItem label="供应商协议" required>
-          <Select
-            v-model:value="formState.protocolType"
-            :disabled="!!editingAccount"
-            @change="onProtocolTypeChange"
-            placeholder="选择协议类型"
-          >
-            <Select.Option
-              v-for="proto in protocols"
-              :key="proto.providerKey"
-              :value="proto.providerKey"
-            >
-              <Space>
-                <img
-                  v-if="proto.logo"
-                  :src="getLogoUrl(proto.logo)"
-                  :alt="proto.providerKey"
-                  style="width: 16px; height: 16px; vertical-align: middle"
-                />
-                <span v-else>🔌</span>
-                <span>{{ proto.providerName }}</span>
-                <Tag v-if="proto.isVendor" style="font-size: 10px; margin-left: 4px">厂商</Tag>
-              </Space>
-            </Select.Option>
-          </Select>
-        </FormItem>
-
-        <!-- 名称 -->
-        <FormItem label="名称" required>
-          <Input
-            v-model:value="formState.name"
-            placeholder="例如：我的 OpenAI 账户"
-          />
-        </FormItem>
-
-        <!-- 动态 EnvConfig 字段 -->
-        <template v-if="currentProtocol">
-          <FormItem
-            v-for="field in currentProtocol.envSchema"
-            :key="field.name"
-            :label="field.name"
-          >
-            <!-- boolean 字段 -->
-            <Switch
-              v-if="field.fieldType === 'bool'"
-              v-model:checked="formState.envConfig[field.name]"
-            />
-
-            <!-- secret 字段 -->
-            <InputPassword
-              v-else-if="field.fieldType === 'secret'"
-              v-model:value="formState.envConfig[field.name]"
-              :placeholder="editingAccount ? '留空保持不变' : `输入 ${field.name}`"
-            />
-
-            <!-- 普通字段 -->
-            <Input
-              v-else
-              v-model:value="formState.envConfig[field.name]"
-              :placeholder="field.defaultValue ? String(field.defaultValue) : `输入 ${field.name}`"
-            />
-          </FormItem>
-        </template>
-
-        <!-- 启用开关 -->
-        <FormItem label="启用">
-          <Switch
-            v-model:checked="formState.isEnabled"
-            checked-children="启用"
-            un-checked-children="禁用"
-          />
-        </FormItem>
-      </Form>
-    </Modal>
+    <ProviderFormModal
+      :open="showFormModal"
+      :editing-account="editingAccount"
+      :protocols="protocols"
+      @update:open="showFormModal = $event"
+      @saved="fetchData"
+    />
   </Page>
 </template>

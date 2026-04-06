@@ -1,13 +1,29 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenStaff.Agents;
 using OpenStaff.Application.Agents;
+using OpenStaff.Application.AgentRoles;
 using OpenStaff.Application.Auth;
+using OpenStaff.Application.Contracts.Agents;
+using OpenStaff.Application.Contracts.AgentRoles;
+using OpenStaff.Application.Contracts.Auth;
+using OpenStaff.Application.Contracts.Files;
+using OpenStaff.Application.Contracts.ModelData;
+using OpenStaff.Application.Contracts.Monitor;
+using OpenStaff.Application.Contracts.Projects;
+using OpenStaff.Application.Contracts.Providers;
+using OpenStaff.Application.Contracts.Sessions;
+using OpenStaff.Application.Contracts.Settings;
+using OpenStaff.Application.Contracts.Tasks;
+using OpenStaff.Application.Files;
+using OpenStaff.Application.ModelData;
+using OpenStaff.Application.Monitor;
 using OpenStaff.Application.Orchestration;
 using OpenStaff.Application.Projects;
 using OpenStaff.Application.Providers;
 using OpenStaff.Application.Seeding;
 using OpenStaff.Application.Sessions;
 using OpenStaff.Application.Settings;
+using OpenStaff.Application.Tasks;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Modularity;
 using OpenStaff.Core.Orchestration;
@@ -67,5 +83,18 @@ public class OpenStaffApplicationModule : OpenStaffModule
 
         // 数据库种子
         services.AddHostedService<RoleSeedService>();
+
+        // Application Services (Contracts implementations)
+        services.AddScoped<IProjectAppService, ProjectAppService>();
+        services.AddScoped<IProviderAccountAppService, ProviderAccountAppService>();
+        services.AddScoped<IDeviceAuthAppService, DeviceAuthAppService>();
+        services.AddScoped<IAgentRoleAppService, AgentRoleAppService>();
+        services.AddScoped<ISessionAppService, SessionAppService>();
+        services.AddScoped<ITaskAppService, TaskAppService>();
+        services.AddScoped<IFileAppService, FileAppService>();
+        services.AddScoped<IMonitorAppService, MonitorAppService>();
+        services.AddScoped<ISettingsAppService, SettingsAppService>();
+        services.AddScoped<IAgentAppService, AgentAppService>();
+        services.AddScoped<IModelDataAppService, ModelDataAppService>();
     }
 }

@@ -14,7 +14,7 @@ export namespace SettingsApi {
     name: string;
     protocolType: string;
     isEnabled: boolean;
-    envConfig?: Record<string, any>;
+    envConfig?: Record<string, string | boolean | number>;
     createdAt: string;
     updatedAt: string;
   }
@@ -22,21 +22,21 @@ export namespace SettingsApi {
   export interface CreateProviderAccountParams {
     name: string;
     protocolType: string;
-    envConfig?: Record<string, any>;
+    envConfig?: Record<string, string | boolean | number>;
     isEnabled?: boolean;
   }
 
   export interface UpdateProviderAccountParams {
     name?: string;
-    envConfig?: Record<string, any>;
+    envConfig?: Record<string, string | boolean | number>;
     isEnabled?: boolean;
   }
 
   /** 协议元数据 */
   export interface ProtocolEnvField {
     name: string;
-    fieldType: string; // string, secret, bool, number
-    defaultValue: any;
+    fieldType: 'bool' | 'number' | 'secret' | 'string';
+    defaultValue: string | boolean | number;
   }
 
   export interface ProtocolMetadata {
@@ -76,14 +76,14 @@ export namespace SettingsApi {
 
 // ===== 全局设置 =====
 
-export async function getSettingsApi() {
-  const resp = await requestClient.get('/settings');
-  return (resp as any)?.data ?? resp;
+export async function getSettingsApi(): Promise<SettingsApi.GlobalSettings> {
+  return requestClient.get<SettingsApi.GlobalSettings>('/settings');
 }
 
-export async function updateSettingsApi(data: SettingsApi.GlobalSettings) {
-  const resp = await requestClient.put('/settings', data);
-  return (resp as any)?.data ?? resp;
+export async function updateSettingsApi(
+  data: SettingsApi.GlobalSettings,
+): Promise<SettingsApi.GlobalSettings> {
+  return requestClient.put<SettingsApi.GlobalSettings>('/settings', data);
 }
 
 // ===== 协议元数据 =====
@@ -91,8 +91,7 @@ export async function updateSettingsApi(data: SettingsApi.GlobalSettings) {
 export async function getProtocolsApi(): Promise<
   SettingsApi.ProtocolMetadata[]
 > {
-  const resp = await requestClient.get('/protocols');
-  return (resp as any)?.data ?? resp;
+  return requestClient.get<SettingsApi.ProtocolMetadata[]>('/protocols');
 }
 
 // ===== 供应商账户 =====
@@ -100,30 +99,34 @@ export async function getProtocolsApi(): Promise<
 export async function getProviderAccountsApi(): Promise<
   SettingsApi.ProviderAccount[]
 > {
-  const resp = await requestClient.get('/provider-accounts');
-  return (resp as any)?.data ?? resp;
+  return requestClient.get<SettingsApi.ProviderAccount[]>('/provider-accounts');
 }
 
 export async function getProviderAccountApi(
   id: string,
 ): Promise<SettingsApi.ProviderAccount> {
-  const resp = await requestClient.get(`/provider-accounts/${id}`);
-  return (resp as any)?.data ?? resp;
+  return requestClient.get<SettingsApi.ProviderAccount>(
+    `/provider-accounts/${id}`,
+  );
 }
 
 export async function createProviderAccountApi(
   data: SettingsApi.CreateProviderAccountParams,
 ): Promise<SettingsApi.ProviderAccount> {
-  const resp = await requestClient.post('/provider-accounts', data);
-  return (resp as any)?.data ?? resp;
+  return requestClient.post<SettingsApi.ProviderAccount>(
+    '/provider-accounts',
+    data,
+  );
 }
 
 export async function updateProviderAccountApi(
   id: string,
   data: SettingsApi.UpdateProviderAccountParams,
 ): Promise<SettingsApi.ProviderAccount> {
-  const resp = await requestClient.put(`/provider-accounts/${id}`, data);
-  return (resp as any)?.data ?? resp;
+  return requestClient.put<SettingsApi.ProviderAccount>(
+    `/provider-accounts/${id}`,
+    data,
+  );
 }
 
 export async function deleteProviderAccountApi(id: string): Promise<void> {
@@ -135,19 +138,17 @@ export async function deleteProviderAccountApi(id: string): Promise<void> {
 export async function initiateDeviceAuthApi(
   id: string,
 ): Promise<SettingsApi.DeviceCodeResponse> {
-  const resp = await requestClient.post(
+  return requestClient.post<SettingsApi.DeviceCodeResponse>(
     `/provider-accounts/${id}/device-auth`,
   );
-  return (resp as any)?.data ?? resp;
 }
 
 export async function pollDeviceAuthApi(
   id: string,
 ): Promise<SettingsApi.DeviceAuthPollResult> {
-  const resp = await requestClient.post(
+  return requestClient.post<SettingsApi.DeviceAuthPollResult>(
     `/provider-accounts/${id}/device-auth/poll`,
   );
-  return (resp as any)?.data ?? resp;
 }
 
 export async function cancelDeviceAuthApi(id: string): Promise<void> {
@@ -159,8 +160,7 @@ export async function cancelDeviceAuthApi(id: string): Promise<void> {
 export async function getProviderModelsApi(
   id: string,
 ): Promise<SettingsApi.ProviderModel[]> {
-  const resp = await requestClient.get(`/provider-accounts/${id}/models`);
-  return (resp as any)?.data ?? resp;
+  return requestClient.get<SettingsApi.ProviderModel[]>(
+    `/provider-accounts/${id}/models`,
+  );
 }
-
-

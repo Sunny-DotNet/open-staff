@@ -60,34 +60,22 @@ export namespace AgentApi {
     createdAt: string;
   }
 
-  // Legacy interfaces for project agent instances
-  export interface Agent {
-    id: string;
-    name: string;
-    role: string;
-    status: 'idle' | 'thinking' | 'working';
-    avatar?: string;
+  export interface TestChatResult {
+    sessionId: string;
   }
 
-  export interface Message {
-    id: string;
-    agentId: string;
-    agentName: string;
-    content: string;
-    type: 'chat' | 'code' | 'error' | 'system';
-    timestamp: string;
-  }
-
-  export interface SendMessageParams {
-    content: string;
-    type?: string;
-  }
-
-  export interface AgentEvent {
-    id: string;
-    type: string;
-    data: Record<string, unknown>;
-    timestamp: string;
+  export interface ChatMessagePage {
+    messages: Array<{
+      id: string;
+      role: string;
+      agent?: string;
+      agentRole?: string;
+      content: string;
+      text?: string;
+      createdAt: string;
+      timestamp?: string;
+    }>;
+    total: number;
   }
 }
 
@@ -95,16 +83,14 @@ export namespace AgentApi {
 
 /** 获取所有代理体角色 */
 export async function getAgentRolesApi(): Promise<AgentApi.AgentRole[]> {
-  const resp = await requestClient.get('/agent-roles');
-  return (resp as any)?.data ?? resp;
+  return requestClient.get<AgentApi.AgentRole[]>('/agent-roles');
 }
 
 /** 获取单个代理体角色 */
 export async function getAgentRoleApi(
   id: string,
 ): Promise<AgentApi.AgentRole> {
-  const resp = await requestClient.get(`/agent-roles/${id}`);
-  return (resp as any)?.data ?? resp;
+  return requestClient.get<AgentApi.AgentRole>(`/agent-roles/${id}`);
 }
 
 /** 更新代理体角色 */
@@ -112,8 +98,7 @@ export async function updateAgentRoleApi(
   id: string,
   data: AgentApi.UpdateAgentRoleParams,
 ): Promise<AgentApi.AgentRole> {
-  const resp = await requestClient.put(`/agent-roles/${id}`, data);
-  return (resp as any)?.data ?? resp;
+  return requestClient.put<AgentApi.AgentRole>(`/agent-roles/${id}`, data);
 }
 
 /** 创建代理体角色 */
@@ -126,8 +111,7 @@ export async function createAgentRoleApi(data: {
   modelName?: string;
   config?: string;
 }): Promise<AgentApi.AgentRole> {
-  const resp = await requestClient.post('/agent-roles', data);
-  return (resp as any)?.data ?? resp;
+  return requestClient.post<AgentApi.AgentRole>('/agent-roles', data);
 }
 
 /** 删除代理体角色（软删除） */
@@ -139,97 +123,55 @@ export async function deleteAgentRoleApi(id: string): Promise<void> {
 export async function testAgentChatApi(
   roleId: string,
   message: string,
-): Promise<{ sessionId: string }> {
-  const resp = await requestClient.post(`/agent-roles/${roleId}/test-chat`, { message });
-  return (resp as any)?.data ?? resp;
+): Promise<AgentApi.TestChatResult> {
+  return requestClient.post<AgentApi.TestChatResult>(
+    `/agent-roles/${roleId}/test-chat`,
+    { message },
+  );
 }
 
 /** 创建会话（异步启动，返回 sessionId） */
 export async function createSessionApi(
   params: AgentApi.CreateSessionParams,
 ): Promise<AgentApi.SessionInfo> {
-  const resp = await requestClient.post('/sessions', params);
-  return (resp as any)?.data ?? resp;
+  return requestClient.post<AgentApi.SessionInfo>('/sessions', params);
 }
 
 /** 取消会话 */
-export async function cancelSessionApi(sessionId: string) {
-  const resp = await requestClient.post(`/sessions/${sessionId}/cancel`);
-  return (resp as any)?.data ?? resp;
+export async function cancelSessionApi(sessionId: string): Promise<void> {
+  await requestClient.post(`/sessions/${sessionId}/cancel`);
 }
 
 /** Pop 当前帧 */
-export async function popSessionFrameApi(sessionId: string) {
-  const resp = await requestClient.post(`/sessions/${sessionId}/pop`);
-  return (resp as any)?.data ?? resp;
+export async function popSessionFrameApi(sessionId: string): Promise<void> {
+  await requestClient.post(`/sessions/${sessionId}/pop`);
 }
 
 /** 获取会话详情 */
-export async function getSessionApi(sessionId: string) {
-  const resp = await requestClient.get(`/sessions/${sessionId}`);
-  return (resp as any)?.data ?? resp;
+export async function getSessionApi(
+  sessionId: string,
+): Promise<AgentApi.SessionInfo> {
+  return requestClient.get<AgentApi.SessionInfo>(`/sessions/${sessionId}`);
 }
 
 /** 获取项目会话列表 */
 export async function getProjectSessionsApi(
   projectId: string,
   limit = 20,
-) {
-  const resp = await requestClient.get(
+): Promise<AgentApi.SessionInfo[]> {
+  return requestClient.get<AgentApi.SessionInfo[]>(
     `/sessions/by-project/${projectId}?limit=${limit}`,
   );
-  return (resp as any)?.data ?? resp;
 }
 
-// ===== 项目智能体实例 API =====
-
-/** 获取项目的智能体列表 */
-export async function getAgentsApi(projectId: string) {
-  const resp = await requestClient.get(`/projects/${projectId}/agents`);
-  return (resp as any)?.data ?? resp;
-}
-
-/** 向智能体发送消息 */
-export async function sendAgentMessageApi(
-  projectId: string,
-  agentId: string,
-  data: AgentApi.SendMessageParams,
-) {
-  const resp = await requestClient.post(
-    `/projects/${projectId}/agents/${agentId}/message`,
-    data,
-  );
-  return (resp as any)?.data ?? resp;
-}
-
-/** 获取智能体事件流 */
-export async function getAgentEventsApi(
-  projectId: string,
-  agentId: string,
-) {
-  const resp = await requestClient.get(
-    `/projects/${projectId}/agents/${agentId}/events`,
-  );
-  return (resp as any)?.data ?? resp;
-}
-
-/** 获取项目消息历史 */
-export async function getMessagesApi(projectId: string) {
-  const resp = await requestClient.get(`/projects/${projectId}/messages`);
-  return (resp as any)?.data ?? resp;
-}
-
-// ===== 群聊相关 API =====
+// ===== 会话消息 API =====
 
 /** 向已有 Session 发送消息（群聊追加） */
 export async function sendSessionMessageApi(
   sessionId: string,
   input: string,
-) {
-  const resp = await requestClient.post(`/sessions/${sessionId}/messages`, {
-    input,
-  });
-  return (resp as any)?.data ?? resp;
+): Promise<void> {
+  await requestClient.post(`/sessions/${sessionId}/messages`, { input });
 }
 
 /** 获取群聊消息历史（分页） */
@@ -237,15 +179,17 @@ export async function getChatMessagesApi(
   sessionId: string,
   skip = 0,
   take = 50,
-) {
-  const resp = await requestClient.get(
+): Promise<AgentApi.ChatMessagePage> {
+  return requestClient.get<AgentApi.ChatMessagePage>(
     `/sessions/${sessionId}/chat-messages?skip=${skip}&take=${take}`,
   );
-  return (resp as any)?.data ?? resp;
 }
 
 /** 获取会话事件列表 */
-export async function getSessionEventsApi(sessionId: string) {
-  const resp = await requestClient.get(`/sessions/${sessionId}/events`);
-  return (resp as any)?.data ?? resp;
+export async function getSessionEventsApi(
+  sessionId: string,
+): Promise<AgentApi.SessionEvent[]> {
+  return requestClient.get<AgentApi.SessionEvent[]>(
+    `/sessions/${sessionId}/events`,
+  );
 }

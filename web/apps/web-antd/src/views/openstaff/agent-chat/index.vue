@@ -13,25 +13,13 @@ import {
 import { getProjectApi, getProjectAgentsApi } from '#/api/openstaff/project';
 import type { ProjectApi } from '#/api/openstaff/project';
 import { useNotification } from '#/composables/useNotification';
+import { AGENT_STATES, ROLE_NAMES, getRoleColor } from '#/constants/agent';
+import { formatTime } from '#/utils/format';
 import { $t } from '#/locales';
 
 const InputTextArea = Input.TextArea;
 
-const ROLE_COLORS: Record<string, string> = {
-  communicator: '#1890ff', decision_maker: '#722ed1', architect: '#13c2c2',
-  producer: '#52c41a', debugger: '#fa8c16', image_creator: '#eb2f96',
-  video_creator: '#f5222d', orchestrator: '#faad14',
-};
-const ROLE_NAMES: Record<string, string> = {
-  communicator: '对话者', decision_maker: '决策者', architect: '架构者',
-  producer: '生产者', debugger: '调试者', image_creator: '图片创造者',
-  video_creator: '视频创造者', orchestrator: '调度者',
-};
-const AGENT_STATES: Record<string, string> = {
-  idle: '空闲', thinking: '思考中', routing: '路由中', working: '工作中',
-};
-
-function roleColor(role: string) { return ROLE_COLORS[role] || '#8c8c8c'; }
+function roleColor(role: string) { return getRoleColor(role); }
 function roleName(role: string) {
   const pa = projectAgents.value.find((a) => a.agentRole?.roleType === role);
   return pa?.agentRole?.name || ROLE_NAMES[role] || role;
@@ -76,11 +64,6 @@ const canInput = computed(() =>
   (sessionStatus.value === 'awaiting_input' || sessionStatus.value === 'active'),
 );
 
-function formatTime(ts: string) {
-  try { return new Date(ts).toLocaleTimeString('zh-CN', { hour12: false }); }
-  catch { return ts; }
-}
-
 function scrollToBottom(smooth = true) {
   nextTick(() => {
     chatContainerRef.value?.scrollTo({
@@ -103,7 +86,7 @@ function addMsg(m: Omit<ChatMessage, 'id'>) {
 
 function handleSessionEvent(evt: AgentApi.SessionEvent) {
   tokenUsage.value.events++;
-  let p: Record<string, any> = {};
+  let p: Record<string, unknown> = {};
   if (evt.payload) { try { p = JSON.parse(evt.payload); } catch { p = { raw: evt.payload }; } }
 
   switch (evt.eventType) {
@@ -173,11 +156,11 @@ async function connectStream(sid: string) {
 
 async function loadHistory(sid: string, skip = 0, take = 50) {
   try {
-    const resp: any = await getChatMessagesApi(sid, skip, take);
-    const list = resp?.messages || resp || [];
-    totalMessages.value = resp?.total || list.length;
+    const resp = await getChatMessagesApi(sid, skip, take);
+    const list = resp?.messages ?? [];
+    totalMessages.value = resp?.total ?? list.length;
     hasMore.value = skip + take < totalMessages.value;
-    const parsed: ChatMessage[] = list.map((m: any) => ({
+    const parsed: ChatMessage[] = list.map((m) => ({
       id: m.id || `hist-${Math.random()}`,
       sender: m.role === 'user' ? 'user' as const : 'agent' as const,
       agent: m.agent || m.agentRole || undefined,
@@ -198,7 +181,7 @@ async function loadOlderMessages() {
 
 async function reconstructFromEvents(sid: string) {
   try {
-    const events: any = await getSessionEventsApi(sid);
+    const events = await getSessionEventsApi(sid);
     if (Array.isArray(events)) events.forEach(handleSessionEvent);
   } catch (err) { console.error('Failed to reconstruct:', err); }
 }
@@ -215,7 +198,7 @@ async function initPage() {
         state: 'idle' as const,
       }));
     } catch { agentStatuses.value = []; }
-    const mainSid = (project.value as any)?.mainSessionId || (project.value as any)?.sessionId;
+    const mainSid = project.value?.mainSessionId || project.value?.sessionId;
     if (mainSid) {
       sessionId.value = mainSid;
       sessionStatus.value = 'active';
@@ -234,7 +217,7 @@ async function startSession(input: string) {
   sending.value = true;
   try {
     const resp = await createSessionApi({ projectId: projectId.value, input, contextStrategy: 'hybrid' });
-    const sid = (resp as any)?.sessionId;
+    const sid = resp.sessionId;
     if (!sid) throw new Error('No sessionId returned');
     sessionId.value = sid;
     sessionStatus.value = 'active';
