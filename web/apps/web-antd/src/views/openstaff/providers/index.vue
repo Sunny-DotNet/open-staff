@@ -8,8 +8,10 @@ import { Page } from '@vben/common-ui';
 import {
   Button,
   message,
+  Modal,
   Popconfirm,
   Space,
+  Spin,
   Switch,
   Table,
   Tag,
@@ -19,7 +21,9 @@ import {
 import {
   deleteProviderAccountApi,
   getProtocolsApi,
+  getProviderAccountApi,
   getProviderAccountsApi,
+  getProviderModelsApi,
   updateProviderAccountApi,
 } from '#/api/openstaff/settings';
 import { formatDateTime } from '#/utils/format';
@@ -39,13 +43,25 @@ const editingAccount = ref<SettingsApi.ProviderAccount | null>(null);
 const showDeviceAuth = ref(false);
 const deviceAuthAccount = ref<SettingsApi.ProviderAccount | null>(null);
 
+// 查看模型
+const showModelsModal = ref(false);
+const modelsLoading = ref(false);
+const modelsList = ref<SettingsApi.ProviderModel[]>([]);
+const modelsAccountName = ref('');
+
+const modelsColumns = [
+  { title: '模型 ID', dataIndex: 'id', key: 'id' },
+  { title: '供应商', dataIndex: 'vendor', key: 'vendor', width: 150 },
+  { title: '协议', dataIndex: 'protocols', key: 'protocols', width: 150 },
+];
+
 // ===== 表格列 =====
 const columns = [
   { title: '名称', dataIndex: 'name', key: 'name', width: 200 },
   { title: '协议', dataIndex: 'protocolType', key: 'protocolType', width: 180 },
   { title: '状态', dataIndex: 'isEnabled', key: 'isEnabled', width: 100 },
   { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'actions', width: 220, fixed: 'right' as const },
+  { title: '操作', key: 'actions', width: 280, fixed: 'right' as const },
 ];
 
 // ===== 计算属性 =====
@@ -85,9 +101,14 @@ function openCreateModal() {
   showFormModal.value = true;
 }
 
-function openEditModal(account: SettingsApi.ProviderAccount) {
-  editingAccount.value = account;
-  showFormModal.value = true;
+async function openEditModal(account: SettingsApi.ProviderAccount) {
+  try {
+    const detail = await getProviderAccountApi(account.id);
+    editingAccount.value = detail;
+    showFormModal.value = true;
+  } catch {
+    message.error('加载供应商详情失败');
+  }
 }
 
 async function handleDelete(id: string) {
@@ -115,6 +136,21 @@ async function handleToggleEnabled(account: SettingsApi.ProviderAccount) {
 function startDeviceAuth(account: SettingsApi.ProviderAccount) {
   deviceAuthAccount.value = account;
   showDeviceAuth.value = true;
+}
+
+async function openModelsModal(account: SettingsApi.ProviderAccount) {
+  modelsAccountName.value = account.name;
+  modelsList.value = [];
+  showModelsModal.value = true;
+  modelsLoading.value = true;
+  try {
+    modelsList.value = await getProviderModelsApi(account.id);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    message.error('加载模型列表失败: ' + msg);
+  } finally {
+    modelsLoading.value = false;
+  }
 }
 
 onMounted(fetchData);
@@ -181,6 +217,9 @@ onMounted(fetchData);
             <Button size="small" type="link" @click="openEditModal(record)">
               编辑
             </Button>
+            <Button size="small" type="link" @click="openModelsModal(record)">
+              模型
+            </Button>
             <Button
               v-if="record.protocolType === 'github-copilot'"
               size="small"
@@ -232,5 +271,33 @@ onMounted(fetchData);
       @update:open="showFormModal = $event"
       @saved="fetchData"
     />
+
+    <!-- 查看模型 Modal -->
+    <Modal
+      :open="showModelsModal"
+      :title="`${modelsAccountName} — 模型列表`"
+      :footer="null"
+      :width="700"
+      @update:open="showModelsModal = $event"
+    >
+      <Spin :spinning="modelsLoading">
+        <Table
+          :columns="modelsColumns"
+          :data-source="modelsList"
+          :pagination="modelsList.length > 20 ? { pageSize: 20 } : false"
+          row-key="id"
+          size="small"
+        >
+          <template #emptyText>
+            <Typography.Text v-if="!modelsLoading" type="secondary">
+              暂无模型数据
+            </Typography.Text>
+          </template>
+        </Table>
+        <Typography.Text v-if="!modelsLoading && modelsList.length > 0" type="secondary" style="font-size: 12px">
+          共 {{ modelsList.length }} 个模型
+        </Typography.Text>
+      </Spin>
+    </Modal>
   </Page>
 </template>

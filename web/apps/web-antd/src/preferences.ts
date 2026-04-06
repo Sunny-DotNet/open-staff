@@ -11,4 +11,14 @@ export const overridesPreferences = defineOverridesPreferences({
     defaultHomePath: '/dashboard',
     name: import.meta.env.VITE_APP_TITLE || 'OpenStaff',
   },
+  copyright: {
+    companyName: 'OpenStaff',
+    companySiteLink: 'https://github.com/m67186636/open-staff',
+    date: '2025',
+    enable: true,
+  },
+  logo: {
+    enable: true,
+    source: new URL('./assets/logo/openstaff-logo.svg', import.meta.url).href,
+  },
 });

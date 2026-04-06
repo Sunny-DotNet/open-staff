@@ -35,6 +35,25 @@ public class ProviderAccountAppService : IProviderAccountAppService
         if (account == null) return null;
 
         var envConfig = _accountService.GetEnvConfigDict(account);
+
+        // Mask secret fields (e.g., ApiKey) — return "****" instead of actual value
+        if (envConfig != null)
+        {
+            var metadata = _protocolFactory.GetProtocolMetadata()
+                .FirstOrDefault(m => m.ProviderKey == account.ProtocolType);
+            if (metadata != null)
+            {
+                foreach (var field in metadata.EnvSchema)
+                {
+                    if (field.FieldType == "secret" && envConfig.ContainsKey(field.Name))
+                    {
+                        var val = envConfig[field.Name]?.ToString();
+                        envConfig[field.Name] = string.IsNullOrEmpty(val) ? "" : "****";
+                    }
+                }
+            }
+        }
+
         return new ProviderAccountDetailDto
         {
             Id = account.Id,
