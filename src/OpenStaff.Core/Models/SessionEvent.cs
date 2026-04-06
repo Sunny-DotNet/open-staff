@@ -49,6 +49,7 @@ public static class SessionEventTypes
     public const string Action = "action";
     public const string ToolCall = "tool_call";
     public const string ToolResult = "tool_result";
+    public const string ToolError = "tool_error";
     public const string Error = "error";
 
     // 路由

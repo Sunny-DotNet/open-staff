@@ -24,6 +24,7 @@ interface ChatMessage {
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
   timing?: { totalMs?: number; firstTokenMs?: number };
   model?: string;
+  toolCalls?: Array<{ name: string; arguments?: Record<string, unknown>; result?: string; error?: string; status: 'calling' | 'done' | 'error' }>;
 }
 
 const props = defineProps<{
@@ -128,6 +129,20 @@ async function sendTestMessage() {
               content: `❌ ${data.error || '未知错误'}`,
               streaming: false,
             };
+          } else if (evt.eventType === 'tool_call') {
+            const calls = [...(msg.toolCalls || [])];
+            calls.push({ name: data.name, arguments: data.arguments, status: 'calling' });
+            chatMessages.value[assistantIdx] = { ...msg, toolCalls: calls };
+          } else if (evt.eventType === 'tool_result') {
+            const calls = [...(msg.toolCalls || [])];
+            const idx = calls.findLastIndex((c) => c.name === data.name && c.status === 'calling');
+            if (idx >= 0) calls[idx] = { ...calls[idx]!, result: data.result, status: 'done' };
+            chatMessages.value[assistantIdx] = { ...msg, toolCalls: calls };
+          } else if (evt.eventType === 'tool_error') {
+            const calls = [...(msg.toolCalls || [])];
+            const idx = calls.findLastIndex((c) => c.name === data.name && c.status === 'calling');
+            if (idx >= 0) calls[idx] = { ...calls[idx]!, error: data.error, status: 'error' };
+            chatMessages.value[assistantIdx] = { ...msg, toolCalls: calls };
           }
         } catch {
           // ignore parse errors
@@ -245,6 +260,31 @@ onUnmounted(() => {
           >
             <div style="font-weight: 500; margin-bottom: 4px; font-size: 12px;">💭 思考过程</div>
             <div style="white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: 200px; overflow-y: auto;">{{ msg.thinking }}<span v-if="msg.thinkingStreaming" class="streaming-cursor">▌</span></div>
+          </div>
+
+          <!-- 工具调用 -->
+          <div
+            v-if="msg.toolCalls?.length"
+            style="
+              margin-bottom: 6px;
+              padding: 8px 12px;
+              border-radius: 8px;
+              background: hsl(var(--accent) / 0.3);
+              border-left: 3px solid hsl(var(--warning) / 0.7);
+              font-size: 13px;
+            "
+          >
+            <div style="font-weight: 500; margin-bottom: 4px; font-size: 12px;">🔧 工具调用</div>
+            <div v-for="(tc, tIdx) in msg.toolCalls" :key="tIdx" style="margin-bottom: 4px; padding: 4px 0; border-bottom: 1px solid hsl(var(--border) / 0.3);">
+              <div>
+                <Badge v-if="tc.status === 'calling'" color="blue" status="processing" />
+                <span v-else-if="tc.status === 'done'" style="color: hsl(var(--success))">✅</span>
+                <span v-else style="color: hsl(var(--destructive))">❌</span>
+                <strong>{{ tc.name }}</strong>
+              </div>
+              <div v-if="tc.result" style="margin-top: 2px; font-size: 12px; color: hsl(var(--muted-foreground)); max-height: 100px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">{{ tc.result }}</div>
+              <div v-if="tc.error" style="margin-top: 2px; font-size: 12px; color: hsl(var(--destructive));">{{ tc.error }}</div>
+            </div>
           </div>
 
           <!-- 消息正文 -->

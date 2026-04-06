@@ -277,53 +277,102 @@ public class AgentRoleAppService : IAgentRoleAppService
                     chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt));
                 chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, message));
 
-                // 流式推送每个 token（含思考过程和用量统计）
+                // 流式推送每个 token（含思考过程和用量统计），支持工具调用循环
                 var fullContent = new StringBuilder();
                 var thinkingContent = new StringBuilder();
                 int? inputTokens = null;
                 int? outputTokens = null;
                 long? firstTokenMs = null;
+                const int maxToolRounds = 10;
 
-                await foreach (var update in chatClient.GetStreamingResponseAsync(
-                    (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages, chatOptions))
+                for (int toolRound = 0; toolRound < maxToolRounds; toolRound++)
                 {
-                    // 思考内容 (TextReasoningContent)
-                    foreach (var thinking in update.Contents.OfType<TextReasoningContent>())
+                    var pendingToolCalls = new List<FunctionCallContent>();
+
+                    await foreach (var update in chatClient.GetStreamingResponseAsync(
+                        (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages, chatOptions, bgCt))
                     {
-                        if (!string.IsNullOrEmpty(thinking.Text))
+                        foreach (var thinking in update.Contents.OfType<TextReasoningContent>())
                         {
-                            thinkingContent.Append(thinking.Text);
-                            stream.Push(SessionEventTypes.StreamingThinking,
-                                payload: JsonSerializer.Serialize(new { token = thinking.Text }));
+                            if (!string.IsNullOrEmpty(thinking.Text))
+                            {
+                                thinkingContent.Append(thinking.Text);
+                                stream.Push(SessionEventTypes.StreamingThinking,
+                                    payload: JsonSerializer.Serialize(new { token = thinking.Text }));
+                            }
+                        }
+
+                        foreach (var part in update.Contents.OfType<TextContent>())
+                        {
+                            if (!string.IsNullOrEmpty(part.Text))
+                            {
+                                firstTokenMs ??= stopwatch.ElapsedMilliseconds;
+                                fullContent.Append(part.Text);
+                                stream.Push(SessionEventTypes.StreamingToken,
+                                    payload: JsonSerializer.Serialize(new { token = part.Text }));
+                            }
+                        }
+
+                        foreach (var fc in update.Contents.OfType<FunctionCallContent>())
+                        {
+                            pendingToolCalls.Add(fc);
+                        }
+
+                        foreach (var usage in update.Contents.OfType<Microsoft.Extensions.AI.UsageContent>())
+                        {
+                            if (usage.Details != null)
+                            {
+                                inputTokens = (inputTokens ?? 0) + (int)(usage.Details.InputTokenCount ?? 0);
+                                outputTokens = (outputTokens ?? 0) + (int)(usage.Details.OutputTokenCount ?? 0);
+                            }
                         }
                     }
 
-                    // 正文内容 (TextContent)
-                    foreach (var part in update.Contents.OfType<TextContent>())
+                    // 没有工具调用，结束循环
+                    if (pendingToolCalls.Count == 0)
+                        break;
+
+                    // 执行工具调用并将结果加入对话历史
+                    var assistantMsg = new Microsoft.Extensions.AI.ChatMessage(ChatRole.Assistant,
+                        pendingToolCalls.Select(fc => (AIContent)fc).ToList());
+                    chatMessages.Add(assistantMsg);
+
+                    var toolResultContents = new List<AIContent>();
+                    foreach (var toolCall in pendingToolCalls)
                     {
-                        if (!string.IsNullOrEmpty(part.Text))
+                        stream.Push(SessionEventTypes.ToolCall,
+                            payload: JsonSerializer.Serialize(new { name = toolCall.Name, arguments = toolCall.Arguments }));
+
+                        try
                         {
-                            firstTokenMs ??= stopwatch.ElapsedMilliseconds;
-                            fullContent.Append(part.Text);
-                            stream.Push(SessionEventTypes.StreamingToken,
-                                payload: JsonSerializer.Serialize(new { token = part.Text }));
+                            // 查找并执行工具
+                            var tool = mcpTools.FirstOrDefault(t => t.Name == toolCall.Name);
+                            if (tool is AIFunction aiFunc)
+                            {
+                                var result = await aiFunc.InvokeAsync(toolCall.Arguments, bgCt);
+                                var resultStr = result?.ToString() ?? "";
+                                toolResultContents.Add(new FunctionResultContent(toolCall.CallId, resultStr));
+                                stream.Push(SessionEventTypes.ToolResult,
+                                    payload: JsonSerializer.Serialize(new { name = toolCall.Name, result = resultStr.Length > 500 ? resultStr[..500] + "..." : resultStr }));
+                            }
+                            else
+                            {
+                                toolResultContents.Add(new FunctionResultContent(toolCall.CallId, "Tool not found"));
+                            }
+                        }
+                        catch (Exception toolEx)
+                        {
+                            toolResultContents.Add(new FunctionResultContent(toolCall.CallId, $"Error: {toolEx.Message}"));
+                            stream.Push(SessionEventTypes.ToolError,
+                                payload: JsonSerializer.Serialize(new { name = toolCall.Name, error = toolEx.Message }));
                         }
                     }
 
-                    // 用量统计 (UsageContent)
-                    foreach (var usage in update.Contents.OfType<Microsoft.Extensions.AI.UsageContent>())
-                    {
-                        if (usage.Details != null)
-                        {
-                            inputTokens = (int?)usage.Details.InputTokenCount;
-                            outputTokens = (int?)usage.Details.OutputTokenCount;
-                        }
-                    }
+                    chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.Tool, toolResultContents));
                 }
 
                 stopwatch.Stop();
 
-                // 流式完成，推送最终消息（含用量和用时）
                 stream.Push(SessionEventTypes.StreamingDone,
                     payload: JsonSerializer.Serialize(new
                     {
