@@ -7,6 +7,7 @@ using OpenStaff.Application.Contracts.Agents;
 using OpenStaff.Application.Contracts.AgentRoles;
 using OpenStaff.Application.Contracts.Auth;
 using OpenStaff.Application.Contracts.Files;
+using OpenStaff.Application.Contracts.McpServers;
 using OpenStaff.Application.Contracts.ModelData;
 using OpenStaff.Application.Contracts.Monitor;
 using OpenStaff.Application.Contracts.Projects;
@@ -15,6 +16,7 @@ using OpenStaff.Application.Contracts.Sessions;
 using OpenStaff.Application.Contracts.Settings;
 using OpenStaff.Application.Contracts.Tasks;
 using OpenStaff.Application.Files;
+using OpenStaff.Application.McpServers;
 using OpenStaff.Application.ModelData;
 using OpenStaff.Application.Monitor;
 using OpenStaff.Application.Orchestration;
@@ -83,6 +85,7 @@ public class OpenStaffApplicationModule : OpenStaffModule
 
         // 数据库种子
         services.AddHostedService<RoleSeedService>();
+        services.AddHostedService<McpSeedService>();
 
         // Application Services (Contracts implementations)
         services.AddScoped<IProjectAppService, ProjectAppService>();
@@ -96,5 +99,6 @@ public class OpenStaffApplicationModule : OpenStaffModule
         services.AddScoped<ISettingsAppService, SettingsAppService>();
         services.AddScoped<IAgentAppService, AgentAppService>();
         services.AddScoped<IModelDataAppService, ModelDataAppService>();
+        services.AddScoped<IMcpServerAppService, McpServerAppService>();
     }
 }

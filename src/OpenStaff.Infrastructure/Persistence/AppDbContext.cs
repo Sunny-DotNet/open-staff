@@ -36,6 +36,11 @@ public class AppDbContext : DbContext
     // 供应商账户
     public DbSet<ProviderAccount> ProviderAccounts => Set<ProviderAccount>();
 
+    // MCP 服务
+    public DbSet<McpServer> McpServers => Set<McpServer>();
+    public DbSet<McpServerConfig> McpServerConfigs => Set<McpServerConfig>();
+    public DbSet<AgentRoleMcpConfig> AgentRoleMcpConfigs => Set<AgentRoleMcpConfig>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
