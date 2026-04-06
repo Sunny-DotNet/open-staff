@@ -62,8 +62,9 @@ export namespace McpApi {
   export interface AgentMcpBinding {
     agentRoleId: string;
     mcpServerConfigId: string;
-    configName: string;
-    serverName: string;
+    mcpServerConfigName: string;
+    mcpServerName: string;
+    icon: string | null;
     toolFilter: string | null;
   }
 }

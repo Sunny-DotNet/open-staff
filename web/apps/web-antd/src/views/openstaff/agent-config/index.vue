@@ -330,6 +330,7 @@ import { updateAgentRoleApi } from '#/api/openstaff/agent';
       :open="chatModalVisible"
       :role-id="chatRoleId"
       :role-name="chatRoleName"
+      :providers="providers"
       @update:open="chatModalVisible = $event"
     />
   </Page>

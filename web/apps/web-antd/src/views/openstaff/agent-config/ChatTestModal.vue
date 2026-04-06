@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import type { AgentApi } from '#/api/openstaff/agent';
+import type { McpApi } from '#/api/openstaff/mcp';
+import type { SettingsApi } from '#/api/openstaff/settings';
 
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 
@@ -7,29 +9,49 @@ import {
   Badge,
   Button,
   Card,
+  Col,
+  Collapse,
+  CollapsePanel,
+  Divider,
   Empty,
   Form,
   FormItem,
   Input,
   InputNumber,
+  message,
   Modal,
+  Row,
   Select,
   SelectOption,
   Slider,
-  Textarea,
+  Space,
+  Spin,
+  Tag,
   Tooltip,
+  Typography,
 } from 'ant-design-vue';
 
 import {
   getAgentRoleApi,
   testAgentChatApi,
 } from '#/api/openstaff/agent';
-import { getAgentMcpBindingsApi, getMcpConfigsApi } from '#/api/openstaff/mcp';
 import {
-  getProviderAccountsApi,
-  getProviderModelsApi,
-} from '#/api/openstaff/settings';
+  createAgentMcpBindingApi,
+  deleteAgentMcpBindingApi,
+  getAgentMcpBindingsApi,
+  getMcpConfigsApi,
+} from '#/api/openstaff/mcp';
+import { useProviderModels } from '#/composables/useProviderModels';
 import { useNotification } from '#/composables/useNotification';
+
+import SoulConfigSection from './SoulConfigSection.vue';
+
+interface SoulConfig {
+  attitudes?: string[];
+  custom?: string;
+  style?: string;
+  traits?: string[];
+}
 
 interface ChatMessage {
   content: string;
@@ -55,6 +77,7 @@ interface ChatMessage {
 
 const props = defineProps<{
   open: boolean;
+  providers: SettingsApi.ProviderAccount[];
   roleId: string;
   roleName: string;
 }>();
@@ -75,22 +98,51 @@ let currentSubscription: { dispose: () => void } | null = null;
 // Config panel state
 const configCollapsed = ref(false);
 const configForm = ref({
+  name: '',
+  description: '',
   systemPrompt: '',
-  modelProviderId: undefined as string | undefined,
-  modelName: undefined as string | undefined,
+  modelProviderId: '' as string,
+  modelName: '' as string,
   temperature: 0.7,
+  maxTokens: 4096,
+  tools: [] as string[],
+  soul: { traits: [], style: '', attitudes: [], custom: '' } as SoulConfig,
 });
 
-// Provider/model options
-const providerAccounts = ref<
-  Array<{ id: string; name: string; protocolType: string }>
->([]);
-const modelOptions = ref<Array<{ id: string; name: string }>>([]);
-const modelsLoading = ref(false);
+const selectedProviderId = computed(() => configForm.value.modelProviderId);
+const {
+  models: providerModels,
+  loading: loadingModels,
+  error: modelsError,
+  ensureLoaded: ensureModelsLoaded,
+} = useProviderModels(selectedProviderId);
 
-// MCP config options
-const mcpConfigs = ref<Array<{ id: string; name: string; serverName: string }>>([]);
-const selectedMcpConfigIds = ref<string[]>([]);
+const enabledProviders = computed(() =>
+  props.providers.filter((p) => p.isEnabled),
+);
+
+// MCP bindings (same pattern as AgentConfigDrawer)
+const mcpBindings = ref<McpApi.AgentMcpBinding[]>([]);
+const allMcpConfigs = ref<McpApi.McpServerConfig[]>([]);
+const loadingMcpBindings = ref(false);
+const selectedMcpConfigId = ref<string | undefined>(undefined);
+
+const availableMcpConfigs = computed(() => {
+  const boundIds = new Set(mcpBindings.value.map((b) => b.mcpServerConfigId));
+  return allMcpConfigs.value.filter((c) => c.isEnabled && !boundIds.has(c.id));
+});
+
+function filterModelOption(input: string, option: any) {
+  const search = input.toLowerCase();
+  const val = (option?.value || '').toString().toLowerCase();
+  return val.includes(search);
+}
+
+function filterMcpOption(input: string, option: any) {
+  const search = input.toLowerCase();
+  const val = (option?.children?.[0]?.children || '').toString().toLowerCase();
+  return val.includes(search);
+}
 
 const hasOverride = computed(() => {
   return (
@@ -121,88 +173,73 @@ async function loadRoleConfig() {
   if (!props.roleId) return;
   try {
     const role = await getAgentRoleApi(props.roleId);
-    configForm.value.systemPrompt = role.systemPrompt || '';
-    configForm.value.modelProviderId = role.modelProviderId || undefined;
-    configForm.value.modelName = role.modelName || undefined;
+    const config = role.config ? (() => { try { return JSON.parse(role.config!) as AgentApi.AgentRoleConfig & { soul?: SoulConfig }; } catch { return {}; } })() : {};
 
-    // Parse temperature from config JSON
-    if (role.config) {
-      try {
-        const cfg = JSON.parse(role.config) as AgentApi.AgentRoleConfig;
-        configForm.value.temperature =
-          cfg.modelParameters?.temperature ?? 0.7;
-      } catch {
-        configForm.value.temperature = 0.7;
-      }
-    }
-
-    // Load models for selected provider
-    if (configForm.value.modelProviderId) {
-      await loadModels(configForm.value.modelProviderId);
-    }
-
-    // Load bound MCP configs
-    try {
-      const bindings = await getAgentMcpBindingsApi(props.roleId);
-      selectedMcpConfigIds.value = bindings.map((b) => b.mcpServerConfigId);
-    } catch {
-      selectedMcpConfigIds.value = [];
-    }
+    configForm.value = {
+      name: role.name || '',
+      description: role.description || '',
+      systemPrompt: role.systemPrompt || '',
+      modelProviderId: role.modelProviderId || '',
+      modelName: role.modelName || '',
+      temperature: (config as any).modelParameters?.temperature ?? 0.7,
+      maxTokens: (config as any).modelParameters?.maxTokens ?? 4096,
+      tools: (config as any).tools ?? [],
+      soul: {
+        traits: (config as any).soul?.traits ?? [],
+        style: (config as any).soul?.style ?? '',
+        attitudes: (config as any).soul?.attitudes ?? [],
+        custom: (config as any).soul?.custom ?? '',
+      },
+    };
   } catch {
     // ignore - use defaults
   }
 }
 
-async function loadProviderAccounts() {
+async function loadMcpData() {
+  if (!props.roleId) return;
+  loadingMcpBindings.value = true;
   try {
-    const accounts = await getProviderAccountsApi();
-    providerAccounts.value = accounts.map((a: Record<string, any>) => ({
-      id: a.id,
-      name: a.name || a.providerName || a.id,
-      protocolType: a.protocolType || '',
-    }));
+    const [bindings, configs] = await Promise.all([
+      getAgentMcpBindingsApi(props.roleId),
+      getMcpConfigsApi(),
+    ]);
+    mcpBindings.value = bindings;
+    allMcpConfigs.value = configs;
   } catch {
-    providerAccounts.value = [];
-  }
-}
-
-async function loadModels(providerId: string) {
-  if (!providerId) {
-    modelOptions.value = [];
-    return;
-  }
-  modelsLoading.value = true;
-  try {
-    const models = await getProviderModelsApi(providerId);
-    modelOptions.value = models.map((m: Record<string, any>) => ({
-      id: m.id || m.modelId,
-      name: m.name || m.displayName || m.id || m.modelId,
-    }));
-  } catch {
-    modelOptions.value = [];
+    mcpBindings.value = [];
+    allMcpConfigs.value = [];
   } finally {
-    modelsLoading.value = false;
+    loadingMcpBindings.value = false;
   }
 }
 
-async function loadMcpConfigs() {
+async function addMcpBinding() {
+  if (!selectedMcpConfigId.value || !props.roleId) return;
   try {
-    const configs = await getMcpConfigsApi();
-    mcpConfigs.value = configs.map((c: Record<string, any>) => ({
-      id: c.id,
-      name: c.name,
-      serverName: c.mcpServerName || c.serverName || '',
-    }));
-  } catch {
-    mcpConfigs.value = [];
+    await createAgentMcpBindingApi({
+      agentRoleId: props.roleId,
+      mcpServerConfigId: selectedMcpConfigId.value,
+    });
+    selectedMcpConfigId.value = undefined;
+    await loadMcpData();
+    message.success('MCP 工具已绑定');
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    message.error('绑定失败: ' + msg);
   }
 }
 
-function onProviderChange(value: string) {
-  configForm.value.modelProviderId = value;
-  configForm.value.modelName = undefined;
-  modelOptions.value = [];
-  if (value) loadModels(value);
+async function removeMcpBinding(configId: string) {
+  if (!props.roleId) return;
+  try {
+    await deleteAgentMcpBindingApi(props.roleId, configId);
+    await loadMcpData();
+    message.success('已移除');
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    message.error('移除失败: ' + msg);
+  }
 }
 
 watch(
@@ -211,9 +248,8 @@ watch(
     if (val) {
       resetState();
       await Promise.all([
-        loadProviderAccounts(),
-        loadMcpConfigs(),
         loadRoleConfig(),
+        loadMcpData(),
       ]);
     }
   },
@@ -416,105 +452,183 @@ onUnmounted(() => {
         </Button>
       </div>
       <div class="config-body">
-        <Form layout="vertical" size="small">
+        <!-- 基本信息区 -->
+        <Divider orientation="left" style="margin: 0 0 12px; font-size: 13px">基本信息</Divider>
+        <Form :label-col="{ span: 6 }" size="small">
+          <FormItem label="名称">
+            <Input v-model:value="configForm.name" placeholder="员工名称" />
+          </FormItem>
+          <FormItem label="描述">
+            <Input.TextArea
+              v-model:value="configForm.description"
+              :rows="2"
+              placeholder="描述"
+            />
+          </FormItem>
           <FormItem label="系统提示词">
-            <Textarea
+            <Input.TextArea
               v-model:value="configForm.systemPrompt"
-              :auto-size="{ minRows: 4, maxRows: 10 }"
+              :auto-size="{ minRows: 3, maxRows: 8 }"
               placeholder="输入系统提示词..."
             />
           </FormItem>
+        </Form>
 
+        <!-- 灵魂配置区 -->
+        <SoulConfigSection v-model:soul="configForm.soul" />
+
+        <!-- 模型配置区 -->
+        <Divider orientation="left" style="margin: 8px 0 12px; font-size: 13px">模型配置</Divider>
+        <Form :label-col="{ span: 6 }" size="small">
           <FormItem label="供应商">
             <Select
-              :value="configForm.modelProviderId"
+              v-model:value="configForm.modelProviderId"
               allow-clear
-              placeholder="选择供应商"
-              show-search
-              option-filter-prop="label"
-              @change="onProviderChange"
+              placeholder="选择模型提供商"
+              style="width: 100%"
             >
               <SelectOption
-                v-for="p in providerAccounts"
+                v-for="p in enabledProviders"
                 :key="p.id"
                 :value="p.id"
-                :label="p.name"
               >
                 {{ p.name }}
-                <span style="color: hsl(var(--muted-foreground)); font-size: 12px; margin-left: 4px">
-                  {{ p.protocolType }}
-                </span>
               </SelectOption>
             </Select>
           </FormItem>
 
-          <FormItem label="模型">
+          <FormItem label="模型" :validate-status="modelsError ? 'warning' : undefined" :help="modelsError ? '加载失败，点击下拉框重试' : undefined">
             <Select
               v-model:value="configForm.modelName"
-              :loading="modelsLoading"
               :disabled="!configForm.modelProviderId"
+              :filter-option="filterModelOption"
+              :loading="loadingModels"
+              :not-found-content="modelsError ? '加载失败，点击重试' : loadingModels ? '加载中…' : '暂无模型'"
+              :placeholder="configForm.modelProviderId ? '请选择模型' : '请先选择供应商'"
               allow-clear
-              placeholder="选择模型"
               show-search
-              option-filter-prop="label"
+              style="width: 100%"
+              @focus="ensureModelsLoaded"
             >
               <SelectOption
-                v-for="m in modelOptions"
+                v-for="m in providerModels"
                 :key="m.id"
                 :value="m.id"
-                :label="m.name"
               >
-                {{ m.name }}
+                {{ m.id }}
               </SelectOption>
             </Select>
           </FormItem>
 
-          <FormItem label="Temperature">
-            <div style="display: flex; align-items: center; gap: 8px">
-              <Slider
-                v-model:value="configForm.temperature"
-                :min="0"
-                :max="2"
-                :step="0.1"
-                style="flex: 1"
-              />
-              <InputNumber
-                v-model:value="configForm.temperature"
-                :min="0"
-                :max="2"
-                :step="0.1"
-                :precision="1"
-                style="width: 70px"
-                size="small"
-              />
-            </div>
+          <FormItem label="温度">
+            <Row :gutter="8" align="middle">
+              <Col :span="16">
+                <Slider
+                  v-model:value="configForm.temperature"
+                  :max="2"
+                  :min="0"
+                  :step="0.1"
+                />
+              </Col>
+              <Col :span="8">
+                <InputNumber
+                  v-model:value="configForm.temperature"
+                  :max="2"
+                  :min="0"
+                  :step="0.1"
+                  size="small"
+                  style="width: 100%"
+                />
+              </Col>
+            </Row>
           </FormItem>
 
-          <FormItem label="MCP 工具">
-            <Select
-              v-model:value="selectedMcpConfigIds"
-              mode="multiple"
-              placeholder="选择 MCP 配置"
-              allow-clear
-              option-filter-prop="label"
-            >
-              <SelectOption
-                v-for="c in mcpConfigs"
-                :key="c.id"
-                :value="c.id"
-                :label="c.name"
-              >
-                {{ c.name }}
-                <span
-                  v-if="c.serverName"
-                  style="color: hsl(var(--muted-foreground)); font-size: 12px; margin-left: 4px"
-                >
-                  ({{ c.serverName }})
-                </span>
-              </SelectOption>
-            </Select>
+          <FormItem label="最大 Token">
+            <InputNumber
+              v-model:value="configForm.maxTokens"
+              :max="128000"
+              :min="256"
+              :step="256"
+              style="width: 100%"
+            />
           </FormItem>
         </Form>
+
+        <!-- 工具配置区 -->
+        <Collapse :bordered="false" style="background: transparent">
+          <CollapsePanel key="tools" header="🔧 内置工具">
+            <div v-if="configForm.tools.length > 0">
+              <Space wrap>
+                <Tag
+                  v-for="tool in configForm.tools"
+                  :key="tool"
+                  color="processing"
+                >
+                  🔧 {{ tool }}
+                </Tag>
+              </Space>
+            </div>
+            <Typography.Text v-else type="secondary">
+              暂无已配置的工具
+            </Typography.Text>
+          </CollapsePanel>
+
+          <CollapsePanel key="mcp" header="🧩 MCP 工具">
+            <Spin :spinning="loadingMcpBindings">
+              <div v-if="mcpBindings.length > 0" style="margin-bottom: 8px">
+                <div
+                  v-for="binding in mcpBindings"
+                  :key="binding.mcpServerConfigId"
+                  style="display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; margin-bottom: 4px; background: var(--ant-color-bg-container-disabled); border-radius: 6px"
+                >
+                  <Space size="small">
+                    <Tag color="cyan" style="margin: 0">{{ binding.mcpServerName }}</Tag>
+                    <span style="font-size: 12px">{{ binding.mcpServerConfigName }}</span>
+                  </Space>
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    @click="removeMcpBinding(binding.mcpServerConfigId)"
+                  >
+                    移除
+                  </Button>
+                </div>
+              </div>
+              <Typography.Text v-else type="secondary" style="display: block; margin-bottom: 8px">
+                暂未绑定 MCP 工具
+              </Typography.Text>
+
+              <Space>
+                <Select
+                  v-model:value="selectedMcpConfigId"
+                  placeholder="选择 MCP 配置"
+                  style="width: 180px"
+                  allow-clear
+                  show-search
+                  size="small"
+                  :filter-option="filterMcpOption"
+                >
+                  <SelectOption
+                    v-for="cfg in availableMcpConfigs"
+                    :key="cfg.id"
+                    :value="cfg.id"
+                  >
+                    {{ cfg.name }}
+                  </SelectOption>
+                </Select>
+                <Button
+                  type="dashed"
+                  size="small"
+                  :disabled="!selectedMcpConfigId"
+                  @click="addMcpBinding"
+                >
+                  ＋ 添加
+                </Button>
+              </Space>
+            </Spin>
+          </CollapsePanel>
+        </Collapse>
       </div>
     </div>
 
@@ -752,8 +866,8 @@ onUnmounted(() => {
 
 <style scoped>
 .config-panel {
-  width: 320px;
-  min-width: 320px;
+  width: 380px;
+  min-width: 380px;
   border-right: 1px solid hsl(var(--border));
   display: flex;
   flex-direction: column;
