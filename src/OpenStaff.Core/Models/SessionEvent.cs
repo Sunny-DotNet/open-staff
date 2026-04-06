@@ -54,6 +54,10 @@ public static class SessionEventTypes
     // 路由
     public const string Routing = "routing";
 
+    // 流式输出
+    public const string StreamingToken = "streaming_token";
+    public const string StreamingDone = "streaming_done";
+
     // 用户交互
     public const string UserInput = "user_input";
     public const string AwaitingInput = "awaiting_input";

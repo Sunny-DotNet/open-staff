@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using OpenStaff.Agents;
 using OpenStaff.Application.Contracts.AgentRoles;
 using OpenStaff.Application.Contracts.AgentRoles.Dtos;
@@ -17,6 +18,7 @@ public class AgentRoleAppService : IAgentRoleAppService
     private readonly AppDbContext _db;
     private readonly ProviderAccountService _accountService;
     private readonly AgentFactory _agentFactory;
+    private readonly ChatClientFactory _chatClientFactory;
     private readonly IProviderResolver _providerResolver;
     private readonly SessionStreamManager _streamManager;
 
@@ -24,12 +26,14 @@ public class AgentRoleAppService : IAgentRoleAppService
         AppDbContext db,
         ProviderAccountService accountService,
         AgentFactory agentFactory,
+        ChatClientFactory chatClientFactory,
         IProviderResolver providerResolver,
         SessionStreamManager streamManager)
     {
         _db = db;
         _accountService = accountService;
         _agentFactory = agentFactory;
+        _chatClientFactory = chatClientFactory;
         _providerResolver = providerResolver;
         _streamManager = streamManager;
     }
@@ -217,46 +221,48 @@ public class AgentRoleAppService : IAgentRoleAppService
         {
             try
             {
-                var agent = _agentFactory.CreateAgentFromDbRole(role);
+                // 加载角色配置获取系统提示词和模型名
+                var roleConfig = _agentFactory.GetRoleConfig(role.RoleType);
+                var systemPrompt = !string.IsNullOrEmpty(role.SystemPrompt)
+                    ? role.SystemPrompt
+                    : roleConfig?.SystemPrompt ?? "";
+                var modelName = !string.IsNullOrEmpty(role.ModelName)
+                    ? role.ModelName
+                    : roleConfig?.ModelName ?? "gpt-4o";
 
-                var context = new AgentContext
+                // 直接创建 IChatClient 做流式输出
+                var chatClient = _chatClientFactory.Create(
+                    account.ProtocolType, apiKey, modelName, endpointOverride);
+
+                var chatMessages = new List<Microsoft.Extensions.AI.ChatMessage>();
+                if (!string.IsNullOrEmpty(systemPrompt))
+                    chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt));
+                chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, message));
+
+                // 流式推送每个 token
+                var fullContent = new StringBuilder();
+                await foreach (var update in chatClient.GetStreamingResponseAsync(
+                    (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages))
                 {
-                    ProjectId = Guid.Empty,
-                    AgentInstanceId = Guid.NewGuid(),
-                    Role = new AgentRole
+                    foreach (var part in update.Contents.OfType<TextContent>())
                     {
-                        RoleType = role.RoleType,
-                        Name = role.Name,
-                        ModelName = role.ModelName
-                    },
-                    Account = account,
-                    ApiKey = apiKey,
-                    Language = "zh-CN"
-                };
+                        if (!string.IsNullOrEmpty(part.Text))
+                        {
+                            fullContent.Append(part.Text);
+                            stream.Push(SessionEventTypes.StreamingToken,
+                                payload: JsonSerializer.Serialize(new { token = part.Text }));
+                        }
+                    }
+                }
 
-                if (endpointOverride != null)
-                    context.ExtraConfig["EndpointOverride"] = endpointOverride;
-
-                await agent.InitializeAsync(context);
-
-                var agentMessage = new AgentMessage
-                {
-                    Content = message,
-                    FromRole = "user",
-                    Timestamp = DateTime.UtcNow
-                };
-
-                var response = await agent.ProcessAsync(agentMessage, CancellationToken.None);
-
-                stream.Push(SessionEventTypes.Message, payload: JsonSerializer.Serialize(new
-                {
-                    role = role.RoleType,
-                    roleName = role.Name,
-                    content = response.Content,
-                    success = response.Success,
-                    targetRole = response.TargetRole,
-                    errors = response.Errors
-                }));
+                // 流式完成，推送最终消息
+                stream.Push(SessionEventTypes.StreamingDone,
+                    payload: JsonSerializer.Serialize(new
+                    {
+                        role = role.RoleType,
+                        roleName = role.Name,
+                        content = fullContent.ToString()
+                    }));
 
                 _streamManager.CompleteTransient(sessionId);
             }

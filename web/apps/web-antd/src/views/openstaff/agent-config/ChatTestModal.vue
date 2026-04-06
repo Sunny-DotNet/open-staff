@@ -78,7 +78,7 @@ async function sendTestMessage() {
     const assistantIdx = chatMessages.value.length;
     chatMessages.value.push({
       role: 'assistant',
-      content: '思考中...',
+      content: '',
       streaming: true,
     });
 
@@ -88,10 +88,21 @@ async function sendTestMessage() {
         if (!evt.payload) return;
         try {
           const data = JSON.parse(evt.payload);
-          if (evt.eventType === 'message') {
+          if (evt.eventType === 'streaming_token') {
+            // 逐 token 追加
             chatMessages.value[assistantIdx] = {
               role: 'assistant',
-              content: data.content || '（无响应）',
+              content: (chatMessages.value[assistantIdx]?.content || '') + (data.token || ''),
+              streaming: true,
+            };
+          } else if (evt.eventType === 'streaming_done' || evt.eventType === 'message') {
+            // 流式完成或一次性消息
+            const finalContent = evt.eventType === 'streaming_done'
+              ? (chatMessages.value[assistantIdx]?.content || data.content || '')
+              : (data.content || '（无响应）');
+            chatMessages.value[assistantIdx] = {
+              role: 'assistant',
+              content: finalContent,
               streaming: false,
             };
           } else if (evt.eventType === 'error') {
@@ -209,12 +220,12 @@ onUnmounted(() => {
               : { background: 'hsl(var(--accent))', color: 'hsl(var(--foreground))' }),
           }"
         >
-          {{ msg.content }}
+          {{ msg.content }}<span v-if="msg.streaming && msg.content" class="streaming-cursor">▌</span>
         </div>
       </div>
 
       <div
-        v-if="chatLoading"
+        v-if="chatLoading && (!chatMessages.length || !chatMessages[chatMessages.length - 1]?.streaming || !chatMessages[chatMessages.length - 1]?.content)"
         style="display: flex; justify-content: flex-start; margin-bottom: 12px"
       >
         <div
@@ -261,3 +272,16 @@ onUnmounted(() => {
     </div>
   </Modal>
 </template>
+
+<style scoped>
+.streaming-cursor {
+  animation: blink 1s step-end infinite;
+  font-weight: bold;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+</style>
