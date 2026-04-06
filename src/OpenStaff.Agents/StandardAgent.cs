@@ -47,7 +47,7 @@ public class StandardAgent : AgentBase
             await PublishEventAsync(EventTypes.Thought, $"[{_config.Name}] 正在处理: {preview}");
 
             // 3. Validate provider context
-            if (Context?.Provider == null || string.IsNullOrEmpty(Context.ApiKey))
+            if (Context?.Account == null || string.IsNullOrEmpty(Context.ApiKey))
             {
                 return new AgentResponse
                 {
@@ -74,9 +74,10 @@ public class StandardAgent : AgentBase
             // 5. Create AIAgent via factory with resolved provider + tools
             var modelName = _config.ModelName ?? Context!.Role?.ModelName ?? "gpt-4o";
             var aiAgent = _aiAgentFactory.CreateAgent(
-                Context!.Provider!,
-                Context!.ApiKey!,
-                modelName: modelName,
+                protocolType: Context!.Account!.ProtocolType,
+                apiKey: Context!.ApiKey!,
+                model: modelName,
+                baseUrl: Context.ExtraConfig.TryGetValue("EndpointOverride", out var ep) ? ep?.ToString() : null,
                 instructions: systemPrompt,
                 agentName: _config.Name,
                 tools: aiTools);

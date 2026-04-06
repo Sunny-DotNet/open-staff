@@ -1,44 +1,39 @@
+using System.Text.Json;
 using OpenStaff.Application.Auth;
 using OpenStaff.Core.Models;
 
 namespace OpenStaff.Application.Providers;
 
 /// <summary>
-/// API Key 解析服务 — 统一处理各供应商的 API Key 获取逻辑
-/// 对于 GitHub Copilot: oauth_token → github_token 交换
-/// 对于其他供应商: 直接解密或读取环境变量
+/// API Key 解析服务 — 从 ProviderAccount 的 EnvConfig 提取 API Key
+/// GitHub Copilot: oauth_token → github_token 交换
+/// 其他供应商: 根据 FromEnv 决定读环境变量还是直接使用
 /// </summary>
 public class ApiKeyResolver
 {
-    private readonly DbProviderService _providerService;
+    private readonly ProviderAccountService _accountService;
     private readonly CopilotTokenService _copilotTokenService;
 
-    public ApiKeyResolver(DbProviderService providerService, CopilotTokenService copilotTokenService)
+    public ApiKeyResolver(ProviderAccountService accountService, CopilotTokenService copilotTokenService)
     {
-        _providerService = providerService;
+        _accountService = accountService;
         _copilotTokenService = copilotTokenService;
     }
 
-    /// <summary>
-    /// 解析可直接使用的 API Key
-    /// Copilot: 自动将 oauth_token 交换为 github_token
-    /// 其他供应商: 直接返回解密后的 key
-    /// </summary>
-    /// <returns>可直接用于 API 调用的 token; Copilot 还返回动态 endpoint</returns>
-    public async Task<ResolvedApiKey> ResolveAsync(ModelProvider provider, CancellationToken ct = default)
+    public async Task<ResolvedApiKey> ResolveAsync(ProviderAccount account, CancellationToken ct = default)
     {
-        // 先获取存储的原始 key（对 Copilot 来说是 oauth_token）
-        var rawKey = _providerService.ResolveApiKey(provider);
-
-        if (string.IsNullOrEmpty(rawKey))
-        {
+        var envDict = _accountService.GetEnvConfigDict(account);
+        if (envDict == null)
             return new ResolvedApiKey { ApiKey = null };
-        }
 
-        // Copilot 需要额外的 token 交换
-        if (provider.ProviderType == ProviderTypes.GitHubCopilot)
+        // GitHub Copilot 特殊处理
+        if (account.ProtocolType == "github-copilot")
         {
-            var copilotToken = await _copilotTokenService.GetTokenAsync(rawKey, ct);
+            var oauthToken = GetStringValue(envDict, "OAuthToken");
+            if (string.IsNullOrEmpty(oauthToken))
+                return new ResolvedApiKey { ApiKey = null };
+
+            var copilotToken = await _copilotTokenService.GetTokenAsync(oauthToken, ct);
             return new ResolvedApiKey
             {
                 ApiKey = copilotToken.Token,
@@ -46,7 +41,43 @@ public class ApiKeyResolver
             };
         }
 
-        return new ResolvedApiKey { ApiKey = rawKey };
+        // 标准协议：根据 FromEnv 决定 API Key 来源
+        var fromEnv = GetBoolValue(envDict, "FromEnv");
+        string? apiKey;
+
+        if (fromEnv)
+        {
+            var envName = GetStringValue(envDict, "EnvName");
+            apiKey = !string.IsNullOrEmpty(envName) ? Environment.GetEnvironmentVariable(envName) : null;
+        }
+        else
+        {
+            apiKey = GetStringValue(envDict, "ApiKey");
+        }
+
+        var baseUrl = GetStringValue(envDict, "BaseUrl");
+
+        return new ResolvedApiKey { ApiKey = apiKey, BaseUrl = baseUrl };
+    }
+
+    private static string? GetStringValue(Dictionary<string, object?> dict, string key)
+    {
+        if (dict.TryGetValue(key, out var val) && val != null)
+        {
+            if (val is JsonElement je) return je.GetString();
+            return val.ToString();
+        }
+        return null;
+    }
+
+    private static bool GetBoolValue(Dictionary<string, object?> dict, string key)
+    {
+        if (dict.TryGetValue(key, out var val) && val != null)
+        {
+            if (val is JsonElement je) return je.ValueKind == JsonValueKind.True;
+            if (val is bool b) return b;
+        }
+        return false;
     }
 }
 
@@ -55,9 +86,7 @@ public class ApiKeyResolver
 /// </summary>
 public class ResolvedApiKey
 {
-    /// <summary>可直接使用的 API Key / token</summary>
     public string? ApiKey { get; set; }
-
-    /// <summary>动态端点覆盖（Copilot token 响应可能包含特定 endpoint）</summary>
     public string? EndpointOverride { get; set; }
+    public string? BaseUrl { get; set; }
 }

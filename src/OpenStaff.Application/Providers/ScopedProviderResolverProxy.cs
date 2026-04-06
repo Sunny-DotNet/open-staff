@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenStaff.Core.Agents;
-using OpenStaff.Core.Models;
 
 namespace OpenStaff.Application.Providers;
 

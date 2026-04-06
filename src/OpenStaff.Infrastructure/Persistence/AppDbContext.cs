@@ -33,8 +33,8 @@ public class AppDbContext : DbContext
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<SessionEvent> SessionEvents => Set<SessionEvent>();
 
-    // 模型供应商
-    public DbSet<ModelProvider> ModelProviders => Set<ModelProvider>();
+    // 供应商账户
+    public DbSet<ProviderAccount> ProviderAccounts => Set<ProviderAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

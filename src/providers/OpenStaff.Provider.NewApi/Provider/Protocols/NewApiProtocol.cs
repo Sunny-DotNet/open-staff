@@ -112,7 +112,7 @@ public class NewApiProtocol(IServiceProvider serviceProvider) : ProtocolBase<New
                     var matched = await ModelDataSource.GetModelAsync(vendorSlug, modelName, cancellationToken);
                     if (matched != null)
                     {
-                        results.Add(new ModelInfo(matched.Id, matched.VendorId, protocols));
+                        results.Add(new ModelInfo(matched.Id, VendorReplace(matched.VendorId), protocols));
                         continue;
                     }
                 }
@@ -124,6 +124,14 @@ public class NewApiProtocol(IServiceProvider serviceProvider) : ProtocolBase<New
 
         return results;
     }
+
+    private string VendorReplace(string vendor) => vendor.ToLower() switch {
+        "zhipuai-coding-plan"=>"zai",
+        _ =>vendor
+    }; 
+
+
+
 
     /// <summary>
     /// 构建 IModelDataSource 供应商的 名称 → vendorId 索引

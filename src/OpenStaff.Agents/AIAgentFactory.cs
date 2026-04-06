@@ -1,13 +1,11 @@
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using OpenStaff.Core.Models;
 
 namespace OpenStaff.Agents;
 
 /// <summary>
 /// AI Agent 工厂 — 从 IChatClient 创建 AIAgent 实例
-/// 统一入口：IChatClient + 提示词 + 工具 → ChatClientAgent (AIAgent)
 /// </summary>
 public class AIAgentFactory
 {
@@ -21,23 +19,25 @@ public class AIAgentFactory
     }
 
     /// <summary>
-    /// 创建 AIAgent — 统一走 IChatClient → ChatClientAgent 路径
+    /// 创建 AIAgent
     /// </summary>
-    /// <param name="provider">供应商配置</param>
+    /// <param name="protocolType">协议类型 (openai, anthropic, google, etc.)</param>
     /// <param name="apiKey">已解密的 API Key</param>
-    /// <param name="modelName">模型名称（覆盖供应商默认值）</param>
+    /// <param name="model">模型名称</param>
+    /// <param name="baseUrl">API 端点（可选覆盖）</param>
     /// <param name="instructions">系统提示词</param>
     /// <param name="agentName">代理体名称</param>
-    /// <param name="tools">AITool 列表（已从 IAgentTool 桥接转换）</param>
+    /// <param name="tools">AITool 列表</param>
     public AIAgent CreateAgent(
-        ModelProvider provider,
+        string protocolType,
         string apiKey,
-        string? modelName = null,
+        string model,
+        string? baseUrl = null,
         string? instructions = null,
         string? agentName = null,
         IList<AITool>? tools = null)
     {
-        var chatClient = _chatClientFactory.Create(provider, apiKey, modelName);
+        var chatClient = _chatClientFactory.Create(protocolType, apiKey, model, baseUrl);
 
         _loggerFactory.CreateLogger<AIAgentFactory>()
             .LogInformation("Creating AIAgent '{Name}' with {ToolCount} tools",

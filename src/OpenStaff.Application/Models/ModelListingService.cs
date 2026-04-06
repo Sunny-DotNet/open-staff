@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using OpenStaff.Core.Models;
+using OpenStaff.Application.Providers;
 using OpenStaff.Infrastructure.Security;
 using OpenStaff.Plugins.ModelDataSource;
 
@@ -13,24 +14,26 @@ public class ModelListingService
 {
     private readonly HttpClient _httpClient;
     private readonly EncryptionService _encryption;
+    private readonly ProviderAccountService _accountService;
     private readonly IModelDataSource _dataSource;
     private readonly ILogger<ModelListingService> _logger;
 
     /// <summary>
-    /// ProviderType → models.dev 的 vendor key 映射
+    /// ProtocolType → models.dev 的 vendor key 映射
     /// </summary>
-    private static readonly Dictionary<string, string> ProviderTypeToVendorKey = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> ProtocolToVendorKey = new(StringComparer.OrdinalIgnoreCase)
     {
-        [ProviderTypes.OpenAI] = "openai",
-        [ProviderTypes.Google] = "google",
-        [ProviderTypes.Anthropic] = "anthropic",
-        [ProviderTypes.GitHubCopilot] = "github-copilot",
+        ["openai"] = "openai",
+        ["google"] = "google",
+        ["anthropic"] = "anthropic",
+        ["github-copilot"] = "github-copilot",
     };
 
-    public ModelListingService(HttpClient httpClient, EncryptionService encryption, IModelDataSource dataSource, ILogger<ModelListingService> logger)
+    public ModelListingService(HttpClient httpClient, EncryptionService encryption, ProviderAccountService accountService, IModelDataSource dataSource, ILogger<ModelListingService> logger)
     {
         _httpClient = httpClient;
         _encryption = encryption;
+        _accountService = accountService;
         _dataSource = dataSource;
         _logger = logger;
     }
@@ -38,17 +41,17 @@ public class ModelListingService
     public record ModelInfo(string Id, string? DisplayName, long? ContextWindow = null, long? MaxOutput = null, bool? Reasoning = null);
 
     /// <summary>
-    /// 获取供应商的可用模型列表 — 优先从数据源缓存获取
+    /// 获取供应商账户的可用模型列表 — 优先从数据源缓存获取
     /// </summary>
-    public async Task<List<ModelInfo>> ListModelsAsync(ModelProvider provider, CancellationToken ct = default)
+    public async Task<List<ModelInfo>> ListModelsAsync(ProviderAccount account, CancellationToken ct = default)
     {
         // 1. 尝试从数据源获取
-        if (_dataSource.IsReady && ProviderTypeToVendorKey.TryGetValue(provider.ProviderType, out var vendorKey))
+        if (_dataSource.IsReady && ProtocolToVendorKey.TryGetValue(account.ProtocolType, out var vendorKey))
         {
             var models = await _dataSource.GetModelsByVendorAsync(vendorKey, ct);
             if (models.Count > 0)
             {
-                _logger.LogDebug("Returning {Count} models for {Provider} from {Source}", models.Count, provider.Name, _dataSource.SourceId);
+                _logger.LogDebug("Returning {Count} models for {Account} from {Source}", models.Count, account.Name, _dataSource.SourceId);
                 return models.Select(m => new ModelInfo(
                     m.Id,
                     m.Name != m.Id ? m.Name : null,
@@ -60,40 +63,39 @@ public class ModelListingService
         }
 
         // 2. 回退：直接调用供应商 API
-        _logger.LogDebug("Falling back to direct API call for {Provider}", provider.Name);
-        return await ListModelsFromApiAsync(provider, ct);
+        _logger.LogDebug("Falling back to direct API call for {Account}", account.Name);
+        return await ListModelsFromApiAsync(account, ct);
     }
 
     /// <summary>
     /// 直接调用供应商 API 获取模型列表（需要 API Key）
     /// </summary>
-    public async Task<List<ModelInfo>> ListModelsFromApiAsync(ModelProvider provider, CancellationToken ct = default)
+    public async Task<List<ModelInfo>> ListModelsFromApiAsync(ProviderAccount account, CancellationToken ct = default)
     {
-        var apiKey = ResolveApiKey(provider);
+        var envConfig = _accountService.GetEnvConfigDict(account);
+        var apiKey = GetEnvString(envConfig, "ApiKey");
+        var baseUrl = GetEnvString(envConfig, "BaseUrl");
+
         if (string.IsNullOrEmpty(apiKey))
         {
-            _logger.LogWarning("Provider {Name} has no API key configured", provider.Name);
+            _logger.LogWarning("Account {Name} has no API key configured", account.Name);
             return [];
         }
 
         try
         {
-            return provider.ProviderType switch
+            return account.ProtocolType switch
             {
-                ProviderTypes.OpenAI or ProviderTypes.GenericOpenAI or ProviderTypes.AzureOpenAI
-                    => await ListOpenAiModelsAsync(provider.BaseUrl!, apiKey, ct),
-                ProviderTypes.GitHubCopilot
-                    => await ListOpenAiModelsAsync(provider.BaseUrl!, apiKey, ct),
-                ProviderTypes.Google
-                    => await ListGoogleModelsAsync(provider.BaseUrl!, apiKey, ct),
-                ProviderTypes.Anthropic
-                    => await ListAnthropicModelsAsync(provider.BaseUrl!, apiKey, ct),
+                "openai" or "newapi" => await ListOpenAiModelsAsync(baseUrl!, apiKey, ct),
+                "github-copilot" => await ListOpenAiModelsAsync("https://api.individual.githubcopilot.com", apiKey, ct),
+                "google" => await ListGoogleModelsAsync(baseUrl!, apiKey, ct),
+                "anthropic" => await ListAnthropicModelsAsync(baseUrl!, apiKey, ct),
                 _ => []
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to list models for provider {Name} ({Type})", provider.Name, provider.ProviderType);
+            _logger.LogError(ex, "Failed to list models for account {Name} ({Protocol})", account.Name, account.ProtocolType);
             throw;
         }
     }
@@ -101,25 +103,19 @@ public class ModelListingService
     /// <summary>
     /// 获取指定模型的详细参数（从数据源缓存）
     /// </summary>
-    public async Task<ModelData?> GetModelDetailsAsync(string providerType, string modelId, CancellationToken ct = default)
+    public async Task<ModelData?> GetModelDetailsAsync(string protocolType, string modelId, CancellationToken ct = default)
     {
-        if (ProviderTypeToVendorKey.TryGetValue(providerType, out var vendorKey))
+        if (ProtocolToVendorKey.TryGetValue(protocolType, out var vendorKey))
         {
             return await _dataSource.GetModelAsync(vendorKey, modelId, ct);
         }
         return null;
     }
 
-    private string? ResolveApiKey(ModelProvider provider)
+    private static string? GetEnvString(Dictionary<string, object?>? config, string key)
     {
-        return provider.ApiKeyMode switch
-        {
-            ApiKeyModes.Input or ApiKeyModes.Device =>
-                !string.IsNullOrEmpty(provider.ApiKeyEncrypted) ? _encryption.Decrypt(provider.ApiKeyEncrypted) : null,
-            ApiKeyModes.EnvVar =>
-                !string.IsNullOrEmpty(provider.ApiKeyEnvVar) ? Environment.GetEnvironmentVariable(provider.ApiKeyEnvVar) : null,
-            _ => null
-        };
+        if (config == null) return null;
+        return config.TryGetValue(key, out var val) ? val?.ToString() : null;
     }
 
     /// <summary>
@@ -144,9 +140,7 @@ public class ModelListingService
             {
                 var id = item.GetProperty("id").GetString();
                 if (!string.IsNullOrEmpty(id))
-                {
                     models.Add(new ModelInfo(id, null));
-                }
             }
         }
 
@@ -155,7 +149,7 @@ public class ModelListingService
     }
 
     /// <summary>
-    /// Google Gemini: GET /models?key={key} → { models: [{ name: "models/gemini-2.0-flash", displayName: "..." }] }
+    /// Google Gemini: GET /models?key={key}
     /// </summary>
     private async Task<List<ModelInfo>> ListGoogleModelsAsync(string baseUrl, string apiKey, CancellationToken ct)
     {
@@ -175,7 +169,6 @@ public class ModelListingService
             {
                 var name = item.GetProperty("name").GetString();
                 var displayName = item.TryGetProperty("displayName", out var dn) ? dn.GetString() : null;
-
                 if (!string.IsNullOrEmpty(name))
                 {
                     var id = name.StartsWith("models/") ? name["models/".Length..] : name;
@@ -189,7 +182,7 @@ public class ModelListingService
     }
 
     /// <summary>
-    /// Anthropic: GET /models, x-api-key header → { data: [{ id: "claude-sonnet-4-20250514", display_name: "..." }] }
+    /// Anthropic: GET /models, x-api-key header
     /// </summary>
     private async Task<List<ModelInfo>> ListAnthropicModelsAsync(string baseUrl, string apiKey, CancellationToken ct)
     {
@@ -211,11 +204,8 @@ public class ModelListingService
             {
                 var id = item.GetProperty("id").GetString();
                 var displayName = item.TryGetProperty("display_name", out var dn) ? dn.GetString() : null;
-
                 if (!string.IsNullOrEmpty(id))
-                {
                     models.Add(new ModelInfo(id, displayName));
-                }
             }
         }
 

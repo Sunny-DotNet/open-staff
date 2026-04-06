@@ -19,9 +19,9 @@ public class AgentRole
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // 导航属性（ModelProvider 不再是 EF 导航属性，仅用于运行时传递）
+    // 导航属性（ProviderAccount 不再是 EF 导航属性，仅用于运行时传递）
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public ModelProvider? ModelProvider { get; set; }
+    public ProviderAccount? ProviderAccount { get; set; }
     public Plugin? Plugin { get; set; }
     public ICollection<ProjectAgent> ProjectAgents { get; set; } = new List<ProjectAgent>();
 }

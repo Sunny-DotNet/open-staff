@@ -8,6 +8,7 @@
     <Project Path="providers/OpenStaff.Provider.Google/OpenStaff.Provider.Google.csproj" />
     <Project Path="providers/OpenStaff.Provider.NewApi/OpenStaff.Provider.NewApi.csproj" />
     <Project Path="providers/OpenStaff.Provider.OpenAI/OpenStaff.Provider.OpenAI.csproj" />
+    <Project Path="providers/OpenStaff.Provider.GitHubCopilot/OpenStaff.Provider.GitHubCopilot.csproj" />
   </Folder>
   <Project Path="OpenStaff.Agents/OpenStaff.Agents.csproj" />
   <Project Path="OpenStaff.Api/OpenStaff.Api.csproj" />

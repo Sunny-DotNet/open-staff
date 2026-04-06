@@ -15,13 +15,16 @@ using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure;
 using OpenStaff.Plugins.ModelDataSource;
 using OpenStaff.Provider;
-using OpenStaff.Provider.Protocols;
 
 namespace OpenStaff.Application;
 
 [DependsOn(
     typeof(ProviderAbstractionsModule),
     typeof(OpenStaffProviderOpenAIModule),
+    typeof(OpenStaffProviderAnthropicModule),
+    typeof(OpenStaffProviderGoogleModule),
+    typeof(OpenStaffProviderNewApiModule),
+    typeof(OpenStaffProviderGitHubCopilotModule),
     typeof(OpenStaffAgentsModule),
     typeof(OpenStaffInfrastructureModule), 
     typeof(ModelDataSourceModule))]
@@ -52,7 +55,7 @@ public class OpenStaffApplicationModule : OpenStaffModule
         services.AddScoped<ProjectService>();
         services.AddScoped<AgentService>();
         services.AddScoped<SettingsService>();
-        services.AddScoped<DbProviderService>();
+        services.AddScoped<ProviderAccountService>();
 
         // Provider 解析器
         services.AddScoped<ApiKeyResolver>();
@@ -68,20 +71,5 @@ public class OpenStaffApplicationModule : OpenStaffModule
 
         // 数据库种子
         services.AddHostedService<RoleSeedService>();
-    }
-
-
-    public override void OnApplicationInitialization(ApplicationInitializationContext context)
-    {
-        Task.Run(async () => {
-            var protocolFactory=context.ServiceProvider.GetRequiredService<IProtocolFactory>();
-            var protocols= protocolFactory.AllProtocols();
-            protocolFactory.CreateProtocol<NewApiProtocol, NewApiProtocolEnv>(new NewApiProtocolEnv() { BaseUrl="http://localhost:3000",ApiKey= "sk-KmssOEvvBWftuRGUbBgoJFytubLVFXEh7caQGZH5KqrNAqcg" });
-            foreach (var protocol in protocols)
-            {
-                var models =await  protocol.ModelsAsync();
-                Console.WriteLine();
-            }
-        });
     }
 }

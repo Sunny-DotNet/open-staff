@@ -109,8 +109,7 @@ public class StandardAgentTests
             AgentInstanceId = Guid.NewGuid(),
             Role = new AgentRole { RoleType = "producer", Name = "Producer" },
             Project = new Project { Id = Guid.NewGuid() },
-            Provider = null,
-            ApiKey = null,
+            Account = null,
             NotificationService = notificationMock.Object,
             Language = "en"
         });
@@ -142,7 +141,7 @@ public class StandardAgentTests
             AgentInstanceId = Guid.NewGuid(),
             Role = new AgentRole { RoleType = "communicator", Name = "Comm" },
             Project = new Project { Id = Guid.NewGuid() },
-            Provider = null,
+            Account = null,
             NotificationService = notificationMock.Object,
             Language = "en"
         });

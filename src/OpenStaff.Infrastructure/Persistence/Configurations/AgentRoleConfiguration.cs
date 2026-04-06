@@ -15,8 +15,7 @@ public class AgentRoleConfiguration : IEntityTypeConfiguration<AgentRole>
         builder.Property(x => x.ModelName).HasMaxLength(200);
         builder.Property(x => x.Config).HasColumnType("TEXT");
 
-        // ModelProviderId 不再是 FK（供应商存储在文件系统）
-        builder.Ignore(x => x.ModelProvider);
+        builder.Ignore(x => x.ProviderAccount);
 
         builder.HasOne(x => x.Plugin)
             .WithMany(x => x.AgentRoles)

@@ -2,24 +2,23 @@ using Microsoft.AspNetCore.Mvc;
 using OpenStaff.Application.Providers;
 using OpenStaff.Application.Auth;
 using OpenStaff.Application.Models;
-using OpenStaff.Core.Models;
 
 namespace OpenStaff.Api.Controllers;
 
 /// <summary>
-/// 模型供应商控制器 / Model providers controller
+/// 供应商账户控制器 / Provider accounts controller
 /// </summary>
 [ApiController]
-[Route("api/model-providers")]
-public class ModelProvidersController : ControllerBase
+[Route("api/provider-accounts")]
+public class ProviderAccountsController : ControllerBase
 {
-    private readonly DbProviderService _providerService;
+    private readonly ProviderAccountService _accountService;
     private readonly GitHubDeviceAuthService _deviceAuthService;
     private readonly ModelListingService _modelListingService;
 
-    public ModelProvidersController(DbProviderService providerService, GitHubDeviceAuthService deviceAuthService, ModelListingService modelListingService)
+    public ProviderAccountsController(ProviderAccountService accountService, GitHubDeviceAuthService deviceAuthService, ModelListingService modelListingService)
     {
-        _providerService = providerService;
+        _accountService = accountService;
         _deviceAuthService = deviceAuthService;
         _modelListingService = modelListingService;
     }
@@ -27,77 +26,80 @@ public class ModelProvidersController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var providers = await _providerService.GetAllAsync();
-        var result = providers.Select(p => new
+        var accounts = await _accountService.GetAllAsync();
+        var result = accounts.Select(a => new
         {
-            p.Id,
-            p.Name,
-            providerType = p.ProviderType,
-            p.BaseUrl,
-            apiKeyMode = p.ApiKeyMode,
-            apiKeyEnvVar = p.ApiKeyEnvVar,
-            hasApiKey = !string.IsNullOrEmpty(p.ApiKeyEncrypted),
-            p.DefaultModel,
-            isEnabled = p.IsEnabled,
-            isBuiltin = p.IsBuiltin,
-            p.CreatedAt,
-            p.UpdatedAt
+            a.Id,
+            a.Name,
+            protocolType = a.ProtocolType,
+            isEnabled = a.IsEnabled,
+            a.CreatedAt,
+            a.UpdatedAt
         });
         return Ok(result);
     }
 
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateProviderRequest request)
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
     {
-        var provider = await _providerService.CreateAsync(request);
-        return Ok(provider);
+        var account = await _accountService.GetByIdAsync(id);
+        if (account == null) return NotFound();
+
+        // Return account with non-secret env config fields
+        var envConfig = _accountService.GetEnvConfigDict(account);
+        return Ok(new
+        {
+            account.Id,
+            account.Name,
+            protocolType = account.ProtocolType,
+            isEnabled = account.IsEnabled,
+            envConfig,
+            account.CreatedAt,
+            account.UpdatedAt
+        });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateProviderAccountRequest request)
+    {
+        var account = await _accountService.CreateAsync(request);
+        return Ok(new { account.Id, account.Name, protocolType = account.ProtocolType });
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProviderRequest request)
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProviderAccountRequest request)
     {
-        var provider = await _providerService.UpdateAsync(id, request);
-        if (provider == null) return NotFound();
+        var account = await _accountService.UpdateAsync(id, request);
+        if (account == null) return NotFound();
         return Ok(new
         {
-            provider.Id,
-            provider.Name,
-            providerType = provider.ProviderType,
-            provider.BaseUrl,
-            apiKeyMode = provider.ApiKeyMode,
-            apiKeyEnvVar = provider.ApiKeyEnvVar,
-            hasApiKey = !string.IsNullOrEmpty(provider.ApiKeyEncrypted),
-            provider.DefaultModel,
-            isEnabled = provider.IsEnabled,
-            isBuiltin = provider.IsBuiltin,
-            provider.CreatedAt,
-            provider.UpdatedAt
+            account.Id,
+            account.Name,
+            protocolType = account.ProtocolType,
+            isEnabled = account.IsEnabled,
+            account.UpdatedAt
         });
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var result = await _providerService.DeleteAsync(id);
+        var result = await _accountService.DeleteAsync(id);
         if (!result) return NotFound();
         return NoContent();
     }
 
     // ===== 模型列表 =====
 
-    /// <summary>
-    /// 获取供应商可用模型列表 / List available models from a provider
-    /// 优先从 models.dev 本地缓存获取，无需 API Key
-    /// </summary>
     [HttpGet("{id:guid}/models")]
     public async Task<IActionResult> ListModels(Guid id, CancellationToken cancellationToken)
     {
-        var provider = await _providerService.GetByIdAsync(id);
-        if (provider == null) return NotFound();
+        var account = await _accountService.GetByIdAsync(id);
+        if (account == null) return NotFound();
 
         try
         {
-            var models = await _modelListingService.ListModelsAsync(provider, cancellationToken);
+            var models = await _modelListingService.ListModelsAsync(account, cancellationToken);
             return Ok(models.Select(m => new
             {
                 m.Id,
@@ -119,16 +121,13 @@ public class ModelProvidersController : ControllerBase
 
     // ===== GitHub 设备码授权 =====
 
-    /// <summary>
-    /// 发起 GitHub 设备码授权
-    /// </summary>
     [HttpPost("{id:guid}/device-auth")]
     public async Task<IActionResult> InitiateDeviceAuth(Guid id, CancellationToken cancellationToken)
     {
-        var provider = await _providerService.GetByIdAsync(id);
-        if (provider == null) return NotFound();
+        var account = await _accountService.GetByIdAsync(id);
+        if (account == null) return NotFound();
 
-        if (provider.ProviderType != ProviderTypes.GitHubCopilot)
+        if (account.ProtocolType != "github-copilot")
         {
             return BadRequest(new { message = "仅 GitHub Copilot 支持设备码授权" });
         }
@@ -144,9 +143,6 @@ public class ModelProvidersController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// 轮询 GitHub 设备码授权状态
-    /// </summary>
     [HttpPost("{id:guid}/device-auth/poll")]
     public async Task<IActionResult> PollDeviceAuth(Guid id, CancellationToken cancellationToken)
     {
@@ -154,9 +150,6 @@ public class ModelProvidersController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// 取消设备码授权
-    /// </summary>
     [HttpDelete("{id:guid}/device-auth")]
     public IActionResult CancelDeviceAuth(Guid id)
     {

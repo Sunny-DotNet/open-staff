@@ -13,12 +13,12 @@ namespace OpenStaff.Api.Controllers;
 public class MonitorController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly DbProviderService _providerService;
+    private readonly ProviderAccountService _accountService;
 
-    public MonitorController(AppDbContext db, DbProviderService providerService)
+    public MonitorController(AppDbContext db, ProviderAccountService accountService)
     {
         _db = db;
-        _providerService = providerService;
+        _accountService = accountService;
     }
 
     /// <summary>
@@ -47,7 +47,7 @@ public class MonitorController : ControllerBase
         var eventCount = await _db.AgentEvents.CountAsync(ct);
         var completedTasks = await _db.Tasks.CountAsync(t => t.Status == "done", ct);
         var sessionCount = await _db.ChatSessions.CountAsync(ct);
-        var providerCount = (await _providerService.GetAllAsync()).Count;
+        var providerCount = (await _accountService.GetAllAsync()).Count;
         var agentRoleCount = await _db.AgentRoles.CountAsync(ct);
 
         // 最近会话

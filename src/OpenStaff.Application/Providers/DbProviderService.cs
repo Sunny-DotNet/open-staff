@@ -1,108 +1,136 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OpenStaff.Core.Models;
 using OpenStaff.Infrastructure.Persistence;
 using OpenStaff.Infrastructure.Security;
+using OpenStaff.Provider.Protocols;
 
 namespace OpenStaff.Application.Providers;
 
-public class DbProviderService
+public class ProviderAccountService
 {
     private readonly AppDbContext _db;
     private readonly EncryptionService _encryption;
 
-    public DbProviderService(AppDbContext db, EncryptionService encryption)
+    public ProviderAccountService(AppDbContext db, EncryptionService encryption)
     {
         _db = db;
         _encryption = encryption;
     }
 
-    public async Task<List<ModelProvider>> GetAllAsync()
+    public async Task<List<ProviderAccount>> GetAllAsync()
     {
-        return await _db.ModelProviders.OrderBy(p => p.CreatedAt).ToListAsync();
+        return await _db.ProviderAccounts.OrderBy(p => p.CreatedAt).ToListAsync();
     }
 
-    public async Task<ModelProvider?> GetByIdAsync(Guid id)
+    public async Task<ProviderAccount?> GetByIdAsync(Guid id)
     {
-        return await _db.ModelProviders.FindAsync(id);
+        return await _db.ProviderAccounts.FindAsync(id);
     }
 
-    public async Task<ModelProvider?> GetByTypeAsync(string providerType)
+    public async Task<ProviderAccount?> GetByProtocolTypeAsync(string protocolType)
     {
-        return await _db.ModelProviders.FirstOrDefaultAsync(p => p.ProviderType == providerType);
+        return await _db.ProviderAccounts.FirstOrDefaultAsync(p => p.ProtocolType == protocolType);
     }
 
-    public async Task<ModelProvider?> GetFirstEnabledAsync()
+    public async Task<ProviderAccount?> GetFirstEnabledAsync()
     {
-        return await _db.ModelProviders.FirstOrDefaultAsync(p => p.IsEnabled);
+        return await _db.ProviderAccounts.FirstOrDefaultAsync(p => p.IsEnabled);
     }
 
-    public string? ResolveApiKey(ModelProvider provider)
+    /// <summary>
+    /// 解密并反序列化 EnvConfig
+    /// </summary>
+    public T? GetEnvConfig<T>(ProviderAccount account) where T : ProtocolEnvBase
     {
-        return provider.ApiKeyMode switch
-        {
-            ApiKeyModes.Input or ApiKeyModes.Device =>
-                !string.IsNullOrEmpty(provider.ApiKeyEncrypted) ? _encryption.Decrypt(provider.ApiKeyEncrypted) : null,
-            ApiKeyModes.EnvVar =>
-                !string.IsNullOrEmpty(provider.ApiKeyEnvVar) ? Environment.GetEnvironmentVariable(provider.ApiKeyEnvVar) : null,
-            _ => null
-        };
+        if (string.IsNullOrEmpty(account.EnvConfigEncrypted)) return null;
+        var json = _encryption.Decrypt(account.EnvConfigEncrypted);
+        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
-    public async Task<ModelProvider> CreateAsync(CreateProviderRequest request)
+    /// <summary>
+    /// 解密 EnvConfig 为 JSON 字符串
+    /// </summary>
+    public string? DecryptEnvConfig(ProviderAccount account)
     {
-        var provider = new ModelProvider
+        if (string.IsNullOrEmpty(account.EnvConfigEncrypted)) return null;
+        return _encryption.Decrypt(account.EnvConfigEncrypted);
+    }
+
+    /// <summary>
+    /// 解密 EnvConfig 为 Dictionary（用于返回给前端，去除敏感值）
+    /// </summary>
+    public Dictionary<string, object?>? GetEnvConfigDict(ProviderAccount account)
+    {
+        var json = DecryptEnvConfig(account);
+        if (json == null) return null;
+        return JsonSerializer.Deserialize<Dictionary<string, object?>>(json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    public async Task<ProviderAccount> CreateAsync(CreateProviderAccountRequest request)
+    {
+        var account = new ProviderAccount
         {
             Id = Guid.NewGuid(),
             Name = request.Name,
-            ProviderType = request.ProviderType,
-            BaseUrl = request.BaseUrl,
-            ApiKeyMode = request.ApiKeyMode ?? ApiKeyModes.EnvVar,
-            ApiKeyEnvVar = request.ApiKeyEnvVar,
-            DefaultModel = request.DefaultModel,
-            ExtraConfig = request.ExtraConfig,
+            ProtocolType = request.ProtocolType,
             IsEnabled = request.IsEnabled,
-            IsBuiltin = false
         };
 
-        if (!string.IsNullOrEmpty(request.ApiKey))
+        if (request.EnvConfig != null)
         {
-            provider.ApiKeyEncrypted = _encryption.Encrypt(request.ApiKey);
+            var json = JsonSerializer.Serialize(request.EnvConfig);
+            account.EnvConfigEncrypted = _encryption.Encrypt(json);
         }
 
-        _db.ModelProviders.Add(provider);
+        _db.ProviderAccounts.Add(account);
         await _db.SaveChangesAsync();
-        return provider;
+        return account;
     }
 
-    public async Task<ModelProvider?> UpdateAsync(Guid id, UpdateProviderRequest request)
+    public async Task<ProviderAccount?> UpdateAsync(Guid id, UpdateProviderAccountRequest request)
     {
-        var provider = await _db.ModelProviders.FindAsync(id);
-        if (provider == null) return null;
+        var account = await _db.ProviderAccounts.FindAsync(id);
+        if (account == null) return null;
 
-        if (request.Name != null) provider.Name = request.Name;
-        if (request.BaseUrl != null) provider.BaseUrl = request.BaseUrl;
-        if (request.ApiKeyMode != null) provider.ApiKeyMode = request.ApiKeyMode;
-        if (request.ApiKeyEnvVar != null) provider.ApiKeyEnvVar = request.ApiKeyEnvVar;
-        if (request.DefaultModel != null) provider.DefaultModel = request.DefaultModel;
-        if (request.ExtraConfig != null) provider.ExtraConfig = request.ExtraConfig;
-        if (request.IsEnabled.HasValue) provider.IsEnabled = request.IsEnabled.Value;
-        provider.UpdatedAt = DateTime.UtcNow;
+        if (request.Name != null) account.Name = request.Name;
+        if (request.IsEnabled.HasValue) account.IsEnabled = request.IsEnabled.Value;
 
-        if (request.ApiKey != null)
+        if (request.EnvConfig != null)
         {
-            provider.ApiKeyEncrypted = _encryption.Encrypt(request.ApiKey);
+            var json = JsonSerializer.Serialize(request.EnvConfig);
+            account.EnvConfigEncrypted = _encryption.Encrypt(json);
         }
 
+        account.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return provider;
+        return account;
+    }
+
+    /// <summary>
+    /// 更新 EnvConfig 中的单个字段（用于 device-auth 回写 token）
+    /// </summary>
+    public async Task UpdateEnvConfigFieldAsync(Guid id, string fieldName, string value)
+    {
+        var account = await _db.ProviderAccounts.FindAsync(id);
+        if (account == null) return;
+
+        var dict = GetEnvConfigDict(account) ?? new Dictionary<string, object?>();
+        dict[fieldName] = value;
+
+        var json = JsonSerializer.Serialize(dict);
+        account.EnvConfigEncrypted = _encryption.Encrypt(json);
+        account.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(Guid id)
     {
-        var provider = await _db.ModelProviders.FindAsync(id);
-        if (provider == null) return false;
+        var account = await _db.ProviderAccounts.FindAsync(id);
+        if (account == null) return false;
 
-        _db.ModelProviders.Remove(provider);
+        _db.ProviderAccounts.Remove(account);
         await _db.SaveChangesAsync();
         return true;
     }
@@ -110,27 +138,17 @@ public class DbProviderService
 
 // ===== Request DTOs =====
 
-public class CreateProviderRequest
+public class CreateProviderAccountRequest
 {
     public string Name { get; set; } = string.Empty;
-    public string ProviderType { get; set; } = string.Empty;
-    public string? BaseUrl { get; set; }
-    public string? ApiKeyMode { get; set; }
-    public string? ApiKeyEnvVar { get; set; }
-    public string? ApiKey { get; set; }
-    public string? DefaultModel { get; set; }
-    public string? ExtraConfig { get; set; }
+    public string ProtocolType { get; set; } = string.Empty;
+    public Dictionary<string, object>? EnvConfig { get; set; }
     public bool IsEnabled { get; set; } = false;
 }
 
-public class UpdateProviderRequest
+public class UpdateProviderAccountRequest
 {
     public string? Name { get; set; }
-    public string? BaseUrl { get; set; }
-    public string? ApiKeyMode { get; set; }
-    public string? ApiKeyEnvVar { get; set; }
-    public string? ApiKey { get; set; }
-    public string? DefaultModel { get; set; }
-    public string? ExtraConfig { get; set; }
+    public Dictionary<string, object>? EnvConfig { get; set; }
     public bool? IsEnabled { get; set; }
 }

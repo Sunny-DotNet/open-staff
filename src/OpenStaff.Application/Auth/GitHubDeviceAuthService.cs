@@ -18,21 +18,21 @@ public class GitHubDeviceAuthService
     private const string AccessTokenUrl = "https://github.com/login/oauth/access_token";
 
     private readonly HttpClient _httpClient;
-    private readonly DbProviderService _providerService;
+    private readonly ProviderAccountService _accountService;
     private readonly EncryptionService _encryption;
     private readonly CopilotTokenService _copilotTokenService;
 
-    // 存储进行中的设备码流程（providerId -> DeviceCodeSession）
+    // 存储进行中的设备码流程（accountId -> DeviceCodeSession）
     private static readonly ConcurrentDictionary<Guid, DeviceCodeSession> _sessions = new();
 
     public GitHubDeviceAuthService(
         HttpClient httpClient,
-        DbProviderService providerService,
+        ProviderAccountService accountService,
         EncryptionService encryption,
         CopilotTokenService copilotTokenService)
     {
         _httpClient = httpClient;
-        _providerService = providerService;
+        _accountService = accountService;
         _encryption = encryption;
         _copilotTokenService = copilotTokenService;
     }
@@ -120,11 +120,8 @@ public class GitHubDeviceAuthService
         {
             _sessions.TryRemove(providerId, out _);
 
-            // 将 oauth_token 加密存储到 ModelProvider
-            await _providerService.UpdateAsync(providerId, new UpdateProviderRequest
-            {
-                ApiKey = result.AccessToken
-            });
+            // 将 oauth_token 存储到 ProviderAccount 的 EnvConfig
+            await _accountService.UpdateEnvConfigFieldAsync(providerId, "OAuthToken", result.AccessToken);
 
             // 清除 Copilot token 缓存（旧 github_token 可能已失效）
             _copilotTokenService.ClearCache();

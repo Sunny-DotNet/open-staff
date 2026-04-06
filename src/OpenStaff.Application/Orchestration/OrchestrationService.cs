@@ -165,17 +165,19 @@ public class OrchestrationService : IOrchestrator
             _logger.LogWarning("Configuration not found for role type {RoleType}", roleType);
         }
 
-        // 解析供应商和 API Key / Resolve provider and API key
-        ModelProvider? provider = null;
+        // 解析供应商和 API Key
+        ProviderAccount? account = null;
         string? apiKey = null;
+        string? endpointOverride = null;
         var roleDb = _agentFactory.GetDbRole(roleType);
         if (roleDb?.ModelProviderId != null)
         {
             var resolved = await _providerResolver.ResolveAsync(roleDb.ModelProviderId.Value);
             if (resolved != null)
             {
-                provider = resolved.Provider;
+                account = resolved.Account;
                 apiKey = resolved.ApiKey;
+                endpointOverride = resolved.EndpointOverride;
             }
         }
 
@@ -190,7 +192,7 @@ public class OrchestrationService : IOrchestrator
                 ModelName = config?.ModelName
             },
             Project = new Project { Id = projectId },
-            Provider = provider,
+            Account = account,
             ApiKey = apiKey,
             NotificationService = _notification,
             Language = "zh-CN"

@@ -17,6 +17,7 @@
     <ProjectReference Include="..\providers\OpenStaff.Provider.Google\OpenStaff.Provider.Google.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.NewApi\OpenStaff.Provider.NewApi.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.OpenAI\OpenStaff.Provider.OpenAI.csproj" />
+    <ProjectReference Include="..\providers\OpenStaff.Provider.GitHubCopilot\OpenStaff.Provider.GitHubCopilot.csproj" />
   </ItemGroup>
 
   <ItemGroup>
