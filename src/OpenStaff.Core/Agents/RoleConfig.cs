@@ -33,6 +33,9 @@ public class RoleConfig
 
     [JsonPropertyName("routing")]
     public RoutingConfig? Routing { get; set; }
+
+    /// <summary>浅拷贝，用于在不修改原始配置的情况下覆盖部分属性</summary>
+    public RoleConfig Clone() => (RoleConfig)MemberwiseClone();
 }
 
 public class ModelParameters

@@ -17,9 +17,9 @@ import {
 import type { SettingsApi } from '#/api/openstaff/settings';
 import {
   createProviderAccountApi,
-  getLogoUrl,
   updateProviderAccountApi,
 } from '#/api/openstaff/settings';
+import { getLogoUrl } from '#/constants/provider';
 
 const props = defineProps<{
   open: boolean;

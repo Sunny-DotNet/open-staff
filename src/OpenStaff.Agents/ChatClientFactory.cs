@@ -45,7 +45,14 @@ public class ChatClientFactory
         var credential = new ApiKeyCredential(apiKey);
         OpenAIClientOptions? options = null;
         if (!string.IsNullOrEmpty(baseUrl))
-            options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
+        {
+            // OpenAI SDK v2 使用 {endpoint}/chat/completions 路径，
+            // 对于 OpenAI 兼容 API（NewAPI/OneAPI 等），需要确保 endpoint 包含 /v1
+            var uri = baseUrl.TrimEnd('/');
+            if (!uri.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+                uri += "/v1";
+            options = new OpenAIClientOptions { Endpoint = new Uri(uri) };
+        }
 
         var client = options != null
             ? new OpenAIClient(credential, options)

@@ -56,15 +56,22 @@ public class AgentFactory
     /// </summary>
     public IAgent CreateAgentFromDbRole(Core.Models.AgentRole dbRole)
     {
-        // 优先使用已注册的 RoleConfig（内置角色）
+        RoleConfig config;
+
         if (_roleConfigs.TryGetValue(dbRole.RoleType, out var existingConfig))
         {
-            var logger1 = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
-            return new StandardAgent(existingConfig, _toolRegistry, _aiAgentFactory, logger1);
+            // 内置角色：以 JSON 配置为基础，用数据库值覆盖
+            config = existingConfig.Clone();
+            if (!string.IsNullOrEmpty(dbRole.ModelName))
+                config.ModelName = dbRole.ModelName;
+            if (!string.IsNullOrEmpty(dbRole.SystemPrompt))
+                config.SystemPrompt = dbRole.SystemPrompt;
+        }
+        else
+        {
+            config = BuildRoleConfigFromDb(dbRole);
         }
 
-        // 从数据库角色动态构建 RoleConfig
-        var config = BuildRoleConfigFromDb(dbRole);
         var logger = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
         return new StandardAgent(config, _toolRegistry, _aiAgentFactory, logger);
     }

@@ -1,6 +1,6 @@
 @OpenStaff.Api_HostAddress = http://localhost:5010
 
-GET {{OpenStaff.Api_HostAddress}}/weatherforecast/
+GET {{OpenStaff.Api_HostAddress}}/scalar/v1/
 Accept: application/json
 
 ###
