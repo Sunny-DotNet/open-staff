@@ -115,6 +115,16 @@ const routes: RouteRecordRaw[] = [
   },
   {
     meta: {
+      icon: 'lucide:puzzle',
+      order: 55,
+      title: 'MCP 市场',
+    },
+    name: 'McpMarket',
+    path: '/mcp-market',
+    component: () => import('#/views/openstaff/mcp-market/index.vue'),
+  },
+  {
+    meta: {
       icon: 'lucide:cloud',
       order: 60,
       title: '供应商管理',
