@@ -101,11 +101,18 @@ async function startDeviceAuth() {
 }
 
 async function cancelAuth() {
-  if (deviceAuth.accountId) {
+  if (deviceAuth.accountId && deviceAuth.status !== 'success') {
     try {
       await cancelDeviceAuthApi(deviceAuth.accountId);
     } catch { /* ignore */ }
   }
+  stopPolling();
+  deviceAuth.status = '';
+  deviceAuth.accountId = null;
+  emit('update:open', false);
+}
+
+function closeAfterSuccess() {
   stopPolling();
   deviceAuth.status = '';
   deviceAuth.accountId = null;
@@ -139,28 +146,53 @@ onUnmounted(() => {
     @cancel="cancelAuth"
   >
     <div style="text-align: center; padding: 20px 0">
-      <Typography.Title :level="4">
-        请在 GitHub 中输入以下代码：
-      </Typography.Title>
-      <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: var(--ant-color-fill-secondary, #f5f5f5); border-radius: 8px; margin: 16px 0">
-        {{ deviceAuth.userCode }}
-      </div>
-      <Typography.Text type="secondary">
-        浏览器应已自动打开验证页面
-      </Typography.Text>
-      <br />
-      <Button
-        type="link"
-        :href="deviceAuth.verificationUri"
-        target="_blank"
-        style="margin-top: 8px"
-      >
-        手动打开验证页面 →
-      </Button>
-      <br /><br />
-      <Badge status="processing" text="等待授权中..." />
-      <br /><br />
-      <Button @click="cancelAuth">取消</Button>
+      <!-- 成功状态 -->
+      <template v-if="deviceAuth.status === 'success'">
+        <div style="font-size: 48px; margin-bottom: 12px">✅</div>
+        <Typography.Title :level="4">授权成功！</Typography.Title>
+        <Typography.Text type="secondary">
+          GitHub Copilot 已授权，OAuthToken 已保存
+        </Typography.Text>
+        <br /><br />
+        <Button type="primary" @click="closeAfterSuccess">完成</Button>
+      </template>
+
+      <!-- 错误/过期/拒绝状态 -->
+      <template v-else-if="['expired', 'denied', 'error'].includes(deviceAuth.status)">
+        <div style="font-size: 48px; margin-bottom: 12px">❌</div>
+        <Typography.Title :level="4">
+          {{ deviceAuth.status === 'expired' ? '授权已过期' : deviceAuth.status === 'denied' ? '授权被拒绝' : '授权出错' }}
+        </Typography.Title>
+        <br />
+        <Button style="margin-right: 8px" @click="startDeviceAuth">重试</Button>
+        <Button @click="cancelAuth">关闭</Button>
+      </template>
+
+      <!-- 等待授权状态 -->
+      <template v-else>
+        <Typography.Title :level="4">
+          请在 GitHub 中输入以下代码：
+        </Typography.Title>
+        <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: var(--ant-color-fill-secondary, #f5f5f5); border-radius: 8px; margin: 16px 0">
+          {{ deviceAuth.userCode }}
+        </div>
+        <Typography.Text type="secondary">
+          浏览器应已自动打开验证页面
+        </Typography.Text>
+        <br />
+        <Button
+          type="link"
+          :href="deviceAuth.verificationUri"
+          target="_blank"
+          style="margin-top: 8px"
+        >
+          手动打开验证页面 →
+        </Button>
+        <br /><br />
+        <Badge status="processing" text="等待授权中..." />
+        <br /><br />
+        <Button @click="cancelAuth">取消</Button>
+      </template>
     </div>
   </Modal>
 </template>
