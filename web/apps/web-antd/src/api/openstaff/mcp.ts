@@ -158,3 +158,78 @@ export async function deleteAgentMcpBindingApi(
     `/mcp/agent-bindings/${agentRoleId}/${configId}`,
   );
 }
+
+// ===== 市场 =====
+
+export namespace McpMarketplaceApi {
+  export interface MarketplaceSource {
+    sourceKey: string;
+    displayName: string;
+    iconUrl: string | null;
+  }
+
+  export interface MarketplaceServer {
+    id: string;
+    name: string;
+    description: string | null;
+    icon: string | null;
+    category: string;
+    transportTypes: string[];
+    source: string;
+    version: string | null;
+    repositoryUrl: string | null;
+    homepage: string | null;
+    npmPackage: string | null;
+    pypiPackage: string | null;
+    defaultConfig: string | null;
+    isInstalled: boolean;
+  }
+
+  export interface SearchResult {
+    items: MarketplaceServer[];
+    totalCount: number;
+    nextCursor: string | null;
+  }
+}
+
+/** 获取所有市场数据源 */
+export async function getMarketplaceSourcesApi(): Promise<
+  McpMarketplaceApi.MarketplaceSource[]
+> {
+  return requestClient.get<McpMarketplaceApi.MarketplaceSource[]>(
+    '/mcp/marketplace/sources',
+  );
+}
+
+/** 搜索市场 MCP Server */
+export async function searchMarketplaceApi(params: {
+  sourceKey?: string;
+  keyword?: string;
+  category?: string;
+  cursor?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<McpMarketplaceApi.SearchResult> {
+  const query = new URLSearchParams();
+  if (params.sourceKey) query.set('sourceKey', params.sourceKey);
+  if (params.keyword) query.set('keyword', params.keyword);
+  if (params.category) query.set('category', params.category);
+  if (params.cursor) query.set('cursor', params.cursor);
+  if (params.page) query.set('page', String(params.page));
+  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  return requestClient.get<McpMarketplaceApi.SearchResult>(
+    `/mcp/marketplace/search?${query.toString()}`,
+  );
+}
+
+/** 从外部源安装 MCP Server 到本地 */
+export async function installFromMarketplaceApi(data: {
+  sourceKey: string;
+  serverId: string;
+  name?: string;
+}): Promise<McpMarketplaceApi.MarketplaceServer> {
+  return requestClient.post<McpMarketplaceApi.MarketplaceServer>(
+    '/mcp/marketplace/install',
+    data,
+  );
+}

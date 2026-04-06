@@ -20,6 +20,9 @@
     <ProjectReference Include="..\providers\OpenStaff.Provider.NewApi\OpenStaff.Provider.NewApi.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.OpenAI\OpenStaff.Provider.OpenAI.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.GitHubCopilot\OpenStaff.Provider.GitHubCopilot.csproj" />
+    <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Abstractions\OpenStaff.Marketplace.Abstractions.csproj" />
+    <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Internal\OpenStaff.Marketplace.Internal.csproj" />
+    <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Registry\OpenStaff.Marketplace.Registry.csproj" />
   </ItemGroup>
 
   <ItemGroup>

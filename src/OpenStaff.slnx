@@ -11,6 +11,11 @@
     <Project Path="providers/OpenStaff.Provider.GitHubCopilot/OpenStaff.Provider.GitHubCopilot.csproj" />
     <Project Path="providers/OpenStaff.Provider.Tests/OpenStaff.Provider.Tests.csproj" />
   </Folder>
+  <Folder Name="/marketplace/">
+    <Project Path="marketplace/OpenStaff.Marketplace.Abstractions/OpenStaff.Marketplace.Abstractions.csproj" />
+    <Project Path="marketplace/OpenStaff.Marketplace.Internal/OpenStaff.Marketplace.Internal.csproj" />
+    <Project Path="marketplace/OpenStaff.Marketplace.Registry/OpenStaff.Marketplace.Registry.csproj" />
+  </Folder>
   <Project Path="OpenStaff.Agents/OpenStaff.Agents.csproj" />
   <Project Path="OpenStaff.Api/OpenStaff.Api.csproj" />
   <Project Path="OpenStaff.AppHost/OpenStaff.AppHost.csproj" />

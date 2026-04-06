@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import type { McpApi } from '#/api/openstaff/mcp';
+import type { McpApi, McpMarketplaceApi } from '#/api/openstaff/mcp';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -12,86 +12,65 @@ import {
   Col,
   Empty,
   Input,
+  message,
   Row,
   Space,
   Spin,
+  Tabs,
+  TabPane,
   Tag,
   Tooltip,
   Typography,
 } from 'ant-design-vue';
 
-import { getMcpConfigsApi, getMcpServersApi } from '#/api/openstaff/mcp';
+import {
+  getMcpConfigsApi,
+  getMarketplaceSourcesApi,
+  searchMarketplaceApi,
+  installFromMarketplaceApi,
+} from '#/api/openstaff/mcp';
 
 import McpConfigModal from './McpConfigModal.vue';
 
 // ===== 常量 =====
 const CATEGORIES = [
   { key: '', label: '全部' },
-  { key: 'Development', label: '开发工具' },
-  { key: 'Search', label: '搜索' },
-  { key: 'FileSystem', label: '文件系统' },
-  { key: 'Database', label: '数据库' },
-  { key: 'Memory', label: '记忆' },
-  { key: 'Network', label: '网络' },
-  { key: 'Browser', label: '浏览器' },
-  { key: 'Utility', label: '工具' },
+  { key: 'dev-tools', label: '开发工具' },
+  { key: 'search', label: '搜索' },
+  { key: 'filesystem', label: '文件系统' },
+  { key: 'database', label: '数据库' },
+  { key: 'memory', label: '记忆' },
+  { key: 'communication', label: '网络' },
+  { key: 'browser', label: '浏览器' },
+  { key: 'general', label: '通用' },
 ] as const;
 
 const CATEGORY_ICONS: Record<string, string> = {
-  Browser: '🌍',
-  Database: '🗄️',
-  Development: '💻',
-  FileSystem: '📁',
-  Memory: '🧠',
-  Network: '🌐',
-  Search: '🔍',
-  Utility: '🔧',
+  browser: '🌍',
+  'dev-tools': '💻',
+  database: '🗄️',
+  filesystem: '📁',
+  general: '📦',
+  memory: '🧠',
+  communication: '🌐',
+  search: '🔍',
 };
 
 function getCategoryIcon(category: string): string {
   return CATEGORY_ICONS[category] ?? '📦';
 }
 
-function getSourceColor(source: string): string {
-  switch (source) {
-    case 'builtin': {
-      return 'blue';
-    }
-    case 'custom': {
-      return 'green';
-    }
-    case 'marketplace': {
-      return 'purple';
-    }
-    default: {
-      return 'default';
-    }
-  }
-}
-
-function getSourceLabel(source: string): string {
-  switch (source) {
-    case 'builtin': {
-      return '内置';
-    }
-    case 'custom': {
-      return '自定义';
-    }
-    case 'marketplace': {
-      return '市场';
-    }
-    default: {
-      return source;
-    }
-  }
-}
-
 // ===== 状态 =====
-const servers = ref<McpApi.McpServer[]>([]);
+const sources = ref<McpMarketplaceApi.MarketplaceSource[]>([]);
+const activeSource = ref('internal');
+const items = ref<McpMarketplaceApi.MarketplaceServer[]>([]);
 const configs = ref<McpApi.McpServerConfig[]>([]);
 const loading = ref(false);
 const searchText = ref('');
 const activeCategory = ref('');
+const nextCursor = ref<null | string>(null);
+const loadingMore = ref(false);
+const installingIds = ref(new Set<string>());
 
 // Modal
 const showConfigModal = ref(false);
@@ -106,8 +85,8 @@ const configCountMap = computed(() => {
   return map;
 });
 
-const filteredServers = computed(() => {
-  let list = servers.value;
+const filteredItems = computed(() => {
+  let list = items.value;
   if (activeCategory.value) {
     list = list.filter((s) => s.category === activeCategory.value);
   }
@@ -123,34 +102,109 @@ const filteredServers = computed(() => {
 });
 
 // ===== 数据加载 =====
-async function fetchData() {
-  loading.value = true;
+async function fetchSources() {
   try {
-    const [serverList, configList] = await Promise.all([
-      getMcpServersApi(),
-      getMcpConfigsApi(),
-    ]);
-    servers.value = serverList;
-    configs.value = configList;
+    sources.value = await getMarketplaceSourcesApi();
+    if (sources.value.length > 0 && !sources.value.find(s => s.sourceKey === activeSource.value)) {
+      activeSource.value = sources.value[0]!.sourceKey;
+    }
   } catch {
-    servers.value = [];
-    configs.value = [];
-  } finally {
-    loading.value = false;
+    sources.value = [{ sourceKey: 'internal', displayName: '内置', iconUrl: null }];
   }
 }
 
+async function fetchItems(append = false) {
+  if (!append) {
+    loading.value = true;
+    nextCursor.value = null;
+  } else {
+    loadingMore.value = true;
+  }
+  try {
+    const result = await searchMarketplaceApi({
+      sourceKey: activeSource.value,
+      keyword: searchText.value.trim() || undefined,
+      category: activeCategory.value || undefined,
+      cursor: append ? (nextCursor.value ?? undefined) : undefined,
+      pageSize: 24,
+    });
+    if (append) {
+      items.value = [...items.value, ...result.items];
+    } else {
+      items.value = result.items;
+    }
+    nextCursor.value = result.nextCursor;
+  } catch {
+    if (!append) items.value = [];
+  } finally {
+    loading.value = false;
+    loadingMore.value = false;
+  }
+}
+
+async function fetchConfigs() {
+  try {
+    configs.value = await getMcpConfigsApi();
+  } catch {
+    configs.value = [];
+  }
+}
+
+async function fetchAll() {
+  await Promise.all([fetchSources(), fetchItems(), fetchConfigs()]);
+}
+
 // ===== 操作 =====
-function openConfigModal(server: McpApi.McpServer) {
-  selectedServer.value = server;
+function openConfigModal(server: McpMarketplaceApi.MarketplaceServer) {
+  // 转换为 McpServer 格式给 Modal（仅内置源支持配置）
+  selectedServer.value = {
+    id: server.id,
+    name: server.name,
+    description: server.description,
+    icon: server.icon,
+    category: server.category,
+    transportType: server.transportTypes[0] ?? 'stdio',
+    source: server.source,
+    defaultConfig: server.defaultConfig,
+    marketplaceUrl: server.repositoryUrl,
+  } as McpApi.McpServer;
   showConfigModal.value = true;
 }
 
-function handleConfigSaved() {
-  fetchData();
+async function handleInstall(server: McpMarketplaceApi.MarketplaceServer) {
+  installingIds.value.add(server.id);
+  try {
+    await installFromMarketplaceApi({
+      sourceKey: activeSource.value,
+      serverId: server.id,
+    });
+    server.isInstalled = true;
+    message.success(`${server.name} 已安装到本地`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    message.error(`安装失败: ${msg}`);
+  } finally {
+    installingIds.value.delete(server.id);
+  }
 }
 
-onMounted(fetchData);
+function handleConfigSaved() {
+  fetchConfigs();
+}
+
+// ===== Watch =====
+watch(activeSource, () => {
+  items.value = [];
+  fetchItems();
+});
+
+let searchTimer: ReturnType<typeof setTimeout>;
+watch(searchText, () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => fetchItems(), 300);
+});
+
+onMounted(fetchAll);
 </script>
 
 <template>
@@ -164,15 +218,24 @@ onMounted(fetchData);
       />
     </template>
 
-    <!-- 分类过滤 -->
-    <div style="margin-bottom: 20px">
+    <!-- 数据源 Tabs -->
+    <Tabs v-model:activeKey="activeSource" style="margin-bottom: 8px">
+      <TabPane
+        v-for="src in sources"
+        :key="src.sourceKey"
+        :tab="src.displayName"
+      />
+    </Tabs>
+
+    <!-- 分类过滤（仅内置源显示） -->
+    <div v-if="activeSource === 'internal'" style="margin-bottom: 20px">
       <Space wrap>
         <Tag
           v-for="cat in CATEGORIES"
           :key="cat.key"
           :color="activeCategory === cat.key ? 'blue' : undefined"
           style="cursor: pointer; padding: 4px 12px; font-size: 13px"
-          @click="activeCategory = cat.key"
+          @click="activeCategory = cat.key; fetchItems()"
         >
           {{ cat.label }}
         </Tag>
@@ -187,14 +250,14 @@ onMounted(fetchData);
     <!-- 服务器卡片 -->
     <template v-else>
       <Empty
-        v-if="filteredServers.length === 0"
+        v-if="filteredItems.length === 0"
         description="没有找到匹配的 MCP 服务器"
         style="padding: 60px 0"
       />
 
       <Row :gutter="[16, 16]">
         <Col
-          v-for="server in filteredServers"
+          v-for="server in filteredItems"
           :key="server.id"
           :xs="24"
           :sm="12"
@@ -220,8 +283,11 @@ onMounted(fetchData);
                   >
                     {{ server.name }}
                   </Typography.Text>
+                  <Tag v-if="server.version" style="font-size: 10px; margin: 0">
+                    v{{ server.version }}
+                  </Tag>
                   <Badge
-                    v-if="configCountMap.get(server.id)"
+                    v-if="server.isInstalled && configCountMap.get(server.id)"
                     :count="configCountMap.get(server.id)"
                     :number-style="{ backgroundColor: '#52c41a', fontSize: '11px' }"
                   />
@@ -235,32 +301,56 @@ onMounted(fetchData);
               </div>
             </div>
 
-            <!-- 标签 -->
+            <!-- 标签 + 操作 -->
             <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between">
               <Space :size="4" wrap>
-                <Tag style="font-size: 11px; margin: 0">
-                  {{ server.transportType }}
-                </Tag>
                 <Tag
-                  :color="getSourceColor(server.source)"
+                  v-for="tt in server.transportTypes"
+                  :key="tt"
                   style="font-size: 11px; margin: 0"
                 >
-                  {{ getSourceLabel(server.source) }}
+                  {{ tt }}
                 </Tag>
               </Space>
-              <Tooltip title="管理配置">
-                <Button
-                  type="primary"
-                  size="small"
-                  @click="openConfigModal(server)"
-                >
-                  配置
-                </Button>
-              </Tooltip>
+              <Space :size="4">
+                <!-- 外部源：安装按钮 -->
+                <template v-if="activeSource !== 'internal'">
+                  <Tag v-if="server.isInstalled" color="green" style="margin: 0">
+                    已安装
+                  </Tag>
+                  <Button
+                    v-else
+                    type="primary"
+                    size="small"
+                    :loading="installingIds.has(server.id)"
+                    @click="handleInstall(server)"
+                  >
+                    安装
+                  </Button>
+                </template>
+                <!-- 已安装：配置按钮 -->
+                <Tooltip v-if="server.isInstalled || activeSource === 'internal'" title="管理配置">
+                  <Button
+                    type="primary"
+                    size="small"
+                    ghost
+                    @click="openConfigModal(server)"
+                  >
+                    配置
+                  </Button>
+                </Tooltip>
+              </Space>
             </div>
           </Card>
         </Col>
       </Row>
+
+      <!-- 加载更多 -->
+      <div v-if="nextCursor" style="text-align: center; margin-top: 24px">
+        <Button :loading="loadingMore" @click="fetchItems(true)">
+          加载更多
+        </Button>
+      </div>
     </template>
 
     <!-- 配置 Modal -->

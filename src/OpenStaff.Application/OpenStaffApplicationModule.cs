@@ -33,6 +33,10 @@ using OpenStaff.Infrastructure;
 using OpenStaff.Plugins.ModelDataSource;
 using OpenStaff.Provider;
 
+using OpenStaff.Marketplace;
+using OpenStaff.Marketplace.Internal;
+using OpenStaff.Marketplace.Registry;
+
 namespace OpenStaff.Application;
 
 [DependsOn(
@@ -44,7 +48,10 @@ namespace OpenStaff.Application;
     typeof(OpenStaffProviderGitHubCopilotModule),
     typeof(OpenStaffAgentsModule),
     typeof(OpenStaffInfrastructureModule), 
-    typeof(ModelDataSourceModule))]
+    typeof(ModelDataSourceModule),
+    typeof(MarketplaceAbstractionsModule),
+    typeof(OpenStaffMarketplaceInternalModule),
+    typeof(OpenStaffMarketplaceRegistryModule))]
 public class OpenStaffApplicationModule : OpenStaffModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
@@ -103,5 +110,8 @@ public class OpenStaffApplicationModule : OpenStaffModule
         services.AddScoped<IAgentAppService, AgentAppService>();
         services.AddScoped<IModelDataAppService, ModelDataAppService>();
         services.AddScoped<IMcpServerAppService, McpServerAppService>();
+
+        // 市场
+        services.AddScoped<Application.Contracts.Marketplace.IMarketplaceAppService, Marketplace.MarketplaceAppService>();
     }
 }

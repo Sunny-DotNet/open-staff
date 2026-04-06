@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>OpenStaff.Marketplace.Internal</RootNamespace>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\OpenStaff.Marketplace.Abstractions\OpenStaff.Marketplace.Abstractions.csproj" />
+		<ProjectReference Include="..\..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
+	</ItemGroup>
+</Project>
