@@ -47,10 +47,12 @@ export namespace AgentApi {
   }
 
   export interface AgentRoleOverride {
-    systemPrompt?: string;
+    name?: string;
+    description?: string;
     modelName?: string;
     modelProviderId?: string;
     temperature?: number;
+    soul?: AgentSoul;
   }
 
   // Session-based conversation interfaces

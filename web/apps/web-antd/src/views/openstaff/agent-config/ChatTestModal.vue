@@ -139,10 +139,15 @@ function filterMcpOption(input: string, option: any) {
 
 const hasOverride = computed(() => {
   return (
-    configForm.value.systemPrompt ||
+    configForm.value.name ||
+    configForm.value.description ||
     configForm.value.modelProviderId ||
     configForm.value.modelName ||
-    configForm.value.temperature !== 0.7
+    configForm.value.temperature !== 0.7 ||
+    configForm.value.soul?.traits?.length ||
+    configForm.value.soul?.style ||
+    configForm.value.soul?.attitudes?.length ||
+    configForm.value.soul?.custom
   );
 });
 
@@ -262,10 +267,12 @@ async function sendTestMessage() {
   try {
     const override: AgentApi.AgentRoleOverride | undefined = hasOverride.value
       ? {
-          systemPrompt: configForm.value.systemPrompt || undefined,
+          name: configForm.value.name || undefined,
+          description: configForm.value.description || undefined,
           modelProviderId: configForm.value.modelProviderId || undefined,
           modelName: configForm.value.modelName || undefined,
           temperature: configForm.value.temperature,
+          soul: configForm.value.soul,
         }
       : undefined;
 

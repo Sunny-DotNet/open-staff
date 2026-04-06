@@ -64,8 +64,10 @@ public class TestChatRequest
 /// </summary>
 public class AgentRoleInput
 {
-    public string? SystemPrompt { get; set; }
+    public string? Name { get; set; }
+    public string? Description { get; set; }
     public string? ModelName { get; set; }
     public string? ModelProviderId { get; set; }
     public double? Temperature { get; set; }
+    public AgentSoulDto? Soul { get; set; }
 }

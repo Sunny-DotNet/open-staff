@@ -190,8 +190,24 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         // 解析角色配置（支持 Override 覆盖）
         var roleConfig = _agentFactory.GetRoleConfig(role.RoleType);
-        var systemPrompt = liveOverride?.SystemPrompt
-            ?? (!string.IsNullOrEmpty(role.SystemPrompt) ? role.SystemPrompt : roleConfig?.SystemPrompt ?? "");
+
+        // 如果 Override 带了 Soul/Name/Description，用 BuildSystemPrompt 生成覆盖的 systemPrompt
+        string systemPrompt;
+        if (liveOverride?.Soul != null || liveOverride?.Name != null || liveOverride?.Description != null)
+        {
+            var tempRole = new AgentRole
+            {
+                Name = liveOverride?.Name ?? role.Name,
+                Description = liveOverride?.Description ?? role.Description,
+                Soul = MapSoulFromDto(liveOverride?.Soul) ?? role.Soul,
+            };
+            systemPrompt = BuildSystemPrompt(tempRole);
+        }
+        else
+        {
+            systemPrompt = !string.IsNullOrEmpty(role.SystemPrompt) ? role.SystemPrompt : roleConfig?.SystemPrompt ?? "";
+        }
+
         var modelName = liveOverride?.ModelName
             ?? (!string.IsNullOrEmpty(role.ModelName) ? role.ModelName : roleConfig?.ModelName ?? "gpt-4o");
         var temperature = liveOverride?.Temperature;
