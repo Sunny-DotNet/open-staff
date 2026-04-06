@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import { onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { nextTick, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 
@@ -11,21 +11,15 @@ import McpInstalledTab from './McpInstalledTab.vue';
 import McpMarketTab from './McpMarketTab.vue';
 
 const route = useRoute();
-const router = useRouter();
 
 const activeTab = ref((route.query.tab as string) || 'configs');
 const configsRef = ref<InstanceType<typeof McpConfigsTab>>();
 const installedRef = ref<InstanceType<typeof McpInstalledTab>>();
 
-// Sync tab to URL query
-watch(activeTab, (tab) => {
-  router.replace({ query: { ...route.query, tab } });
-});
-
 // Handle cross-tab navigation
 function handleGoToConfigs(serverId: string) {
   activeTab.value = 'configs';
-  configsRef.value?.setServerFilter(serverId);
+  nextTick(() => configsRef.value?.setServerFilter(serverId));
 }
 
 function handleSwitchTab(tab: string) {
@@ -41,10 +35,7 @@ onMounted(() => {
   const serverId = route.query.serverId as string | undefined;
   if (serverId) {
     activeTab.value = 'configs';
-    // Wait for next tick so configsRef is available
-    setTimeout(() => {
-      configsRef.value?.setServerFilter(serverId);
-    }, 0);
+    nextTick(() => configsRef.value?.setServerFilter(serverId));
   }
 });
 </script>
