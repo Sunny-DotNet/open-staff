@@ -36,7 +36,7 @@ import {
   updateProjectApi,
 } from '#/api/openstaff/project';
 import {
-  getModelProvidersApi,
+  getProviderAccountsApi,
   getProviderModelsApi,
 } from '#/api/openstaff/settings';
 
@@ -67,7 +67,7 @@ const selectedRoleIds = ref<string[]>([]);
 const loadingRoles = ref(false);
 
 // Tab 3: 模型与参数
-const providers = ref<SettingsApi.ModelProvider[]>([]);
+const providers = ref<SettingsApi.ProviderAccount[]>([]);
 const providerModels = ref<{ id: string; displayName: string | null }[]>([]);
 const modelForm = ref({
   defaultProviderId: null as null | string,
@@ -140,7 +140,7 @@ async function fetchRoles() {
 
 async function fetchProviders() {
   try {
-    providers.value = await getModelProvidersApi();
+    providers.value = await getProviderAccountsApi();
   } catch {
     providers.value = [];
   }

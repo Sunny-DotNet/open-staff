@@ -8,43 +8,44 @@ export namespace SettingsApi {
     enableAutoSave: boolean;
   }
 
-  export interface ModelProvider {
+  /** 供应商账户 */
+  export interface ProviderAccount {
     id: string;
     name: string;
-    providerType: string;
-    baseUrl: string;
-    apiKeyMode: 'device' | 'env' | 'input';
-    apiKeyEnvVar: string;
-    hasApiKey: boolean;
-    defaultModel: string;
-    extraConfig: string | null;
+    protocolType: string;
     isEnabled: boolean;
-    isBuiltin: boolean;
+    envConfig?: Record<string, any>;
     createdAt: string;
     updatedAt: string;
   }
 
-  export interface CreateModelProviderParams {
+  export interface CreateProviderAccountParams {
     name: string;
-    providerType: string;
-    baseUrl?: string;
-    apiKeyMode?: string;
-    apiKeyEnvVar?: string;
-    apiKey?: string;
-    defaultModel?: string;
-    extraConfig?: string;
+    protocolType: string;
+    envConfig?: Record<string, any>;
     isEnabled?: boolean;
   }
 
-  export interface UpdateModelProviderParams {
+  export interface UpdateProviderAccountParams {
     name?: string;
-    baseUrl?: string;
-    apiKeyMode?: string;
-    apiKeyEnvVar?: string;
-    apiKey?: string;
-    defaultModel?: string;
-    extraConfig?: string;
+    envConfig?: Record<string, any>;
     isEnabled?: boolean;
+  }
+
+  /** 协议元数据 */
+  export interface ProtocolEnvField {
+    name: string;
+    displayName: string;
+    fieldType: string; // text, secret, boolean
+    defaultValue: any;
+    isRequired: boolean;
+  }
+
+  export interface ProtocolMetadata {
+    name: string;
+    providerName: string;
+    isVendor: boolean;
+    envSchema: ProtocolEnvField[];
   }
 
   export interface DeviceCodeResponse {
@@ -72,75 +73,93 @@ export namespace SettingsApi {
   }
 }
 
-/** 获取全局设置 */
+// ===== 全局设置 =====
+
 export async function getSettingsApi() {
   const resp = await requestClient.get('/settings');
   return (resp as any)?.data ?? resp;
 }
 
-/** 更新全局设置 */
 export async function updateSettingsApi(data: SettingsApi.GlobalSettings) {
   const resp = await requestClient.put('/settings', data);
   return (resp as any)?.data ?? resp;
 }
 
-/** 获取模型提供商列表 */
-export async function getModelProvidersApi(): Promise<
-  SettingsApi.ModelProvider[]
+// ===== 协议元数据 =====
+
+export async function getProtocolsApi(): Promise<
+  SettingsApi.ProtocolMetadata[]
 > {
-  const resp = await requestClient.get('/model-providers');
+  const resp = await requestClient.get('/protocols');
   return (resp as any)?.data ?? resp;
 }
 
-/** 创建模型提供商 */
-export async function createModelProviderApi(
-  data: SettingsApi.CreateModelProviderParams,
-): Promise<SettingsApi.ModelProvider> {
-  const resp = await requestClient.post('/model-providers', data);
+// ===== 供应商账户 =====
+
+export async function getProviderAccountsApi(): Promise<
+  SettingsApi.ProviderAccount[]
+> {
+  const resp = await requestClient.get('/provider-accounts');
   return (resp as any)?.data ?? resp;
 }
 
-/** 更新模型提供商 */
-export async function updateModelProviderApi(
+export async function getProviderAccountApi(
   id: string,
-  data: SettingsApi.UpdateModelProviderParams,
-): Promise<SettingsApi.ModelProvider> {
-  const resp = await requestClient.put(`/model-providers/${id}`, data);
+): Promise<SettingsApi.ProviderAccount> {
+  const resp = await requestClient.get(`/provider-accounts/${id}`);
   return (resp as any)?.data ?? resp;
 }
 
-/** 删除模型提供商 */
-export async function deleteModelProviderApi(id: string): Promise<void> {
-  await requestClient.delete(`/model-providers/${id}`);
+export async function createProviderAccountApi(
+  data: SettingsApi.CreateProviderAccountParams,
+): Promise<SettingsApi.ProviderAccount> {
+  const resp = await requestClient.post('/provider-accounts', data);
+  return (resp as any)?.data ?? resp;
 }
 
-/** 发起 GitHub 设备码授权 */
+export async function updateProviderAccountApi(
+  id: string,
+  data: SettingsApi.UpdateProviderAccountParams,
+): Promise<SettingsApi.ProviderAccount> {
+  const resp = await requestClient.put(`/provider-accounts/${id}`, data);
+  return (resp as any)?.data ?? resp;
+}
+
+export async function deleteProviderAccountApi(id: string): Promise<void> {
+  await requestClient.delete(`/provider-accounts/${id}`);
+}
+
+// ===== 设备码授权 =====
+
 export async function initiateDeviceAuthApi(
   id: string,
 ): Promise<SettingsApi.DeviceCodeResponse> {
-  const resp = await requestClient.post(`/model-providers/${id}/device-auth`);
-  return (resp as any)?.data ?? resp;
-}
-
-/** 轮询设备码授权状态 */
-export async function pollDeviceAuthApi(
-  id: string,
-): Promise<SettingsApi.DeviceAuthPollResult> {
   const resp = await requestClient.post(
-    `/model-providers/${id}/device-auth/poll`,
+    `/provider-accounts/${id}/device-auth`,
   );
   return (resp as any)?.data ?? resp;
 }
 
-/** 取消设备码授权 */
-export async function cancelDeviceAuthApi(id: string): Promise<void> {
-  await requestClient.delete(`/model-providers/${id}/device-auth`);
+export async function pollDeviceAuthApi(
+  id: string,
+): Promise<SettingsApi.DeviceAuthPollResult> {
+  const resp = await requestClient.post(
+    `/provider-accounts/${id}/device-auth/poll`,
+  );
+  return (resp as any)?.data ?? resp;
 }
 
-/** 获取供应商可用模型列表 */
+export async function cancelDeviceAuthApi(id: string): Promise<void> {
+  await requestClient.delete(`/provider-accounts/${id}/device-auth`);
+}
+
+// ===== 模型列表 =====
+
 export async function getProviderModelsApi(
   id: string,
 ): Promise<SettingsApi.ProviderModel[]> {
-  const resp = await requestClient.get(`/model-providers/${id}/models`);
+  const resp = await requestClient.get(`/provider-accounts/${id}/models`);
   return (resp as any)?.data ?? resp;
 }
+
+

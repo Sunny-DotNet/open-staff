@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { SettingsApi } from '#/api/openstaff/settings';
 
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -15,8 +15,6 @@ import {
   message,
   Modal,
   Popconfirm,
-  Radio,
-  RadioGroup,
   Select,
   Space,
   Switch,
@@ -27,97 +25,52 @@ import {
 
 import {
   cancelDeviceAuthApi,
-  createModelProviderApi,
-  deleteModelProviderApi,
-  getModelProvidersApi,
+  createProviderAccountApi,
+  deleteProviderAccountApi,
+  getProtocolsApi,
+  getProviderAccountsApi,
   initiateDeviceAuthApi,
   pollDeviceAuthApi,
-  updateModelProviderApi,
+  updateProviderAccountApi,
 } from '#/api/openstaff/settings';
 
-// 供应商类型定义
-const PROVIDER_TYPES = [
-  {
-    value: 'openai',
-    label: 'OpenAI',
-    icon: '🤖',
-    color: '#10a37f',
-    defaultBaseUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o',
-    defaultEnvVar: 'OPENAI_API_KEY',
-  },
-  {
-    value: 'google',
-    label: 'Google',
-    icon: '🔷',
-    color: '#4285f4',
-    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.0-flash',
-    defaultEnvVar: 'GOOGLE_API_KEY',
-  },
-  {
-    value: 'anthropic',
-    label: 'Anthropic',
-    icon: '🟠',
-    color: '#d97706',
-    defaultBaseUrl: 'https://api.anthropic.com/v1',
-    defaultModel: 'claude-sonnet-4-20250514',
-    defaultEnvVar: 'ANTHROPIC_API_KEY',
-  },
-  {
-    value: 'github_copilot',
-    label: 'GitHub Copilot',
-    icon: '🐙',
-    color: '#6e40c9',
-    defaultBaseUrl: 'https://api.githubcopilot.com',
-    defaultModel: 'gpt-4o',
-    defaultEnvVar: '',
-  },
-  {
-    value: 'azure_openai',
-    label: 'Azure OpenAI',
-    icon: '☁️',
-    color: '#0078d4',
-    defaultBaseUrl: '',
-    defaultModel: 'gpt-4o',
-    defaultEnvVar: 'AZURE_OPENAI_API_KEY',
-  },
-  {
-    value: 'generic_openai',
-    label: '通用 OpenAI 兼容',
-    icon: '🔌',
-    color: '#8c8c8c',
-    defaultBaseUrl: '',
-    defaultModel: '',
-    defaultEnvVar: '',
-  },
-];
+// 协议图标映射
+const PROTOCOL_ICONS: Record<string, { icon: string; color: string }> = {
+  openai: { icon: '🤖', color: '#10a37f' },
+  anthropic: { icon: '🟠', color: '#d97706' },
+  google: { icon: '🔷', color: '#4285f4' },
+  'github-copilot': { icon: '🐙', color: '#6e40c9' },
+  newapi: { icon: '🔌', color: '#1890ff' },
+};
 
-function getProviderTypeInfo(type: string) {
-  return PROVIDER_TYPES.find((t) => t.value === type);
+function getProtocolIcon(name: string) {
+  return PROTOCOL_ICONS[name] ?? { icon: '🔌', color: '#8c8c8c' };
 }
 
 // 状态
-const providers = ref<SettingsApi.ModelProvider[]>([]);
+const protocols = ref<SettingsApi.ProtocolMetadata[]>([]);
+const accounts = ref<SettingsApi.ProviderAccount[]>([]);
 const loading = ref(false);
 const showModal = ref(false);
-const editingProvider = ref<SettingsApi.ModelProvider | null>(null);
+const editingAccount = ref<SettingsApi.ProviderAccount | null>(null);
 const saving = ref(false);
 
-const form = reactive({
+// 表单
+const formState = reactive({
   name: '',
-  providerType: 'openai',
-  baseUrl: '',
-  apiKeyMode: 'input' as 'device' | 'env' | 'input',
-  apiKeyEnvVar: '',
-  apiKey: '',
-  defaultModel: '',
+  protocolType: '',
   isEnabled: true,
+  envConfig: {} as Record<string, any>,
 });
+
+// 当前选中协议的元数据
+const currentProtocol = computed(() =>
+  protocols.value.find((p) => p.name === formState.protocolType),
+);
 
 // 设备码授权
 const deviceAuth = reactive({
-  providerId: null as string | null,
+  accountId: null as string | null,
   userCode: '',
   verificationUri: '',
   expiresIn: 0,
@@ -129,145 +82,105 @@ let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 表格列
 const columns = [
-  {
-    title: '名称',
-    dataIndex: 'name',
-    key: 'name',
-    width: 200,
-  },
-  {
-    title: '类型',
-    dataIndex: 'providerType',
-    key: 'providerType',
-    width: 180,
-  },
-  {
-    title: 'API Base URL',
-    dataIndex: 'baseUrl',
-    key: 'baseUrl',
-    ellipsis: true,
-  },
-  {
-    title: '默认模型',
-    dataIndex: 'defaultModel',
-    key: 'defaultModel',
-    width: 200,
-  },
-  {
-    title: '认证方式',
-    dataIndex: 'apiKeyMode',
-    key: 'apiKeyMode',
-    width: 120,
-  },
-  {
-    title: '状态',
-    dataIndex: 'isEnabled',
-    key: 'isEnabled',
-    width: 100,
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 200,
-    fixed: 'right' as const,
-  },
+  { title: '名称', dataIndex: 'name', key: 'name', width: 200 },
+  { title: '协议', dataIndex: 'protocolType', key: 'protocolType', width: 180 },
+  { title: '状态', dataIndex: 'isEnabled', key: 'isEnabled', width: 100 },
+  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
+  { title: '操作', key: 'actions', width: 220, fixed: 'right' as const },
 ];
 
-const apiKeyModeLabels: Record<string, string> = {
-  input: '手动输入',
-  env: '环境变量',
-  device: '设备码授权',
-};
+function getProtocolLabel(name: string) {
+  const proto = protocols.value.find((p) => p.name === name);
+  return proto?.providerName ?? name;
+}
 
-async function fetchProviders() {
+async function fetchData() {
   loading.value = true;
   try {
-    providers.value = await getModelProvidersApi();
+    const [protocolList, accountList] = await Promise.all([
+      getProtocolsApi(),
+      getProviderAccountsApi(),
+    ]);
+    protocols.value = protocolList;
+    accounts.value = accountList;
   } catch {
-    providers.value = [];
+    protocols.value = [];
+    accounts.value = [];
   } finally {
     loading.value = false;
   }
 }
 
+function buildDefaultEnvConfig(proto: SettingsApi.ProtocolMetadata): Record<string, any> {
+  const config: Record<string, any> = {};
+  for (const field of proto.envSchema) {
+    config[field.name] = field.defaultValue ?? (field.fieldType === 'boolean' ? false : '');
+  }
+  return config;
+}
+
 function openCreateModal() {
-  editingProvider.value = null;
-  const defaultType = PROVIDER_TYPES[0]!;
-  Object.assign(form, {
-    name: '',
-    providerType: defaultType.value,
-    baseUrl: defaultType.defaultBaseUrl,
-    apiKeyMode: 'input',
-    apiKeyEnvVar: defaultType.defaultEnvVar,
-    apiKey: '',
-    defaultModel: defaultType.defaultModel,
-    isEnabled: true,
-  });
+  editingAccount.value = null;
+  const defaultProto = protocols.value[0];
+  formState.protocolType = defaultProto?.name ?? '';
+  formState.name = '';
+  formState.isEnabled = true;
+  formState.envConfig = defaultProto ? buildDefaultEnvConfig(defaultProto) : {};
   showModal.value = true;
 }
 
-function openEditModal(provider: SettingsApi.ModelProvider) {
-  editingProvider.value = provider;
-  Object.assign(form, {
-    name: provider.name,
-    providerType: provider.providerType,
-    baseUrl: provider.baseUrl || '',
-    apiKeyMode: provider.apiKeyMode,
-    apiKeyEnvVar: provider.apiKeyEnvVar || '',
-    apiKey: '',
-    defaultModel: provider.defaultModel || '',
-    isEnabled: provider.isEnabled,
-  });
+function openEditModal(account: SettingsApi.ProviderAccount) {
+  editingAccount.value = account;
+  formState.name = account.name;
+  formState.protocolType = account.protocolType;
+  formState.isEnabled = account.isEnabled;
+  // envConfig 从服务端获取的已包含非密钥字段
+  formState.envConfig = { ...(account.envConfig ?? {}) };
   showModal.value = true;
 }
 
-function onProviderTypeChange(type: string) {
-  const info = getProviderTypeInfo(type);
-  if (info && !editingProvider.value) {
-    form.baseUrl = info.defaultBaseUrl;
-    form.defaultModel = info.defaultModel;
-    form.apiKeyEnvVar = info.defaultEnvVar;
-    if (type === 'github_copilot') {
-      form.apiKeyMode = 'device';
-    } else {
-      form.apiKeyMode = 'input';
-    }
+function onProtocolTypeChange(name: string) {
+  const proto = protocols.value.find((p) => p.name === name);
+  if (proto && !editingAccount.value) {
+    formState.envConfig = buildDefaultEnvConfig(proto);
   }
 }
 
 async function handleSave() {
-  if (!form.name.trim()) {
+  if (!formState.name.trim()) {
     message.warning('请输入供应商名称');
     return;
   }
   saving.value = true;
   try {
-    if (editingProvider.value) {
-      await updateModelProviderApi(editingProvider.value.id, {
-        name: form.name,
-        baseUrl: form.baseUrl,
-        apiKeyMode: form.apiKeyMode,
-        apiKeyEnvVar: form.apiKeyMode === 'env' ? form.apiKeyEnvVar : undefined,
-        apiKey: form.apiKeyMode === 'input' && form.apiKey ? form.apiKey : undefined,
-        defaultModel: form.defaultModel,
-        isEnabled: form.isEnabled,
+    // 过滤空密码字段（编辑时留空表示不修改）
+    const envConfig = { ...formState.envConfig };
+    if (editingAccount.value) {
+      const proto = currentProtocol.value;
+      if (proto) {
+        for (const field of proto.envSchema) {
+          if (field.fieldType === 'secret' && !envConfig[field.name]) {
+            delete envConfig[field.name];
+          }
+        }
+      }
+      await updateProviderAccountApi(editingAccount.value.id, {
+        name: formState.name,
+        envConfig,
+        isEnabled: formState.isEnabled,
       });
       message.success('供应商已更新');
     } else {
-      await createModelProviderApi({
-        name: form.name,
-        providerType: form.providerType,
-        baseUrl: form.baseUrl,
-        apiKeyMode: form.apiKeyMode,
-        apiKeyEnvVar: form.apiKeyMode === 'env' ? form.apiKeyEnvVar : undefined,
-        apiKey: form.apiKeyMode === 'input' && form.apiKey ? form.apiKey : undefined,
-        defaultModel: form.defaultModel,
-        isEnabled: form.isEnabled,
+      await createProviderAccountApi({
+        name: formState.name,
+        protocolType: formState.protocolType,
+        envConfig,
+        isEnabled: formState.isEnabled,
       });
       message.success('供应商已创建');
     }
     showModal.value = false;
-    await fetchProviders();
+    await fetchData();
   } catch (e: any) {
     message.error('保存失败: ' + (e?.message || e));
   } finally {
@@ -277,30 +190,31 @@ async function handleSave() {
 
 async function handleDelete(id: string) {
   try {
-    await deleteModelProviderApi(id);
+    await deleteProviderAccountApi(id);
     message.success('供应商已删除');
-    await fetchProviders();
+    await fetchData();
   } catch (e: any) {
     message.error('删除失败: ' + (e?.message || e));
   }
 }
 
-async function handleToggleEnabled(provider: SettingsApi.ModelProvider) {
+async function handleToggleEnabled(account: SettingsApi.ProviderAccount) {
   try {
-    await updateModelProviderApi(provider.id, {
-      isEnabled: !provider.isEnabled,
+    await updateProviderAccountApi(account.id, {
+      isEnabled: !account.isEnabled,
     });
-    await fetchProviders();
+    await fetchData();
   } catch {
     message.error('操作失败');
   }
 }
 
-// 设备码授权
-async function startDeviceAuth(provider: SettingsApi.ModelProvider) {
+// ===== 设备码授权 =====
+
+async function startDeviceAuth(account: SettingsApi.ProviderAccount) {
   try {
     Object.assign(deviceAuth, {
-      providerId: provider.id,
+      accountId: account.id,
       userCode: '',
       verificationUri: '',
       expiresIn: 0,
@@ -309,7 +223,7 @@ async function startDeviceAuth(provider: SettingsApi.ModelProvider) {
       status: 'initiating',
     });
 
-    const result = await initiateDeviceAuthApi(provider.id);
+    const result = await initiateDeviceAuthApi(account.id);
     deviceAuth.userCode = result.userCode;
     deviceAuth.verificationUri = result.verificationUri;
     deviceAuth.expiresIn = result.expiresIn;
@@ -322,14 +236,14 @@ async function startDeviceAuth(provider: SettingsApi.ModelProvider) {
   } catch {
     message.error('无法发起设备码授权');
     deviceAuth.status = '';
-    deviceAuth.providerId = null;
+    deviceAuth.accountId = null;
   }
 }
 
 function startPolling() {
   stopPolling();
   const interval = (deviceAuth.interval || 5) * 1000;
-  pollTimer = setTimeout(pollDeviceAuth, interval);
+  pollTimer = setTimeout(doPollDeviceAuth, interval);
 }
 
 function stopPolling() {
@@ -340,15 +254,15 @@ function stopPolling() {
   deviceAuth.polling = false;
 }
 
-async function pollDeviceAuth() {
-  if (!deviceAuth.providerId) return;
+async function doPollDeviceAuth() {
+  if (!deviceAuth.accountId) return;
   try {
-    const result = await pollDeviceAuthApi(deviceAuth.providerId);
+    const result = await pollDeviceAuthApi(deviceAuth.accountId);
     if (result.status === 'success') {
       stopPolling();
       deviceAuth.status = 'success';
       message.success('GitHub 授权成功！');
-      await fetchProviders();
+      await fetchData();
     } else if (result.status === 'pending') {
       startPolling();
     } else {
@@ -363,17 +277,22 @@ async function pollDeviceAuth() {
 }
 
 async function cancelAuth() {
-  if (deviceAuth.providerId) {
+  if (deviceAuth.accountId) {
     try {
-      await cancelDeviceAuthApi(deviceAuth.providerId);
+      await cancelDeviceAuthApi(deviceAuth.accountId);
     } catch { /* ignore */ }
   }
   stopPolling();
   deviceAuth.status = '';
-  deviceAuth.providerId = null;
+  deviceAuth.accountId = null;
 }
 
-onMounted(fetchProviders);
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleString('zh-CN');
+}
+
+onMounted(fetchData);
 onUnmounted(stopPolling);
 </script>
 
@@ -387,40 +306,28 @@ onUnmounted(stopPolling);
 
     <Table
       :columns="columns"
-      :data-source="providers"
+      :data-source="accounts"
       :loading="loading"
       :pagination="false"
       row-key="id"
-      :scroll="{ x: 1100 }"
+      :scroll="{ x: 900 }"
     >
       <template #bodyCell="{ column, record }">
         <!-- 名称 -->
         <template v-if="column.key === 'name'">
           <Space>
             <span style="font-size: 18px">
-              {{ getProviderTypeInfo(record.providerType)?.icon || '🔌' }}
+              {{ getProtocolIcon(record.protocolType).icon }}
             </span>
             <span style="font-weight: 500">{{ record.name }}</span>
           </Space>
         </template>
 
-        <!-- 类型 -->
-        <template v-if="column.key === 'providerType'">
-          <Tag :color="getProviderTypeInfo(record.providerType)?.color || '#8c8c8c'">
-            {{ getProviderTypeInfo(record.providerType)?.label || record.providerType }}
+        <!-- 协议 -->
+        <template v-if="column.key === 'protocolType'">
+          <Tag :color="getProtocolIcon(record.protocolType).color">
+            {{ getProtocolLabel(record.protocolType) }}
           </Tag>
-        </template>
-
-        <!-- 认证方式 -->
-        <template v-if="column.key === 'apiKeyMode'">
-          <Space direction="vertical" :size="0">
-            <span>{{ apiKeyModeLabels[record.apiKeyMode] || record.apiKeyMode }}</span>
-            <Typography.Text v-if="record.apiKeyMode === 'env' && record.apiKeyEnvVar" type="secondary" style="font-size: 11px">
-              {{ record.apiKeyEnvVar }}
-            </Typography.Text>
-            <Badge v-if="record.hasApiKey" status="success" text="已配置" />
-            <Badge v-else status="warning" text="未配置" />
-          </Space>
         </template>
 
         <!-- 状态 -->
@@ -433,6 +340,13 @@ onUnmounted(stopPolling);
           />
         </template>
 
+        <!-- 创建时间 -->
+        <template v-if="column.key === 'createdAt'">
+          <Typography.Text type="secondary" style="font-size: 12px">
+            {{ formatDate(record.createdAt) }}
+          </Typography.Text>
+        </template>
+
         <!-- 操作 -->
         <template v-if="column.key === 'actions'">
           <Space>
@@ -440,11 +354,11 @@ onUnmounted(stopPolling);
               编辑
             </Button>
             <Button
-              v-if="record.providerType === 'github_copilot'"
+              v-if="record.protocolType === 'github-copilot'"
               size="small"
               type="link"
               @click="startDeviceAuth(record)"
-              :disabled="deviceAuth.providerId === record.id && deviceAuth.polling"
+              :disabled="deviceAuth.accountId === record.id && deviceAuth.polling"
             >
               🐙 授权
             </Button>
@@ -475,7 +389,7 @@ onUnmounted(stopPolling);
       </template>
     </Table>
 
-    <!-- 设备码授权提示 -->
+    <!-- 设备码授权 Modal -->
     <Modal
       :open="deviceAuth.status === 'waiting'"
       title="GitHub 设备码授权"
@@ -486,7 +400,7 @@ onUnmounted(stopPolling);
         <Typography.Title :level="4">
           请在 GitHub 中输入以下代码：
         </Typography.Title>
-        <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: hsl(var(--accent)); border-radius: 8px; margin: 16px 0">
+        <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: var(--ant-color-fill-secondary, #f5f5f5); border-radius: 8px; margin: 16px 0">
           {{ deviceAuth.userCode }}
         </div>
         <Typography.Text type="secondary">
@@ -511,90 +425,78 @@ onUnmounted(stopPolling);
     <!-- 新建/编辑 Modal -->
     <Modal
       v-model:open="showModal"
-      :title="editingProvider ? '编辑供应商' : '添加供应商'"
+      :title="editingAccount ? '编辑供应商' : '添加供应商'"
       :confirm-loading="saving"
       @ok="handleSave"
-      :okText="editingProvider ? '保存' : '创建'"
+      :okText="editingAccount ? '保存' : '创建'"
       cancelText="取消"
       :width="560"
     >
       <Form layout="vertical" style="margin-top: 16px">
-        <FormItem label="供应商类型" required>
+        <!-- 协议类型 -->
+        <FormItem label="供应商协议" required>
           <Select
-            v-model:value="form.providerType"
-            :disabled="!!editingProvider"
-            @change="onProviderTypeChange"
+            v-model:value="formState.protocolType"
+            :disabled="!!editingAccount"
+            @change="onProtocolTypeChange"
+            placeholder="选择协议类型"
           >
             <Select.Option
-              v-for="pt in PROVIDER_TYPES"
-              :key="pt.value"
-              :value="pt.value"
+              v-for="proto in protocols"
+              :key="proto.name"
+              :value="proto.name"
             >
               <Space>
-                <span>{{ pt.icon }}</span>
-                <span>{{ pt.label }}</span>
+                <span>{{ getProtocolIcon(proto.name).icon }}</span>
+                <span>{{ proto.providerName }}</span>
+                <Tag v-if="proto.isVendor" style="font-size: 10px; margin-left: 4px">厂商</Tag>
               </Space>
             </Select.Option>
           </Select>
         </FormItem>
 
+        <!-- 名称 -->
         <FormItem label="名称" required>
           <Input
-            v-model:value="form.name"
+            v-model:value="formState.name"
             placeholder="例如：我的 OpenAI 账户"
           />
         </FormItem>
 
-        <FormItem label="API Base URL">
-          <Input
-            v-model:value="form.baseUrl"
-            placeholder="https://api.openai.com/v1"
-          />
-        </FormItem>
+        <!-- 动态 EnvConfig 字段 -->
+        <template v-if="currentProtocol">
+          <FormItem
+            v-for="field in currentProtocol.envSchema"
+            :key="field.name"
+            :label="field.displayName"
+            :required="field.isRequired"
+          >
+            <!-- boolean 字段 -->
+            <Switch
+              v-if="field.fieldType === 'boolean'"
+              v-model:checked="formState.envConfig[field.name]"
+            />
 
-        <FormItem label="默认模型">
-          <Input
-            v-model:value="form.defaultModel"
-            placeholder="gpt-4o"
-          />
-        </FormItem>
+            <!-- secret 字段 -->
+            <InputPassword
+              v-else-if="field.fieldType === 'secret'"
+              v-model:value="formState.envConfig[field.name]"
+              :placeholder="editingAccount ? '留空保持不变' : `输入 ${field.displayName}`"
+            />
 
-        <FormItem label="认证方式">
-          <RadioGroup v-model:value="form.apiKeyMode">
-            <Radio value="input">手动输入 API Key</Radio>
-            <Radio value="env">环境变量</Radio>
-            <Radio
-              v-if="form.providerType === 'github_copilot'"
-              value="device"
-            >
-              GitHub 设备码授权
-            </Radio>
-          </RadioGroup>
-        </FormItem>
+            <!-- 普通 text 字段 -->
+            <Input
+              v-else
+              v-model:value="formState.envConfig[field.name]"
+              :placeholder="field.defaultValue ? String(field.defaultValue) : `输入 ${field.displayName}`"
+            />
+          </FormItem>
+        </template>
 
-        <FormItem v-if="form.apiKeyMode === 'input'" label="API Key">
-          <InputPassword
-            v-model:value="form.apiKey"
-            :placeholder="editingProvider?.hasApiKey ? '留空保持不变' : '输入 API Key'"
-          />
-        </FormItem>
-
-        <FormItem v-if="form.apiKeyMode === 'env'" label="环境变量名">
-          <Input
-            v-model:value="form.apiKeyEnvVar"
-            placeholder="OPENAI_API_KEY"
-          />
-        </FormItem>
-
-        <FormItem v-if="form.apiKeyMode === 'device'">
-          <Typography.Text type="secondary">
-            保存后，点击表格中的「🐙 授权」按钮进行 GitHub 设备码授权。
-          </Typography.Text>
-        </FormItem>
-
+        <!-- 启用开关 -->
         <FormItem label="启用">
           <Switch
-            v-model:checked="form.isEnabled"
+            v-model:checked="formState.isEnabled"
             checked-children="启用"
             un-checked-children="禁用"
           />

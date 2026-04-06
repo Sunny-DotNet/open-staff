@@ -44,7 +44,7 @@ import {
 } from '#/api/openstaff/agent';
 import { useNotification } from '#/composables/useNotification';
 import {
-  getModelProvidersApi,
+  getProviderAccountsApi,
   getProviderModelsApi,
 } from '#/api/openstaff/settings';
 
@@ -87,7 +87,7 @@ const ATTITUDE_OPTIONS = ['追求完美', '高效优先', '注重细节', '创�
 
 // ===== 状态 =====
 const roles = ref<AgentApi.AgentRole[]>([]);
-const providers = ref<SettingsApi.ModelProvider[]>([]);
+const providers = ref<SettingsApi.ProviderAccount[]>([]);
 const loadingRoles = ref(false);
 const saving = ref(false);
 
@@ -165,7 +165,7 @@ onMounted(async () => {
   try {
     const [rolesData, providersData] = await Promise.all([
       getAgentRolesApi(),
-      getModelProvidersApi(),
+      getProviderAccountsApi(),
     ]);
     roles.value = rolesData;
     providers.value = providersData;

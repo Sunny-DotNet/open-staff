@@ -5,15 +5,15 @@ import { ref } from 'vue';
 import { defineStore } from 'pinia';
 
 import {
-  getModelProvidersApi,
+  getProviderAccountsApi,
   getSettingsApi,
-  updateModelProviderApi,
+  updateProviderAccountApi,
   updateSettingsApi,
 } from '#/api/openstaff/settings';
 
 export const useSettingsStore = defineStore('openstaff-settings', () => {
   const settings = ref<SettingsApi.GlobalSettings | null>(null);
-  const modelProviders = ref<SettingsApi.ModelProvider[]>([]);
+  const providerAccounts = ref<SettingsApi.ProviderAccount[]>([]);
   const loading = ref(false);
 
   async function fetchSettings() {
@@ -34,40 +34,40 @@ export const useSettingsStore = defineStore('openstaff-settings', () => {
     }
   }
 
-  async function fetchModelProviders() {
+  async function fetchProviderAccounts() {
     try {
-      modelProviders.value = await getModelProvidersApi();
+      providerAccounts.value = await getProviderAccountsApi();
     } catch {
       // Silently fail
     }
   }
 
-  async function updateProvider(
+  async function updateProviderAccount(
     id: string,
-    data: SettingsApi.UpdateModelProviderParams,
+    data: SettingsApi.UpdateProviderAccountParams,
   ) {
-    const updated = await updateModelProviderApi(id, data);
-    const idx = modelProviders.value.findIndex((p) => p.id === id);
+    const updated = await updateProviderAccountApi(id, data);
+    const idx = providerAccounts.value.findIndex((p) => p.id === id);
     if (idx >= 0 && updated) {
-      modelProviders.value[idx] = updated;
+      providerAccounts.value[idx] = updated;
     }
     return updated;
   }
 
   function $reset() {
     settings.value = null;
-    modelProviders.value = [];
+    providerAccounts.value = [];
     loading.value = false;
   }
 
   return {
     $reset,
-    fetchModelProviders,
+    fetchProviderAccounts,
     fetchSettings,
     loading,
-    modelProviders,
+    providerAccounts,
     saveSettings,
     settings,
-    updateProvider,
+    updateProviderAccount,
   };
 });
