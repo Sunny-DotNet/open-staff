@@ -4,6 +4,7 @@ using OpenStaff.Provider.Models;
 using OpenStaff.Provider.Options;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenStaff.Provider.Protocols;
 
@@ -109,7 +110,11 @@ internal class ProtocolFactory : IProtocolFactory
             if (envType == null) return tempProtocol;
 
             var env = (ProtocolEnvBase?)JsonSerializer.Deserialize(envConfigJson, envType,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new LenientBoolConverter() }
+                });
             if (env == null) return tempProtocol;
 
             // 调用 Initialize(env) 通过反射
@@ -186,5 +191,26 @@ internal class ProtocolFactory : IProtocolFactory
 
         return "string";
     }
+}
+
+/// <summary>
+/// 宽松的 bool 转换器，支持 "true"/"false" 字符串
+/// </summary>
+internal class LenientBoolConverter : JsonConverter<bool>
+{
+    public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.True => true,
+            JsonTokenType.False => false,
+            JsonTokenType.String => bool.TryParse(reader.GetString(), out var b) && b,
+            JsonTokenType.Number => reader.GetInt32() != 0,
+            _ => false
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options)
+        => writer.WriteBooleanValue(value);
 }
 
