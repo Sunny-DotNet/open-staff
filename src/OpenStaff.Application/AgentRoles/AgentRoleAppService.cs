@@ -21,6 +21,7 @@ public class AgentRoleAppService : IAgentRoleAppService
     private readonly ChatClientFactory _chatClientFactory;
     private readonly IProviderResolver _providerResolver;
     private readonly SessionStreamManager _streamManager;
+    private readonly McpServers.McpClientManager _mcpClientManager;
 
     public AgentRoleAppService(
         AppDbContext db,
@@ -28,7 +29,8 @@ public class AgentRoleAppService : IAgentRoleAppService
         AgentFactory agentFactory,
         ChatClientFactory chatClientFactory,
         IProviderResolver providerResolver,
-        SessionStreamManager streamManager)
+        SessionStreamManager streamManager,
+        McpServers.McpClientManager mcpClientManager)
     {
         _db = db;
         _accountService = accountService;
@@ -36,6 +38,7 @@ public class AgentRoleAppService : IAgentRoleAppService
         _chatClientFactory = chatClientFactory;
         _providerResolver = providerResolver;
         _streamManager = streamManager;
+        _mcpClientManager = mcpClientManager;
     }
 
     public async Task<List<AgentRoleDto>> GetAllAsync(CancellationToken ct)
@@ -235,6 +238,35 @@ public class AgentRoleAppService : IAgentRoleAppService
                 var chatClient = _chatClientFactory.Create(
                     account.ProtocolType, apiKey, modelName, endpointOverride);
 
+                // 加载 MCP 工具
+                var mcpTools = new List<AITool>();
+                var mcpBindings = await _db.AgentRoleMcpConfigs
+                    .Include(b => b.McpServerConfig)
+                    .Where(b => b.AgentRoleId == id && b.McpServerConfig!.IsEnabled)
+                    .ToListAsync(ct);
+
+                foreach (var binding in mcpBindings)
+                {
+                    try
+                    {
+                        var tools = await _mcpClientManager.ListToolsAsync(binding.McpServerConfig!, ct);
+                        if (!string.IsNullOrEmpty(binding.ToolFilter))
+                        {
+                            var filter = JsonSerializer.Deserialize<string[]>(binding.ToolFilter);
+                            if (filter?.Length > 0)
+                                tools = tools.Where(t => filter.Contains(t.Name)).ToList();
+                        }
+                        mcpTools.AddRange(tools);
+                    }
+                    catch (Exception ex)
+                    {
+                        stream.Push(SessionEventTypes.Error,
+                            payload: JsonSerializer.Serialize(new { error = $"MCP 工具加载失败 ({binding.McpServerConfig!.Name}): {ex.Message}" }));
+                    }
+                }
+
+                var chatOptions = mcpTools.Count > 0 ? new ChatOptions { Tools = mcpTools } : null;
+
                 var chatMessages = new List<Microsoft.Extensions.AI.ChatMessage>();
                 if (!string.IsNullOrEmpty(systemPrompt))
                     chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt));
@@ -248,7 +280,7 @@ public class AgentRoleAppService : IAgentRoleAppService
                 long? firstTokenMs = null;
 
                 await foreach (var update in chatClient.GetStreamingResponseAsync(
-                    (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages))
+                    (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages, chatOptions))
                 {
                     // 思考内容 (TextReasoningContent)
                     foreach (var thinking in update.Contents.OfType<TextReasoningContent>())

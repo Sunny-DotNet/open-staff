@@ -27,6 +27,7 @@
     <!-- Git -->
     <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
     <!-- Reactive Extensions -->
+    <PackageVersion Include="ModelContextProtocol" Version="1.2.0" />
     <PackageVersion Include="System.Reactive" Version="6.0.1" />
     <!-- API Documentation -->
     <PackageVersion Include="Scalar.AspNetCore" Version="2.4.18" />

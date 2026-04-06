@@ -68,6 +68,9 @@ public class OpenStaffApplicationModule : OpenStaffModule
         services.AddSingleton<SessionStreamManager>();
         services.AddSingleton<SessionRunner>();
 
+        // MCP Client 管理
+        services.AddSingleton<McpClientManager>();
+
         // 应用服务 (Scoped)
         services.AddScoped<ProjectService>();
         services.AddScoped<AgentService>();

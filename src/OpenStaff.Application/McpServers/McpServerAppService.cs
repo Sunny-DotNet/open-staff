@@ -11,11 +11,13 @@ public class McpServerAppService : IMcpServerAppService
 {
     private readonly AppDbContext _db;
     private readonly EncryptionService _encryption;
+    private readonly McpClientManager _mcpClientManager;
 
-    public McpServerAppService(AppDbContext db, EncryptionService encryption)
+    public McpServerAppService(AppDbContext db, EncryptionService encryption, McpClientManager mcpClientManager)
     {
         _db = db;
         _encryption = encryption;
+        _mcpClientManager = mcpClientManager;
     }
 
     #region MCP Server 定义
@@ -202,16 +204,37 @@ public class McpServerAppService : IMcpServerAppService
 
     #endregion
 
-    #region 测试连接（占位，Phase 2 实现）
+    #region 测试连接
 
-    public Task<TestMcpConnectionResult> TestConnectionAsync(Guid configId, CancellationToken ct = default)
+    public async Task<TestMcpConnectionResult> TestConnectionAsync(Guid configId, CancellationToken ct = default)
     {
-        // Phase 2: 使用 McpClientManager 实际连接并列出工具
-        return Task.FromResult(new TestMcpConnectionResult
+        var config = await _db.McpServerConfigs.FirstOrDefaultAsync(x => x.Id == configId, ct);
+        if (config == null)
+            return new TestMcpConnectionResult { Success = false, Message = "配置不存在" };
+
+        try
         {
-            Success = false,
-            Message = "测试连接功能将在 MCP Client 运行时完成后启用"
-        });
+            var tools = await _mcpClientManager.ListToolsAsync(config, ct);
+            return new TestMcpConnectionResult
+            {
+                Success = true,
+                Message = $"连接成功，发现 {tools.Count} 个工具",
+                Tools = tools.Select(t => new McpToolDto
+                {
+                    Name = t.Name,
+                    Description = t.Description,
+                    InputSchema = t.JsonSchema.ToString()
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            return new TestMcpConnectionResult
+            {
+                Success = false,
+                Message = $"连接失败: {ex.Message}"
+            };
+        }
     }
 
     #endregion
