@@ -24,7 +24,7 @@ import {
   getAgentRoleApi,
   testAgentChatApi,
 } from '#/api/openstaff/agent';
-import { getMcpConfigsApi } from '#/api/openstaff/mcp';
+import { getAgentMcpBindingsApi, getMcpConfigsApi } from '#/api/openstaff/mcp';
 import {
   getProviderAccountsApi,
   getProviderModelsApi,
@@ -139,6 +139,14 @@ async function loadRoleConfig() {
     // Load models for selected provider
     if (configForm.value.modelProviderId) {
       await loadModels(configForm.value.modelProviderId);
+    }
+
+    // Load bound MCP configs
+    try {
+      const bindings = await getAgentMcpBindingsApi(props.roleId);
+      selectedMcpConfigIds.value = bindings.map((b) => b.mcpServerConfigId);
+    } catch {
+      selectedMcpConfigIds.value = [];
     }
   } catch {
     // ignore - use defaults
