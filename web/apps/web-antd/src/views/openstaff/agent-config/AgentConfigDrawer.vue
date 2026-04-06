@@ -23,10 +23,18 @@ import {
   Spin,
   Tag,
   Typography,
+  message,
 } from 'ant-design-vue';
 
 import { getRoleIcon } from '#/constants/agent';
 import { useProviderModels } from '#/composables/useProviderModels';
+import {
+  getAgentMcpBindingsApi,
+  getMcpConfigsApi,
+  createAgentMcpBindingApi,
+  deleteAgentMcpBindingApi,
+} from '#/api/openstaff/mcp';
+import type { McpApi } from '#/api/openstaff/mcp';
 import SoulConfigSection from './SoulConfigSection.vue';
 
 interface SoulConfig {
@@ -85,8 +93,10 @@ watch(
   (val) => {
     if (val && props.mode === 'edit' && props.editingRole) {
       loadRoleToForm(props.editingRole);
+      loadMcpData(props.editingRole.id);
     } else if (val && props.mode === 'create') {
       editForm.value = { ...DEFAULT_FORM, soul: { ...DEFAULT_FORM.soul } };
+      mcpBindings.value = [];
     }
   },
 );
@@ -126,6 +136,68 @@ function filterModelOption(input: string, option: any) {
 
 function handleSave() {
   emit('save', editForm.value);
+}
+
+// ===== MCP 绑定 =====
+const mcpBindings = ref<McpApi.AgentMcpBinding[]>([]);
+const allMcpConfigs = ref<McpApi.McpServerConfig[]>([]);
+const loadingMcpBindings = ref(false);
+const selectedMcpConfigId = ref<string | undefined>(undefined);
+
+const availableMcpConfigs = computed(() => {
+  const boundIds = new Set(mcpBindings.value.map((b) => b.mcpServerConfigId));
+  return allMcpConfigs.value.filter((c) => c.isEnabled && !boundIds.has(c.id));
+});
+
+function filterMcpOption(input: string, option: any) {
+  const search = input.toLowerCase();
+  const val = (option?.children?.[0]?.children || '').toString().toLowerCase();
+  return val.includes(search);
+}
+
+async function loadMcpData(roleId: string) {
+  loadingMcpBindings.value = true;
+  try {
+    const [bindings, configs] = await Promise.all([
+      getAgentMcpBindingsApi(roleId),
+      getMcpConfigsApi(),
+    ]);
+    mcpBindings.value = bindings;
+    allMcpConfigs.value = configs;
+  } catch {
+    mcpBindings.value = [];
+    allMcpConfigs.value = [];
+  } finally {
+    loadingMcpBindings.value = false;
+  }
+}
+
+async function addMcpBinding() {
+  if (!selectedMcpConfigId.value || !props.editingRole) return;
+  try {
+    await createAgentMcpBindingApi({
+      agentRoleId: props.editingRole.id,
+      mcpServerConfigId: selectedMcpConfigId.value,
+    });
+    selectedMcpConfigId.value = undefined;
+    await loadMcpData(props.editingRole.id);
+    message.success('MCP 工具已绑定');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    message.error('绑定失败: ' + msg);
+  }
+}
+
+async function removeMcpBinding(configId: string) {
+  if (!props.editingRole) return;
+  try {
+    await deleteAgentMcpBindingApi(props.editingRole.id, configId);
+    await loadMcpData(props.editingRole.id);
+    message.success('已移除');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    message.error('移除失败: ' + msg);
+  }
 }
 </script>
 
@@ -251,7 +323,7 @@ function handleSave() {
 
     <!-- 工具配置区 -->
     <Collapse :bordered="false" style="background: transparent">
-      <CollapsePanel key="tools" header="🔧 工具配置">
+      <CollapsePanel key="tools" header="🔧 内置工具">
         <div v-if="editForm.tools.length > 0">
           <Space wrap>
             <Tag
@@ -266,6 +338,65 @@ function handleSave() {
         <Typography.Text v-else type="secondary">
           暂无已配置的工具
         </Typography.Text>
+      </CollapsePanel>
+
+      <CollapsePanel key="mcp" header="🧩 MCP 工具">
+        <Spin :spinning="loadingMcpBindings">
+          <div v-if="mcpBindings.length > 0" style="margin-bottom: 8px">
+            <div
+              v-for="binding in mcpBindings"
+              :key="binding.mcpServerConfigId"
+              style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; margin-bottom: 4px; background: var(--ant-color-bg-container-disabled); border-radius: 6px"
+            >
+              <Space>
+                <Tag color="cyan">{{ binding.serverName }}</Tag>
+                <span style="font-size: 13px">{{ binding.configName }}</span>
+              </Space>
+              <Button
+                type="text"
+                size="small"
+                danger
+                @click="removeMcpBinding(binding.mcpServerConfigId)"
+              >
+                移除
+              </Button>
+            </div>
+          </div>
+          <Typography.Text v-else type="secondary" style="display: block; margin-bottom: 8px">
+            暂未绑定 MCP 工具
+          </Typography.Text>
+
+          <!-- 添加 MCP 绑定 -->
+          <Space v-if="mode === 'edit' && editingRole">
+            <Select
+              v-model:value="selectedMcpConfigId"
+              placeholder="选择 MCP 配置"
+              style="width: 260px"
+              allow-clear
+              show-search
+              :filter-option="filterMcpOption"
+            >
+              <SelectOption
+                v-for="cfg in availableMcpConfigs"
+                :key="cfg.id"
+                :value="cfg.id"
+              >
+                {{ cfg.serverName }} - {{ cfg.name }}
+              </SelectOption>
+            </Select>
+            <Button
+              type="dashed"
+              size="small"
+              :disabled="!selectedMcpConfigId"
+              @click="addMcpBinding"
+            >
+              ＋ 添加
+            </Button>
+          </Space>
+          <Typography.Text v-else type="secondary" style="display: block; font-size: 12px">
+            保存员工后可绑定 MCP 工具
+          </Typography.Text>
+        </Spin>
       </CollapsePanel>
     </Collapse>
 
