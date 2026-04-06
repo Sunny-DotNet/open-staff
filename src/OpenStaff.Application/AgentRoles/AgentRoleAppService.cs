@@ -236,6 +236,10 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         _ = Task.Run(async () =>
         {
+            // Task.Run 脱离了 HTTP 请求生命周期，不能使用原始 ct（已被取消）
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            var bgCt = cts.Token;
+
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
@@ -250,7 +254,7 @@ public class AgentRoleAppService : IAgentRoleAppService
                 {
                     try
                     {
-                        var tools = await _mcpClientManager.ListToolsAsync(binding.McpServerConfig!, ct);
+                        var tools = await _mcpClientManager.ListToolsAsync(binding.McpServerConfig!, bgCt);
                         if (!string.IsNullOrEmpty(binding.ToolFilter))
                         {
                             var filter = JsonSerializer.Deserialize<string[]>(binding.ToolFilter);
