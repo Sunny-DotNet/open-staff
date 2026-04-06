@@ -349,7 +349,8 @@ public class AgentRoleAppService : IAgentRoleAppService
                             var tool = mcpTools.FirstOrDefault(t => t.Name == toolCall.Name);
                             if (tool is AIFunction aiFunc)
                             {
-                                var result = await aiFunc.InvokeAsync(toolCall.Arguments, bgCt);
+                                var result = await aiFunc.InvokeAsync(
+                                    toolCall.Arguments != null ? new AIFunctionArguments(toolCall.Arguments) : null, bgCt);
                                 var resultStr = result?.ToString() ?? "";
                                 toolResultContents.Add(new FunctionResultContent(toolCall.CallId, resultStr));
                                 stream.Push(SessionEventTypes.ToolResult,
