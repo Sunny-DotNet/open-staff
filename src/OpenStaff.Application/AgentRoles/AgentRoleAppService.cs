@@ -82,9 +82,13 @@ public class AgentRoleAppService : IAgentRoleAppService
             ModelProviderId = string.IsNullOrEmpty(input.ModelProviderId) ? null : Guid.Parse(input.ModelProviderId),
             ModelName = input.ModelName,
             Config = input.Config,
+            Soul = MapSoulFromDto(input.Soul),
             IsBuiltin = false,
             IsActive = true
         };
+
+        // 为非内置角色自动合成 SystemPrompt
+        role.SystemPrompt = BuildSystemPrompt(role);
 
         _db.AgentRoles.Add(role);
         await _db.SaveChangesAsync(ct);
@@ -105,62 +109,22 @@ public class AgentRoleAppService : IAgentRoleAppService
             }
             if (input.ModelName != null) role.ModelName = input.ModelName;
             if (input.Config != null) role.Config = input.Config;
+            if (input.Soul != null) role.Soul = MapSoulFromDto(input.Soul);
         }
         else
         {
-            var stringBuilder = new StringBuilder();
-            stringBuilder.AppendLine("以下是你的身份信息");
-
-            if (input.Name != null)
-            {
-                role.Name = input.Name;
-                stringBuilder.AppendLine($"名称:```{role.Name}```");
-            }
-            if (input.Description != null)
-            {
-                role.Description = input.Description;
-                stringBuilder.AppendLine($"职务说明:```{role.Description}```");
-            }
+            if (input.Name != null) role.Name = input.Name;
+            if (input.Description != null) role.Description = input.Description;
             if (!string.IsNullOrEmpty(input.ModelProviderId))
             {
                 var providerId = Guid.Parse(input.ModelProviderId);
                 role.ModelProviderId = providerId == Guid.Empty ? null : providerId;
             }
             if (input.ModelName != null) role.ModelName = input.ModelName;
+            if (input.Config != null) role.Config = input.Config;
+            if (input.Soul != null) role.Soul = MapSoulFromDto(input.Soul);
 
-            if (!string.IsNullOrEmpty(input.Config))
-            {
-                try
-                {
-                    role.Config = input.Config;
-                    using var doc = JsonDocument.Parse(input.Config);
-                    var root = doc.RootElement;
-
-                    if (root.TryGetProperty("soul", out var soul))
-                    {
-                        if (soul.TryGetProperty("traits", out var traits) && traits.ValueKind == JsonValueKind.Array)
-                        {
-                            var traitString = string.Join(',', traits.EnumerateArray().Select(x => $"```{x.GetString()}```"));
-                            stringBuilder.AppendLine($"性格特征:{traitString}");
-                        }
-                        if (soul.TryGetProperty("style", out var style) && style.ValueKind == JsonValueKind.String)
-                        {
-                            stringBuilder.AppendLine($"沟通风格:```{style}```");
-                        }
-                        if (soul.TryGetProperty("attitudes", out var attitudes) && attitudes.ValueKind == JsonValueKind.Array)
-                        {
-                            var attitudeString = string.Join(',', attitudes.EnumerateArray().Select(x => $"```{x.GetString()}```"));
-                            stringBuilder.AppendLine($"工作态度:{attitudeString}");
-                        }
-                        if (soul.TryGetProperty("custom", out var custom) && custom.ValueKind == JsonValueKind.String)
-                        {
-                            stringBuilder.AppendLine($"其它补充:```{custom}```");
-                        }
-                    }
-                }
-                catch { /* ignore parse errors */ }
-            }
-            role.SystemPrompt = stringBuilder.ToString();
+            role.SystemPrompt = BuildSystemPrompt(role);
         }
 
         role.UpdatedAt = DateTime.UtcNow;
@@ -462,6 +426,50 @@ public class AgentRoleAppService : IAgentRoleAppService
         ModelName = role.ModelName,
         IsBuiltin = role.IsBuiltin,
         Config = role.Config,
+        Soul = role.Soul != null ? new AgentSoulDto
+        {
+            Traits = role.Soul.Traits,
+            Style = role.Soul.Style,
+            Attitudes = role.Soul.Attitudes,
+            Custom = role.Soul.Custom
+        } : null,
         CreatedAt = role.CreatedAt
     };
+
+    private static Core.Models.AgentSoul? MapSoulFromDto(AgentSoulDto? dto)
+    {
+        if (dto == null) return null;
+        return new Core.Models.AgentSoul
+        {
+            Traits = dto.Traits ?? [],
+            Style = dto.Style,
+            Attitudes = dto.Attitudes ?? [],
+            Custom = dto.Custom
+        };
+    }
+
+    private static string BuildSystemPrompt(AgentRole role)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("以下是你的身份信息");
+
+        if (!string.IsNullOrEmpty(role.Name))
+            sb.AppendLine($"名称:```{role.Name}```");
+        if (!string.IsNullOrEmpty(role.Description))
+            sb.AppendLine($"职务说明:```{role.Description}```");
+
+        if (role.Soul != null)
+        {
+            if (role.Soul.Traits.Count > 0)
+                sb.AppendLine($"性格特征:{string.Join(',', role.Soul.Traits.Select(t => $"```{t}```"))}");
+            if (!string.IsNullOrEmpty(role.Soul.Style))
+                sb.AppendLine($"沟通风格:```{role.Soul.Style}```");
+            if (role.Soul.Attitudes.Count > 0)
+                sb.AppendLine($"工作态度:{string.Join(',', role.Soul.Attitudes.Select(a => $"```{a}```"))}");
+            if (!string.IsNullOrEmpty(role.Soul.Custom))
+                sb.AppendLine($"其它补充:```{role.Soul.Custom}```");
+        }
+
+        return sb.ToString();
+    }
 }

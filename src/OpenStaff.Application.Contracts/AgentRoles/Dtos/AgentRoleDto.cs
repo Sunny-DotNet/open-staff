@@ -12,7 +12,16 @@ public class AgentRoleDto
     public string? ModelProviderName { get; set; }
     public string? ModelName { get; set; }
     public string? Config { get; set; }
+    public AgentSoulDto? Soul { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public class AgentSoulDto
+{
+    public List<string> Traits { get; set; } = [];
+    public string? Style { get; set; }
+    public List<string> Attitudes { get; set; } = [];
+    public string? Custom { get; set; }
 }
 
 public class CreateAgentRoleInput
@@ -24,6 +33,7 @@ public class CreateAgentRoleInput
     public string? ModelProviderId { get; set; }
     public string? ModelName { get; set; }
     public string? Config { get; set; }
+    public AgentSoulDto? Soul { get; set; }
 }
 
 public class UpdateAgentRoleInput
@@ -34,6 +44,7 @@ public class UpdateAgentRoleInput
     public string? ModelProviderId { get; set; }
     public string? ModelName { get; set; }
     public string? Config { get; set; }
+    public AgentSoulDto? Soul { get; set; }
 }
 
 public class TestChatRequest

@@ -46,13 +46,6 @@ import { useNotification } from '#/composables/useNotification';
 
 import SoulConfigSection from './SoulConfigSection.vue';
 
-interface SoulConfig {
-  attitudes?: string[];
-  custom?: string;
-  style?: string;
-  traits?: string[];
-}
-
 interface ChatMessage {
   content: string;
   role: 'assistant' | 'user';
@@ -106,7 +99,7 @@ const configForm = ref({
   temperature: 0.7,
   maxTokens: 4096,
   tools: [] as string[],
-  soul: { traits: [], style: '', attitudes: [], custom: '' } as SoulConfig,
+  soul: { traits: [], style: '', attitudes: [], custom: '' } as AgentApi.AgentSoul,
 });
 
 const selectedProviderId = computed(() => configForm.value.modelProviderId);
@@ -173,7 +166,7 @@ async function loadRoleConfig() {
   if (!props.roleId) return;
   try {
     const role = await getAgentRoleApi(props.roleId);
-    const config = role.config ? (() => { try { return JSON.parse(role.config!) as AgentApi.AgentRoleConfig & { soul?: SoulConfig }; } catch { return {}; } })() : {};
+    const config = role.config ? (() => { try { return JSON.parse(role.config!) as AgentApi.AgentRoleConfig; } catch { return {} as AgentApi.AgentRoleConfig; } })() : {} as AgentApi.AgentRoleConfig;
 
     configForm.value = {
       name: role.name || '',
@@ -181,14 +174,14 @@ async function loadRoleConfig() {
       systemPrompt: role.systemPrompt || '',
       modelProviderId: role.modelProviderId || '',
       modelName: role.modelName || '',
-      temperature: (config as any).modelParameters?.temperature ?? 0.7,
-      maxTokens: (config as any).modelParameters?.maxTokens ?? 4096,
-      tools: (config as any).tools ?? [],
+      temperature: config.modelParameters?.temperature ?? 0.7,
+      maxTokens: config.modelParameters?.maxTokens ?? 4096,
+      tools: config.tools ?? [],
       soul: {
-        traits: (config as any).soul?.traits ?? [],
-        style: (config as any).soul?.style ?? '',
-        attitudes: (config as any).soul?.attitudes ?? [],
-        custom: (config as any).soul?.custom ?? '',
+        traits: role.soul?.traits ?? [],
+        style: role.soul?.style ?? '',
+        attitudes: role.soul?.attitudes ?? [],
+        custom: role.soul?.custom ?? '',
       },
     };
   } catch {

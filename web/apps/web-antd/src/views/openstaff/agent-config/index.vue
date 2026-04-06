@@ -33,20 +33,13 @@ import AgentConfigDrawer from './AgentConfigDrawer.vue';
 import ChatTestModal from './ChatTestModal.vue';
 
 // ===== 类型 =====
-interface SoulConfig {
-  attitudes?: string[];
-  custom?: string;
-  style?: string;
-  traits?: string[];
-}
-
 interface EditFormState {
   description: string;
   maxTokens: number;
   modelProviderId: string;
   modelName: string;
   name: string;
-  soul: SoulConfig;
+  soul: AgentApi.AgentSoul;
   temperature: number;
   tools: string[];
 }
@@ -86,19 +79,8 @@ onMounted(async () => {
   }
 });
 
-// ===== 灵魂 prompt 生成 =====
-function generateSoulPrompt(soul: SoulConfig): string {
-  const parts: string[] = [];
-  if (soul.traits?.length) parts.push(`你的性格特征：${soul.traits.join('、')}`);
-  if (soul.style) parts.push(`你的沟通风格：${soul.style}`);
-  if (soul.attitudes?.length)
-    parts.push(`你的工作态度：${soul.attitudes.join('、')}`);
-  if (soul.custom) parts.push(soul.custom);
-  return parts.length > 0 ? `${parts.join('。')}。` : '';
-}
-
 // ===== 解析 config =====
-function parseConfig(configStr: string | null): AgentApi.AgentRoleConfig & { soul?: SoulConfig } {
+function parseConfig(configStr: string | null): AgentApi.AgentRoleConfig {
   try {
     return configStr ? JSON.parse(configStr) : {};
   } catch {
@@ -131,7 +113,6 @@ async function handleDrawerSave(form: EditFormState) {
 
   try {
     const existingConfig = parseConfig(role.config);
-    const soulPrompt = generateSoulPrompt(form.soul);
     const updatedConfig = {
       ...existingConfig,
       modelParameters: {
@@ -139,23 +120,18 @@ async function handleDrawerSave(form: EditFormState) {
         maxTokens: form.maxTokens,
       },
       tools: form.tools,
-      soul: form.soul,
     };
 
     const updateData: AgentApi.UpdateAgentRoleParams = {
       modelProviderId: form.modelProviderId || undefined,
       modelName: form.modelName || undefined,
       config: JSON.stringify(updatedConfig),
+      soul: form.soul,
     };
 
     if (!role.isBuiltin) {
       updateData.name = form.name;
       updateData.description = form.description;
-      if (soulPrompt) {
-        updateData.systemPrompt = soulPrompt + (role.systemPrompt ?? '');
-      }
-    } else if (soulPrompt) {
-      updateData.systemPrompt = soulPrompt + (role.systemPrompt ?? '');
     }
 
     await updateAgentRoleApi(role.id, updateData);
@@ -180,24 +156,22 @@ async function createRole(form: EditFormState) {
       .toLowerCase()
       .replace(/\s+/g, '_')
       .replace(/[^a-z0-9_\u4e00-\u9fff]/g, '');
-    const soulPrompt = generateSoulPrompt(form.soul);
     const config = {
       modelParameters: {
         temperature: form.temperature,
         maxTokens: form.maxTokens,
       },
       tools: form.tools,
-      soul: form.soul,
     };
 
     await createAgentRoleApi({
       name: form.name.trim(),
       roleType,
       description: form.description || undefined,
-      systemPrompt: soulPrompt || undefined,
       modelProviderId: form.modelProviderId || undefined,
       modelName: form.modelName || undefined,
       config: JSON.stringify(config),
+      soul: form.soul,
     });
 
     roles.value = await getAgentRolesApi();

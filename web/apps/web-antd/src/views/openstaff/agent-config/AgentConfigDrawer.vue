@@ -38,20 +38,13 @@ import { getRoleIcon } from '#/constants/agent';
 
 import SoulConfigSection from './SoulConfigSection.vue';
 
-interface SoulConfig {
-  attitudes?: string[];
-  custom?: string;
-  style?: string;
-  traits?: string[];
-}
-
 interface EditFormState {
   description: string;
   maxTokens: number;
   modelProviderId: string;
   modelName: string;
   name: string;
-  soul: SoulConfig;
+  soul: AgentApi.AgentSoul;
   temperature: number;
   tools: string[];
 }
@@ -106,7 +99,7 @@ watch(
   },
 );
 
-function parseConfig(configStr: null | string): AgentApi.AgentRoleConfig & { soul?: SoulConfig } {
+function parseConfig(configStr: null | string): AgentApi.AgentRoleConfig {
   try {
     return configStr ? JSON.parse(configStr) : {};
   } catch {
@@ -125,10 +118,10 @@ function loadRoleToForm(role: AgentApi.AgentRole) {
     maxTokens: config.modelParameters?.maxTokens ?? 4096,
     tools: config.tools ?? [],
     soul: {
-      traits: config.soul?.traits ?? [],
-      style: config.soul?.style ?? '',
-      attitudes: config.soul?.attitudes ?? [],
-      custom: config.soul?.custom ?? '',
+      traits: role.soul?.traits ?? [],
+      style: role.soul?.style ?? '',
+      attitudes: role.soul?.attitudes ?? [],
+      custom: role.soul?.custom ?? '',
     },
   };
 }

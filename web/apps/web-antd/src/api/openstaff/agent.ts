@@ -12,8 +12,16 @@ export namespace AgentApi {
     modelProviderName: string | null;
     isBuiltin: boolean;
     config: string | null;
+    soul: AgentSoul | null;
     createdAt: string;
     updatedAt: string;
+  }
+
+  export interface AgentSoul {
+    traits: string[];
+    style: string | null;
+    attitudes: string[];
+    custom: string | null;
   }
 
   export interface AgentRoleConfig {
@@ -34,6 +42,7 @@ export namespace AgentApi {
     modelName?: string;
     modelProviderId?: string;
     name?: string;
+    soul?: AgentSoul;
     systemPrompt?: string;
   }
 
@@ -117,6 +126,7 @@ export async function createAgentRoleApi(data: {
   modelProviderId?: string;
   modelName?: string;
   config?: string;
+  soul?: AgentApi.AgentSoul;
 }): Promise<AgentApi.AgentRole> {
   return requestClient.post<AgentApi.AgentRole>('/agent-roles', data);
 }

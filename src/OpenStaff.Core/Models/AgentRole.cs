@@ -16,6 +16,7 @@ public class AgentRole
     public bool IsActive { get; set; } = true;
     public Guid? PluginId { get; set; } // 关联插件(自定义角色)
     public string? Config { get; set; } // JSON 额外配置
+    public AgentSoul? Soul { get; set; } // 灵魂配置（EF OwnsOne JSON）
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -12,6 +12,7 @@ import {
 
 const CheckableTag = Tag.CheckableTag as any;
 
+import type { AgentApi } from '#/api/openstaff/agent';
 import {
   ATTITUDE_OPTIONS,
   STYLE_OPTIONS,
@@ -19,14 +20,7 @@ import {
 } from '#/constants/agent';
 import { toggleArrayItem } from '#/utils/array';
 
-interface SoulConfig {
-  attitudes?: string[];
-  custom?: string;
-  style?: string;
-  traits?: string[];
-}
-
-const soul = defineModel<SoulConfig>('soul', { required: true });
+const soul = defineModel<AgentApi.AgentSoul>('soul', { required: true });
 
 const soulPromptPreview = computed(() => {
   const parts: string[] = [];
