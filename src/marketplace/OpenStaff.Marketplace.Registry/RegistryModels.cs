@@ -44,7 +44,7 @@ public class RegistryServer
     public List<RegistryRemote>? Remotes { get; set; }
 
     [JsonPropertyName("packages")]
-    public RegistryPackages? Packages { get; set; }
+    public List<RegistryPackage>? Packages { get; set; }
 }
 
 public class RegistryRepository
@@ -65,13 +65,43 @@ public class RegistryRemote
     public string Url { get; set; } = string.Empty;
 }
 
-public class RegistryPackages
+public class RegistryPackage
 {
-    [JsonPropertyName("npm")]
-    public RegistryPackageInfo? Npm { get; set; }
+    [JsonPropertyName("registryType")]
+    public string? RegistryType { get; set; }
 
-    [JsonPropertyName("pypi")]
-    public RegistryPackageInfo? Pypi { get; set; }
+    [JsonPropertyName("identifier")]
+    public string? Identifier { get; set; }
+
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+
+    [JsonPropertyName("transport")]
+    public RegistryTransport? Transport { get; set; }
+
+    [JsonPropertyName("environmentVariables")]
+    public List<RegistryEnvironmentVariable>? EnvironmentVariables { get; set; }
+}
+
+public class RegistryTransport
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+}
+
+public class RegistryEnvironmentVariable
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("isRequired")]
+    public bool IsRequired { get; set; }
+
+    [JsonPropertyName("isSecret")]
+    public bool IsSecret { get; set; }
 }
 
 public class RegistryPackageInfo

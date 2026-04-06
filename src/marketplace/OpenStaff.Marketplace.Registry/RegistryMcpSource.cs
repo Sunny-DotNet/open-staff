@@ -66,11 +66,27 @@ public class RegistryMcpSource : IMcpMarketplaceSource
         var s = entry.Server;
         var transportTypes = s.Remotes?.Select(r => r.Type).Distinct().ToList() ?? [];
 
-        // 如果有 npm/pypi 包，说明也支持 stdio
-        if (s.Packages?.Npm != null || s.Packages?.Pypi != null)
+        // 从 packages 推断传输类型和包信息
+        string? npmPackage = null;
+        string? pypiPackage = null;
+
+        if (s.Packages != null)
         {
-            if (!transportTypes.Contains("stdio"))
-                transportTypes.Add("stdio");
+            foreach (var pkg in s.Packages)
+            {
+                if (pkg.Transport != null && !string.IsNullOrEmpty(pkg.Transport.Type)
+                    && !transportTypes.Contains(pkg.Transport.Type))
+                    transportTypes.Add(pkg.Transport.Type);
+
+                if (pkg.RegistryType == "npm")
+                    npmPackage ??= pkg.Identifier;
+                else if (pkg.RegistryType == "pypi")
+                    pypiPackage ??= pkg.Identifier;
+
+                // npm/pypi 包暗示支持 stdio
+                if (pkg.RegistryType is "npm" or "pypi" && !transportTypes.Contains("stdio"))
+                    transportTypes.Add("stdio");
+            }
         }
 
         return new MarketplaceServerInfo
@@ -83,8 +99,8 @@ public class RegistryMcpSource : IMcpMarketplaceSource
             Source = "registry",
             RepositoryUrl = s.Repository?.Url,
             Homepage = s.WebsiteUrl,
-            NpmPackage = s.Packages?.Npm?.Name,
-            PypiPackage = s.Packages?.Pypi?.Name,
+            NpmPackage = npmPackage,
+            PypiPackage = pypiPackage,
             Remotes = s.Remotes?.Select(r => new RemoteEndpoint { Type = r.Type, Url = r.Url }).ToList() ?? []
         };
     }
