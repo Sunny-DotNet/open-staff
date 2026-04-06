@@ -19,6 +19,11 @@ interface ChatMessage {
   content: string;
   role: 'assistant' | 'user';
   streaming?: boolean;
+  thinking?: string;
+  thinkingStreaming?: boolean;
+  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  timing?: { totalMs?: number; firstTokenMs?: number };
+  model?: string;
 }
 
 const props = defineProps<{
@@ -88,22 +93,34 @@ async function sendTestMessage() {
         if (!evt.payload) return;
         try {
           const data = JSON.parse(evt.payload);
-          if (evt.eventType === 'streaming_token') {
-            // 逐 token 追加
+          const msg = chatMessages.value[assistantIdx]!;
+
+          if (evt.eventType === 'streaming_thinking') {
+            // 思考过程逐 token 追加
             chatMessages.value[assistantIdx] = {
-              role: 'assistant',
-              content: (chatMessages.value[assistantIdx]?.content || '') + (data.token || ''),
+              ...msg,
+              thinking: (msg.thinking || '') + (data.token || ''),
+              thinkingStreaming: true,
+            };
+          } else if (evt.eventType === 'streaming_token') {
+            // 正文逐 token 追加
+            chatMessages.value[assistantIdx] = {
+              ...msg,
+              content: (msg.content || '') + (data.token || ''),
               streaming: true,
+              thinkingStreaming: false,
             };
           } else if (evt.eventType === 'streaming_done' || evt.eventType === 'message') {
-            // 流式完成或一次性消息
-            const finalContent = evt.eventType === 'streaming_done'
-              ? (chatMessages.value[assistantIdx]?.content || data.content || '')
-              : (data.content || '（无响应）');
+            // 流式完成
             chatMessages.value[assistantIdx] = {
-              role: 'assistant',
-              content: finalContent,
+              ...msg,
+              content: msg.content || data.content || '（无响应）',
               streaming: false,
+              thinkingStreaming: false,
+              thinking: msg.thinking || data.thinking || undefined,
+              usage: data.usage,
+              timing: data.timing,
+              model: data.model,
             };
           } else if (evt.eventType === 'error') {
             chatMessages.value[assistantIdx] = {
@@ -209,23 +226,71 @@ onUnmounted(() => {
       >
         <div
           :style="{
-            maxWidth: '75%',
-            padding: '10px 16px',
-            borderRadius: '12px',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            lineHeight: '1.6',
-            ...(msg.role === 'user'
-              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-              : { background: 'hsl(var(--accent))', color: 'hsl(var(--foreground))' }),
+            maxWidth: '80%',
+            minWidth: msg.role === 'assistant' ? '200px' : undefined,
           }"
         >
-          {{ msg.content }}<span v-if="msg.streaming && msg.content" class="streaming-cursor">▌</span>
+          <!-- 思考过程（可折叠） -->
+          <div
+            v-if="msg.thinking || msg.thinkingStreaming"
+            style="
+              margin-bottom: 6px;
+              padding: 8px 12px;
+              border-radius: 8px;
+              background: hsl(var(--accent) / 0.5);
+              border-left: 3px solid hsl(var(--primary) / 0.5);
+              font-size: 13px;
+              color: hsl(var(--muted-foreground));
+            "
+          >
+            <div style="font-weight: 500; margin-bottom: 4px; font-size: 12px;">💭 思考过程</div>
+            <div style="white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: 200px; overflow-y: auto;">{{ msg.thinking }}<span v-if="msg.thinkingStreaming" class="streaming-cursor">▌</span></div>
+          </div>
+
+          <!-- 消息正文 -->
+          <div
+            :style="{
+              padding: '10px 16px',
+              borderRadius: '12px',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              lineHeight: '1.6',
+              ...(msg.role === 'user'
+                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+                : { background: 'hsl(var(--accent))', color: 'hsl(var(--foreground))' }),
+            }"
+          >
+            <template v-if="msg.content">{{ msg.content }}<span v-if="msg.streaming" class="streaming-cursor">▌</span></template>
+            <template v-else-if="msg.thinkingStreaming">
+              <span style="color: hsl(var(--muted-foreground)); font-style: italic;">思考中...</span>
+            </template>
+          </div>
+
+          <!-- 用量和用时 -->
+          <div
+            v-if="msg.usage || msg.timing"
+            style="
+              margin-top: 4px;
+              padding: 0 4px;
+              font-size: 12px;
+              color: hsl(var(--muted-foreground));
+              display: flex;
+              gap: 12px;
+              flex-wrap: wrap;
+            "
+          >
+            <span v-if="msg.model">🤖 {{ msg.model }}</span>
+            <span v-if="msg.timing?.totalMs">⏱ {{ (msg.timing.totalMs / 1000).toFixed(1) }}s</span>
+            <span v-if="msg.timing?.firstTokenMs">⚡ 首 token {{ (msg.timing.firstTokenMs / 1000).toFixed(1) }}s</span>
+            <span v-if="msg.usage?.inputTokens != null">📥 {{ msg.usage.inputTokens }}</span>
+            <span v-if="msg.usage?.outputTokens != null">📤 {{ msg.usage.outputTokens }}</span>
+            <span v-if="msg.usage?.totalTokens">📊 {{ msg.usage.totalTokens }} tokens</span>
+          </div>
         </div>
       </div>
 
       <div
-        v-if="chatLoading && (!chatMessages.length || !chatMessages[chatMessages.length - 1]?.streaming || !chatMessages[chatMessages.length - 1]?.content)"
+        v-if="chatLoading && (!chatMessages.length || (!chatMessages[chatMessages.length - 1]?.content && !chatMessages[chatMessages.length - 1]?.thinking))"
         style="display: flex; justify-content: flex-start; margin-bottom: 12px"
       >
         <div

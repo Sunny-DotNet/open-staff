@@ -56,6 +56,7 @@ public static class SessionEventTypes
 
     // 流式输出
     public const string StreamingToken = "streaming_token";
+    public const string StreamingThinking = "streaming_thinking";
     public const string StreamingDone = "streaming_done";
 
     // 用户交互

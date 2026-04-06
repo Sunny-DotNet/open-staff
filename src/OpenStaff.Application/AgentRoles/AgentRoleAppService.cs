@@ -219,6 +219,7 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         _ = Task.Run(async () =>
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 // 加载角色配置获取系统提示词和模型名
@@ -239,35 +240,79 @@ public class AgentRoleAppService : IAgentRoleAppService
                     chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt));
                 chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, message));
 
-                // 流式推送每个 token
+                // 流式推送每个 token（含思考过程和用量统计）
                 var fullContent = new StringBuilder();
+                var thinkingContent = new StringBuilder();
+                int? inputTokens = null;
+                int? outputTokens = null;
+                long? firstTokenMs = null;
+
                 await foreach (var update in chatClient.GetStreamingResponseAsync(
                     (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages))
                 {
+                    // 思考内容 (TextReasoningContent)
+                    foreach (var thinking in update.Contents.OfType<TextReasoningContent>())
+                    {
+                        if (!string.IsNullOrEmpty(thinking.Text))
+                        {
+                            thinkingContent.Append(thinking.Text);
+                            stream.Push(SessionEventTypes.StreamingThinking,
+                                payload: JsonSerializer.Serialize(new { token = thinking.Text }));
+                        }
+                    }
+
+                    // 正文内容 (TextContent)
                     foreach (var part in update.Contents.OfType<TextContent>())
                     {
                         if (!string.IsNullOrEmpty(part.Text))
                         {
+                            firstTokenMs ??= stopwatch.ElapsedMilliseconds;
                             fullContent.Append(part.Text);
                             stream.Push(SessionEventTypes.StreamingToken,
                                 payload: JsonSerializer.Serialize(new { token = part.Text }));
                         }
                     }
+
+                    // 用量统计 (UsageContent)
+                    foreach (var usage in update.Contents.OfType<Microsoft.Extensions.AI.UsageContent>())
+                    {
+                        if (usage.Details != null)
+                        {
+                            inputTokens = (int?)usage.Details.InputTokenCount;
+                            outputTokens = (int?)usage.Details.OutputTokenCount;
+                        }
+                    }
                 }
 
-                // 流式完成，推送最终消息
+                stopwatch.Stop();
+
+                // 流式完成，推送最终消息（含用量和用时）
                 stream.Push(SessionEventTypes.StreamingDone,
                     payload: JsonSerializer.Serialize(new
                     {
                         role = role.RoleType,
                         roleName = role.Name,
-                        content = fullContent.ToString()
+                        model = modelName,
+                        content = fullContent.ToString(),
+                        thinking = thinkingContent.Length > 0 ? thinkingContent.ToString() : null,
+                        usage = new
+                        {
+                            inputTokens,
+                            outputTokens,
+                            totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0)
+                        },
+                        timing = new
+                        {
+                            totalMs = stopwatch.ElapsedMilliseconds,
+                            firstTokenMs
+                        }
                     }));
 
                 _streamManager.CompleteTransient(sessionId);
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
                 stream.Push(SessionEventTypes.Error, payload: JsonSerializer.Serialize(new
                 {
                     error = ex.Message
