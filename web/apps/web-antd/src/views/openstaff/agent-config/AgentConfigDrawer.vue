@@ -81,8 +81,12 @@ const emit = defineEmits<{
 const editForm = ref<EditFormState>({ ...DEFAULT_FORM, soul: { ...DEFAULT_FORM.soul } });
 
 const selectedProviderId = computed(() => editForm.value.modelProviderId);
-const { models: providerModels, loading: loadingModels } =
-  useProviderModels(selectedProviderId);
+const {
+  models: providerModels,
+  loading: loadingModels,
+  error: modelsError,
+  ensureLoaded: ensureModelsLoaded,
+} = useProviderModels(selectedProviderId);
 
 const enabledProviders = computed(() =>
   props.providers.filter((p) => p.isEnabled),
@@ -266,16 +270,18 @@ async function removeMcpBinding(configId: string) {
         </Select>
       </FormItem>
 
-      <FormItem label="模型">
+      <FormItem label="模型" :validate-status="modelsError ? 'warning' : undefined" :help="modelsError ? '加载失败，点击下拉框重试' : undefined">
         <Select
           v-model:value="editForm.modelName"
           :disabled="!editForm.modelProviderId"
           :filter-option="filterModelOption"
           :loading="loadingModels"
-          :placeholder="'请先选择供应商'"
+          :not-found-content="modelsError ? '加载失败，点击重试' : loadingModels ? '加载中…' : '暂无模型'"
+          :placeholder="editForm.modelProviderId ? '请选择模型' : '请先选择供应商'"
           allow-clear
           show-search
           style="width: 100%"
+          @focus="ensureModelsLoaded"
         >
           <SelectOption
             v-for="m in providerModels"

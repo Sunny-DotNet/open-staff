@@ -38,9 +38,12 @@ const defaultModelName = ref(props.initialModelName);
 const extraConfigList = ref<{ key: string; value: string }[]>([]);
 
 const providerIdRef = computed(() => defaultProviderId.value ?? '');
-const { models: providerModels, loading: loadingModels } = useProviderModels(
-  providerIdRef,
-);
+const {
+  models: providerModels,
+  loading: loadingModels,
+  error: modelsError,
+  ensureLoaded: ensureModelsLoaded,
+} = useProviderModels(providerIdRef);
 
 const enabledProviders = computed(() =>
   providers.value.filter((p) => p.isEnabled),
@@ -132,11 +135,12 @@ import { computed } from 'vue';
           @change="onProviderChange"
         />
       </Form.Item>
-      <Form.Item label="模型名称">
+      <Form.Item label="模型名称" :validate-status="modelsError ? 'warning' : undefined" :help="modelsError ? '加载失败，点击下拉框重试' : undefined">
         <Select
-          v-if="providerModels.length > 0"
+          v-if="providerModels.length > 0 || loadingModels || modelsError"
           v-model:value="defaultModelName"
           :loading="loadingModels"
+          :not-found-content="modelsError ? '加载失败，点击重试' : loadingModels ? '加载中…' : '暂无模型'"
           :options="
             providerModels.map((m) => ({
               label: m.id,
@@ -147,6 +151,7 @@ import { computed } from 'vue';
           placeholder="选择模型"
           show-search
           style="width: 100%"
+          @focus="ensureModelsLoaded"
         />
         <Input
           v-else
