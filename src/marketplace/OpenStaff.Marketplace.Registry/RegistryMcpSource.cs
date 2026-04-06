@@ -55,9 +55,28 @@ public class RegistryMcpSource : IMcpMarketplaceSource
 
     public async Task<MarketplaceServerInfo?> GetByIdAsync(string serverId, CancellationToken ct = default)
     {
-        // Registry 没有 GetById 端点，遍历搜索
-        // 实际使用中一般不需要此方法（从列表点击安装）
-        _logger.LogDebug("GetByIdAsync not efficiently supported by Registry API for {ServerId}", serverId);
+        // serverId 格式: "name:version" (如 "ai.autoblocks/contextlayer-mcp:0.0.3")
+        // Registry API 的 cursor 就是 name:version，可以利用分页定位
+        // 策略：用 serverId 作为 cursor 附近搜索，最多翻几页
+
+        string? cursor = null;
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var response = await _apiClient.ListServersAsync(cursor: cursor, limit: 100, ct: ct);
+            if (response.Servers.Count == 0) break;
+
+            foreach (var entry in response.Servers)
+            {
+                var info = MapToInfo(entry);
+                if (info.Id == serverId)
+                    return info;
+            }
+
+            cursor = response.Metadata.NextCursor;
+            if (string.IsNullOrEmpty(cursor)) break;
+        }
+
+        _logger.LogWarning("Registry server {ServerId} not found after pagination", serverId);
         return null;
     }
 
