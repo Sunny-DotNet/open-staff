@@ -465,13 +465,6 @@ onUnmounted(() => {
               placeholder="描述"
             />
           </FormItem>
-          <FormItem label="系统提示词">
-            <Input.TextArea
-              v-model:value="configForm.systemPrompt"
-              :auto-size="{ minRows: 3, maxRows: 8 }"
-              placeholder="输入系统提示词..."
-            />
-          </FormItem>
         </Form>
 
         <!-- 灵魂配置区 -->
