@@ -20,7 +20,7 @@ public class NewApiProtocol(IServiceProvider serviceProvider) : ProtocolBase<New
 
     public override async Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(Env.BaseUrl))
+        if (Env is null || string.IsNullOrWhiteSpace(Env.BaseUrl))
         {
             Logger.LogWarning("NewApi BaseUrl 未配置，跳过模型获取");
             return [];

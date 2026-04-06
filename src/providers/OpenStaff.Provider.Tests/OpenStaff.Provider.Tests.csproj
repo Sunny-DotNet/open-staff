@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
+    <ProjectReference Include="..\OpenStaff.Provider.OpenAI\OpenStaff.Provider.OpenAI.csproj" />
+    <ProjectReference Include="..\OpenStaff.Provider.Anthropic\OpenStaff.Provider.Anthropic.csproj" />
+    <ProjectReference Include="..\OpenStaff.Provider.Google\OpenStaff.Provider.Google.csproj" />
+    <ProjectReference Include="..\OpenStaff.Provider.NewApi\OpenStaff.Provider.NewApi.csproj" />
+    <ProjectReference Include="..\OpenStaff.Provider.GitHubCopilot\OpenStaff.Provider.GitHubCopilot.csproj" />
+    <ProjectReference Include="..\..\OpenStaff.Core\OpenStaff.Core.csproj" />
+  </ItemGroup>
+
+</Project>
