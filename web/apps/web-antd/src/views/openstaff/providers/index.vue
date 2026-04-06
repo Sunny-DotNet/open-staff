@@ -34,17 +34,28 @@ import {
   updateProviderAccountApi,
 } from '#/api/openstaff/settings';
 
-// 协议图标映射
-const PROTOCOL_ICONS: Record<string, { icon: string; color: string }> = {
-  openai: { icon: '🤖', color: '#10a37f' },
-  anthropic: { icon: '🟠', color: '#d97706' },
-  google: { icon: '🔷', color: '#4285f4' },
-  'github-copilot': { icon: '🐙', color: '#6e40c9' },
-  newapi: { icon: '🔌', color: '#1890ff' },
+// 将后端 Logo 字段转为 @lobehub/icons-static-svg CDN URL
+function getLogoUrl(logo: string): string {
+  if (!logo) return '';
+  // PascalCase.Variant → lowercase-variant, e.g. "Claude.Color" → "claude-color"
+  const slug = logo
+    .replace(/\.([A-Za-z])/g, '-$1')
+    .replace(/([a-z])([A-Z])/g, '$1$2')
+    .toLowerCase();
+  return `https://unpkg.com/@lobehub/icons-static-svg@latest/icons/${slug}.svg`;
+}
+
+// 协议颜色映射
+const PROTOCOL_COLORS: Record<string, string> = {
+  openai: '#10a37f',
+  anthropic: '#d97706',
+  google: '#4285f4',
+  'github-copilot': '#6e40c9',
+  newapi: '#1890ff',
 };
 
-function getProtocolIcon(name: string) {
-  return PROTOCOL_ICONS[name] ?? { icon: '🔌', color: '#8c8c8c' };
+function getProtocolColor(key: string) {
+  return PROTOCOL_COLORS[key] ?? '#8c8c8c';
 }
 
 // 状态
@@ -65,7 +76,7 @@ const formState = reactive({
 
 // 当前选中协议的元数据
 const currentProtocol = computed(() =>
-  protocols.value.find((p) => p.name === formState.protocolType),
+  protocols.value.find((p) => p.providerKey === formState.protocolType),
 );
 
 // 设备码授权
@@ -89,9 +100,8 @@ const columns = [
   { title: '操作', key: 'actions', width: 220, fixed: 'right' as const },
 ];
 
-function getProtocolLabel(name: string) {
-  const proto = protocols.value.find((p) => p.name === name);
-  return proto?.providerName ?? name;
+function getProtocolMeta(key: string) {
+  return protocols.value.find((p) => p.providerKey === key);
 }
 
 async function fetchData() {
@@ -114,7 +124,7 @@ async function fetchData() {
 function buildDefaultEnvConfig(proto: SettingsApi.ProtocolMetadata): Record<string, any> {
   const config: Record<string, any> = {};
   for (const field of proto.envSchema) {
-    config[field.name] = field.defaultValue ?? (field.fieldType === 'boolean' ? false : '');
+    config[field.name] = field.defaultValue ?? (field.fieldType === 'bool' ? false : '');
   }
   return config;
 }
@@ -122,7 +132,7 @@ function buildDefaultEnvConfig(proto: SettingsApi.ProtocolMetadata): Record<stri
 function openCreateModal() {
   editingAccount.value = null;
   const defaultProto = protocols.value[0];
-  formState.protocolType = defaultProto?.name ?? '';
+  formState.protocolType = defaultProto?.providerKey ?? '';
   formState.name = '';
   formState.isEnabled = true;
   formState.envConfig = defaultProto ? buildDefaultEnvConfig(defaultProto) : {};
@@ -134,13 +144,12 @@ function openEditModal(account: SettingsApi.ProviderAccount) {
   formState.name = account.name;
   formState.protocolType = account.protocolType;
   formState.isEnabled = account.isEnabled;
-  // envConfig 从服务端获取的已包含非密钥字段
   formState.envConfig = { ...(account.envConfig ?? {}) };
   showModal.value = true;
 }
 
-function onProtocolTypeChange(name: string) {
-  const proto = protocols.value.find((p) => p.name === name);
+function onProtocolTypeChange(key: string) {
+  const proto = protocols.value.find((p) => p.providerKey === key);
   if (proto && !editingAccount.value) {
     formState.envConfig = buildDefaultEnvConfig(proto);
   }
@@ -153,7 +162,6 @@ async function handleSave() {
   }
   saving.value = true;
   try {
-    // 过滤空密码字段（编辑时留空表示不修改）
     const envConfig = { ...formState.envConfig };
     if (editingAccount.value) {
       const proto = currentProtocol.value;
@@ -316,17 +324,21 @@ onUnmounted(stopPolling);
         <!-- 名称 -->
         <template v-if="column.key === 'name'">
           <Space>
-            <span style="font-size: 18px">
-              {{ getProtocolIcon(record.protocolType).icon }}
-            </span>
+            <img
+              v-if="getProtocolMeta(record.protocolType)?.logo"
+              :src="getLogoUrl(getProtocolMeta(record.protocolType)!.logo)"
+              :alt="record.protocolType"
+              style="width: 20px; height: 20px; vertical-align: middle"
+            />
+            <span v-else style="font-size: 18px">🔌</span>
             <span style="font-weight: 500">{{ record.name }}</span>
           </Space>
         </template>
 
         <!-- 协议 -->
         <template v-if="column.key === 'protocolType'">
-          <Tag :color="getProtocolIcon(record.protocolType).color">
-            {{ getProtocolLabel(record.protocolType) }}
+          <Tag :color="getProtocolColor(record.protocolType)">
+            {{ getProtocolMeta(record.protocolType)?.providerName ?? record.protocolType }}
           </Tag>
         </template>
 
@@ -443,11 +455,17 @@ onUnmounted(stopPolling);
           >
             <Select.Option
               v-for="proto in protocols"
-              :key="proto.name"
-              :value="proto.name"
+              :key="proto.providerKey"
+              :value="proto.providerKey"
             >
               <Space>
-                <span>{{ getProtocolIcon(proto.name).icon }}</span>
+                <img
+                  v-if="proto.logo"
+                  :src="getLogoUrl(proto.logo)"
+                  :alt="proto.providerKey"
+                  style="width: 16px; height: 16px; vertical-align: middle"
+                />
+                <span v-else>🔌</span>
                 <span>{{ proto.providerName }}</span>
                 <Tag v-if="proto.isVendor" style="font-size: 10px; margin-left: 4px">厂商</Tag>
               </Space>
@@ -468,12 +486,11 @@ onUnmounted(stopPolling);
           <FormItem
             v-for="field in currentProtocol.envSchema"
             :key="field.name"
-            :label="field.displayName"
-            :required="field.isRequired"
+            :label="field.name"
           >
             <!-- boolean 字段 -->
             <Switch
-              v-if="field.fieldType === 'boolean'"
+              v-if="field.fieldType === 'bool'"
               v-model:checked="formState.envConfig[field.name]"
             />
 
@@ -481,14 +498,14 @@ onUnmounted(stopPolling);
             <InputPassword
               v-else-if="field.fieldType === 'secret'"
               v-model:value="formState.envConfig[field.name]"
-              :placeholder="editingAccount ? '留空保持不变' : `输入 ${field.displayName}`"
+              :placeholder="editingAccount ? '留空保持不变' : `输入 ${field.name}`"
             />
 
-            <!-- 普通 text 字段 -->
+            <!-- 普通字段 -->
             <Input
               v-else
               v-model:value="formState.envConfig[field.name]"
-              :placeholder="field.defaultValue ? String(field.defaultValue) : `输入 ${field.displayName}`"
+              :placeholder="field.defaultValue ? String(field.defaultValue) : `输入 ${field.name}`"
             />
           </FormItem>
         </template>

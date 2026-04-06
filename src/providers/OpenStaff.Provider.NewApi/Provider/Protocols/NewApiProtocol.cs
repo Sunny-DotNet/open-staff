@@ -16,8 +16,11 @@ public class NewApiProtocol(IServiceProvider serviceProvider) : ProtocolBase<New
 
     public override bool IsVendor => false;
 
-    public override string ProviderName => "newapi";
+    public override string ProviderName => "New API";
 
+    public override string ProviderKey => "newapi";
+
+    public override string Logo => "";
     public override async Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default)
     {
         if (Env is null || string.IsNullOrWhiteSpace(Env.BaseUrl))

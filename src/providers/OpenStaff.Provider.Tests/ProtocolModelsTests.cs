@@ -56,17 +56,17 @@ public class ProtocolModelsTests : IAsyncLifetime
     [InlineData("openai")]
     [InlineData("anthropic")]
     [InlineData("google")]
-    public async Task VendorProtocol_ModelsAsync_ShouldReturnModels(string providerName)
+    public async Task VendorProtocol_ModelsAsync_ShouldReturnModels(string providerKey)
     {
         var protocols = _protocolFactory.AllProtocols().ToList();
         var protocol = protocols.FirstOrDefault(p =>
-            string.Equals(p.ProviderName, providerName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(p.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase));
 
         Assert.NotNull(protocol);
-        Assert.True(protocol.IsVendor, $"{providerName} 应为 Vendor 协议");
+        Assert.True(protocol.IsVendor, $"{providerKey} 应为 Vendor 协议");
 
         var models = (await protocol.ModelsAsync()).ToList();
-        Assert.True(models.Count > 0, $"{providerName} 的 ModelsAsync 应返回至少 1 个模型，实际返回 {models.Count}");
+        Assert.True(models.Count > 0, $"{providerKey} 的 ModelsAsync 应返回至少 1 个模型，实际返回 {models.Count}");
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ public class ProtocolModelsTests : IAsyncLifetime
     {
         var protocols = _protocolFactory.AllProtocols().ToList();
         var copilot = protocols.FirstOrDefault(p =>
-            string.Equals(p.ProviderName, "github-copilot", StringComparison.OrdinalIgnoreCase));
+            string.Equals(p.ProviderKey, "github-copilot", StringComparison.OrdinalIgnoreCase));
 
         Assert.NotNull(copilot);
         Assert.False(copilot.IsVendor);
@@ -91,7 +91,7 @@ public class ProtocolModelsTests : IAsyncLifetime
     {
         var protocols = _protocolFactory.AllProtocols().ToList();
         var newApi = protocols.FirstOrDefault(p =>
-            string.Equals(p.ProviderName, "newapi", StringComparison.OrdinalIgnoreCase));
+            string.Equals(p.ProviderKey, "newapi", StringComparison.OrdinalIgnoreCase));
 
         Assert.NotNull(newApi);
         Assert.False(newApi.IsVendor);
@@ -110,7 +110,7 @@ public class ProtocolModelsTests : IAsyncLifetime
         var metadata = _protocolFactory.GetProtocolMetadata();
         Assert.True(metadata.Count >= 5, $"应至少注册 5 个协议，实际 {metadata.Count}");
 
-        var names = metadata.Select(m => m.ProtocolName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var names = metadata.Select(m => m.ProviderKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
         Assert.Contains("openai", names);
         Assert.Contains("anthropic", names);
         Assert.Contains("google", names);

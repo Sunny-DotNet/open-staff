@@ -74,7 +74,9 @@ internal class ProtocolFactory : IProtocolFactory
             var schema = envType != null ? BuildEnvSchema(envType) : [];
 
             result.Add(new ProtocolMetadata(
+                protocol.ProviderKey,
                 protocol.ProviderName,
+                protocol.Logo,
                 protocol.IsVendor,
                 protocolType.Name,
                 schema));
@@ -89,7 +91,7 @@ internal class ProtocolFactory : IProtocolFactory
         foreach (var protocolType in ProviderOptions.Value.Protocols)
         {
             var protocol = (IProtocol)ActivatorUtilities.CreateInstance(ServiceProvider, protocolType);
-            if (string.Equals(protocol.ProviderName, protocolName, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(protocol.ProviderKey, protocolName, StringComparison.OrdinalIgnoreCase))
                 return ResolveEnvType(protocolType);
         }
         return null;
@@ -100,7 +102,7 @@ internal class ProtocolFactory : IProtocolFactory
         foreach (var protocolType in ProviderOptions.Value.Protocols)
         {
             var tempProtocol = (IProtocol)ActivatorUtilities.CreateInstance(ServiceProvider, protocolType);
-            if (!string.Equals(tempProtocol.ProviderName, protocolName, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(tempProtocol.ProviderKey, protocolName, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             var envType = ResolveEnvType(protocolType);

@@ -7,9 +7,13 @@ namespace OpenStaff.Provider.Protocols;
 
 internal class OpenAIProtocol(IServiceProvider serviceProvider) : VendorProtocolBase<OpenAIProtocolEnv>(serviceProvider)
 {
-    public override string ProviderName => "openai";
+    public override string ProviderKey => "openai";
+
+    public override string Logo => "OpenAI";
+    public override string ProviderName => "OpenAI";
 
     public override ModelProtocolType ProtocolType => ModelProtocolType.OpenAIChatCompletions | ModelProtocolType.OpenAIResponse;
+
 }
 public class OpenAIProtocolEnv: ProtocolEnvBase
 {

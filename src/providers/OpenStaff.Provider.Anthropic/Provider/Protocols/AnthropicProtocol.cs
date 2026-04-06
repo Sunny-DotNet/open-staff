@@ -4,7 +4,10 @@ namespace OpenStaff.Provider.Protocols;
 
 internal class AnthropicProtocol(IServiceProvider serviceProvider) : VendorProtocolBase<AnthropicProtocolEnv>(serviceProvider)
 {
-    public override string ProviderName => "anthropic";
+    public override string ProviderKey => "anthropic";
+
+    public override string Logo => "Claude.Color";
+    public override string ProviderName => "Anthropic";
 
     public override ModelProtocolType ProtocolType => ModelProtocolType.AnthropicMessages;
 }

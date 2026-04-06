@@ -10,7 +10,11 @@ internal class GitHubCopilotProtocol(IServiceProvider serviceProvider) : Protoco
 {
     public override bool IsVendor => false;
 
-    public override string ProviderName => "github-copilot";
+    public override string ProviderName => "Github Copilot";
+
+    public override string ProviderKey => "github-copilot";
+
+    public override string Logo => "GithubCopilot";
 
     public override async Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default)
     {

@@ -6,6 +6,10 @@ internal class GoogleProtocol(IServiceProvider serviceProvider) : VendorProtocol
 {
     public override string ProviderName => "google";
 
+    public override string ProviderKey => "google";
+
+    public override string Logo => "Google.Color";
+
     public override ModelProtocolType ProtocolType => ModelProtocolType.GoogleGenerateContent;
 }
 public class GoogleProtocolEnv: ProtocolEnvBase

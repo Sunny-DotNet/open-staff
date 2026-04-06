@@ -4,7 +4,9 @@ namespace OpenStaff.Provider.Models;
 /// 协议元数据 — 描述一个已注册的 Protocol 类型及其配置 schema
 /// </summary>
 public record ProtocolMetadata(
-    string ProtocolName,
+    string ProviderKey,
+    string ProviderName,
+    string Logo,
     bool IsVendor,
     string ProtocolClassName,
     IReadOnlyList<ProtocolEnvField> EnvSchema);

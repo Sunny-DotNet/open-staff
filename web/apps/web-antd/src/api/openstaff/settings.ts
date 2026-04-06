@@ -35,16 +35,16 @@ export namespace SettingsApi {
   /** 协议元数据 */
   export interface ProtocolEnvField {
     name: string;
-    displayName: string;
-    fieldType: string; // text, secret, boolean
+    fieldType: string; // string, secret, bool, number
     defaultValue: any;
-    isRequired: boolean;
   }
 
   export interface ProtocolMetadata {
-    name: string;
+    providerKey: string;
     providerName: string;
+    logo: string;
     isVendor: boolean;
+    protocolClassName: string;
     envSchema: ProtocolEnvField[];
   }
 

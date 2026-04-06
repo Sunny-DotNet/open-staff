@@ -10,7 +10,9 @@ namespace OpenStaff.Provider.Protocols;
 
 public interface IProtocol { 
     bool IsVendor { get; }
+    string ProviderKey { get; }
     string ProviderName { get; }
+    string Logo { get; }
     Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default);
 }
 public interface IProtocolMustEnv<TProtocolEnv> where TProtocolEnv : ProtocolEnvBase
@@ -21,7 +23,9 @@ public abstract class ProtocolBase<TProtocolEnv> : IProtocol, IProtocolMustEnv<T
     where TProtocolEnv : ProtocolEnvBase
 {
     public abstract bool IsVendor { get; }
+    public abstract string ProviderKey { get; }
     public abstract string ProviderName { get; }
+    public abstract string Logo { get; }
     protected IServiceProvider ServiceProvider { get; }
     protected ILogger Logger { get; }
     protected IModelDataSource ModelDataSource { get; }
@@ -50,7 +54,7 @@ public abstract class VendorProtocolBase<TProtocolEnv>(IServiceProvider serviceP
     public override async Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default)
     {
         // 默认实现：从 models.dev 数据源获取对应供应商的模型列表
-        var vendorId = ProviderName; // 假设 ProviderName 与 models.dev 中的 vendorId 一致
+        var vendorId = ProviderKey; // 假设 ProviderKey 与 models.dev 中的 vendorId 一致
         var models = await ModelDataSource.GetModelsByVendorAsync(vendorId, cancellationToken);        
         return [.. models.Where(x=>x.InputModalities.HasFlag(ModelModality.Text)&&x.OutputModalities.HasFlag(ModelModality.Text)&&x.Capabilities.HasFlag(ModelCapability.FunctionCall)).Select(MapTo)];
     }
