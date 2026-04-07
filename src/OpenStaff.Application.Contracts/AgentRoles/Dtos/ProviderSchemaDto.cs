@@ -1,13 +1,13 @@
 namespace OpenStaff.Application.Contracts.AgentRoles.Dtos;
 
-public class VendorSchemaDto
+public class ProviderSchemaDto
 {
     public string ProviderType { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
-    public List<VendorFieldDto> Fields { get; set; } = [];
+    public List<ProviderFieldDto> Fields { get; set; } = [];
 }
 
-public class VendorFieldDto
+public class ProviderFieldDto
 {
     public string Key { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;
@@ -15,10 +15,10 @@ public class VendorFieldDto
     public bool Required { get; set; }
     public string? DefaultValue { get; set; }
     public string? Placeholder { get; set; }
-    public List<VendorFieldOptionDto>? Options { get; set; }
+    public List<ProviderFieldOptionDto>? Options { get; set; }
 }
 
-public class VendorFieldOptionDto
+public class ProviderFieldOptionDto
 {
     public string Value { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;

@@ -52,9 +52,9 @@ public class AgentRolesController : ControllerBase
         return Ok(new { sessionId });
     }
 
-    [HttpGet("vendor-schemas")]
-    public IActionResult GetVendorSchemas()
-        => Ok(_agentRoleAppService.GetVendorSchemas());
+    [HttpGet("provider-schemas")]
+    public IActionResult GetProviderSchemas()
+        => Ok(_agentRoleAppService.GetProviderSchemas());
 }
 
 public class TestChatBody

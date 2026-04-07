@@ -218,9 +218,9 @@ export async function getSessionEventsApi(
   );
 }
 
-// ===== Vendor Schema API =====
+// ===== Provider Schema API =====
 
-export interface VendorSchema {
+export interface ProviderSchema {
   providerType: string;
   displayName: string;
   configSchema: {
@@ -236,7 +236,7 @@ export interface VendorSchema {
   };
 }
 
-/** 获取所有 Vendor 的配置 Schema */
-export async function getVendorSchemasApi(): Promise<VendorSchema[]> {
-  return requestClient.get<VendorSchema[]>('/agent-roles/vendor-schemas');
+/** 获取所有 Provider 的配置 Schema */
+export async function getProviderSchemasApi(): Promise<ProviderSchema[]> {
+  return requestClient.get<ProviderSchema[]>('/agent-roles/provider-schemas');
 }

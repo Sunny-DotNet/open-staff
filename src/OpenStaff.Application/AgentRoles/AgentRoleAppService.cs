@@ -432,18 +432,18 @@ public class AgentRoleAppService : IAgentRoleAppService
         chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.Tool, toolResultContents));
     }
 
-    public List<VendorSchemaDto> GetVendorSchemas()
+    public List<ProviderSchemaDto> GetProviderSchemas()
     {
         return _agentFactory.Providers.Values
             .Where(p => p.ProviderType != "builtin")
             .Select(p =>
         {
             var schema = p.GetConfigSchema();
-            return new VendorSchemaDto
+            return new ProviderSchemaDto
             {
                 ProviderType = p.ProviderType,
                 DisplayName = p.DisplayName,
-                Fields = schema.Fields.Select(f => new VendorFieldDto
+                Fields = schema.Fields.Select(f => new ProviderFieldDto
                 {
                     Key = f.Key,
                     Label = f.Label,
@@ -451,7 +451,7 @@ public class AgentRoleAppService : IAgentRoleAppService
                     Required = f.Required,
                     DefaultValue = f.DefaultValue,
                     Placeholder = f.Placeholder,
-                    Options = f.Options?.Select(o => new VendorFieldOptionDto
+                    Options = f.Options?.Select(o => new ProviderFieldOptionDto
                     {
                         Value = o.Value,
                         Label = o.Label
