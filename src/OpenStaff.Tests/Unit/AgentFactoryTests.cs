@@ -1,3 +1,4 @@
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -24,9 +25,8 @@ public class AgentFactoryTests
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
         var chatClientFactory = new ChatClientFactory(services.GetRequiredService<ILoggerFactory>());
-        var aiAgentFactory = new AIAgentFactory(chatClientFactory, services.GetRequiredService<ILoggerFactory>());
         var promptLoader = new OpenStaff.Agent.Builtin.Prompts.EmbeddedPromptLoader();
-        return new BuiltinAgentProvider(services, toolRegistry, aiAgentFactory, promptLoader);
+        return new BuiltinAgentProvider(services, toolRegistry, chatClientFactory, promptLoader, services.GetRequiredService<ILoggerFactory>());
     }
 
     [Fact]
@@ -79,23 +79,35 @@ public class AgentFactoryTests
     }
 
     [Fact]
-    public void CreateAgent_ShouldReturnStandardAgentForBuiltin()
+    public void CreateAgent_ShouldReturnAIAgentForBuiltin()
     {
-        var factory = CreateFactory(CreateBuiltinProvider());
-        var role = new AgentRole { RoleType = "secretary", Name = "Secretary" };
+        var provider = CreateBuiltinProvider();
+        var factory = CreateFactory(provider);
+        var role = new AgentRole
+        {
+            RoleType = "secretary",
+            Name = "Secretary",
+            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
+            ApiKey = "test-key"
+        };
 
         var agent = factory.CreateAgent(role);
         Assert.NotNull(agent);
-        Assert.IsType<StandardAgent>(agent);
-        Assert.Equal("secretary", agent.RoleType);
+        Assert.IsAssignableFrom<AIAgent>(agent);
     }
 
     [Fact]
     public void CreateAgent_DefaultsToBuiltinProvider()
     {
         var factory = CreateFactory(CreateBuiltinProvider());
-        // ProviderType is null → defaults to "builtin"
-        var role = new AgentRole { RoleType = "secretary", Name = "Secretary", ProviderType = null };
+        var role = new AgentRole
+        {
+            RoleType = "secretary",
+            Name = "Secretary",
+            ProviderType = null,
+            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
+            ApiKey = "test-key"
+        };
 
         var agent = factory.CreateAgent(role);
         Assert.NotNull(agent);

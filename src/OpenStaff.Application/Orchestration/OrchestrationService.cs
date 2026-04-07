@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.Logging;
 using OpenStaff.Agent;
 using OpenStaff.Agent.Builtin;
@@ -7,12 +8,12 @@ using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Notifications;
 using OpenStaff.Core.Orchestration;
+using OrchestratorResponse = OpenStaff.Core.Orchestration.OrchestrationResponse;
 
 namespace OpenStaff.Application.Orchestration;
 
 /// <summary>
 /// 编排服务 — 管理项目智能体的创建和消息路由
-/// Orchestration service — manages project agent lifecycle and message routing
 /// </summary>
 public class OrchestrationService : IOrchestrator
 {
@@ -21,10 +22,9 @@ public class OrchestrationService : IOrchestrator
     private readonly INotificationService _notification;
     private readonly ILogger<OrchestrationService> _logger;
 
-    // 每个项目的智能体实例池 / Agent instance pool per project
-    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, (IAgent agent, DateTime lastUsed)>> _projectAgents = new();
+    // 每个项目的智能体实例池
+    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, (AIAgent agent, DateTime lastUsed)>> _projectAgents = new();
 
-    // 清理间隔 (1小时)
     private readonly TimeSpan _cleanupInterval = TimeSpan.FromHours(1);
 
     public OrchestrationService(
@@ -39,68 +39,81 @@ public class OrchestrationService : IOrchestrator
         _logger = logger;
     }
 
-    public async Task<AgentResponse> HandleUserInputAsync(Guid projectId, string input, CancellationToken cancellationToken = default)
+    public async Task<OrchestratorResponse> HandleUserInputAsync(Guid projectId, string input, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Handling user input for project {ProjectId}", projectId);
 
-        // 使用 secretary 角色作为默认入口
         var secretaryRole = new AgentRole { RoleType = BuiltinRoleTypes.Secretary, Name = "Secretary" };
         var routingAgent = await GetOrCreateAgentAsync(projectId, secretaryRole);
         if (routingAgent == null)
         {
-            return await RouteToAgentAsync(projectId, BuiltinRoleTypes.Secretary,
-                new AgentMessage { Content = input, FromRole = "user", Timestamp = DateTime.UtcNow }, cancellationToken);
+            return await RouteToAgentAsync(projectId, BuiltinRoleTypes.Secretary, input, cancellationToken);
         }
 
-        var routingMessage = new AgentMessage
-        {
-            Content = input,
-            FromRole = "user",
-            Timestamp = DateTime.UtcNow
-        };
+        var routingResult = await routingAgent.RunAsync(input, cancellationToken: cancellationToken);
+        var routingContent = routingResult?.ToString();
 
-        var routingResult = await routingAgent.ProcessAsync(routingMessage, cancellationToken);
+        var targetRole = ParseRoutingTarget(routingContent) ?? BuiltinRoleTypes.Secretary;
 
-        // 解析路由结果 / Parse routing result
-        var targetRole = ParseRoutingTarget(routingResult.Content) ?? BuiltinRoleTypes.Secretary;
-
-        var preview = input.Length > 50 ? input.Substring(0, 50) + "..." : input;
+        var preview = input.Length > 50 ? input[..50] + "..." : input;
         await _notification.NotifyAsync(Channels.Project(projectId), EventTypes.Decision, new
         {
             content = $"路由到 {targetRole}: {preview}"
         }, cancellationToken);
 
-        // 路由到目标角色 / Route to target role
-        return await RouteToAgentAsync(projectId, targetRole,
-            new AgentMessage { Content = input, FromRole = "user", Timestamp = DateTime.UtcNow }, cancellationToken);
+        return await RouteToAgentAsync(projectId, targetRole, input, cancellationToken);
     }
 
-    public async Task<AgentResponse> RouteToAgentAsync(Guid projectId, string targetRole,
-        AgentMessage message, CancellationToken cancellationToken = default)
+    public async Task<OrchestratorResponse> RouteToAgentAsync(Guid projectId, string targetRole,
+        string message, CancellationToken cancellationToken = default)
     {
         var role = new AgentRole { RoleType = targetRole, Name = targetRole };
         var agent = await GetOrCreateAgentAsync(projectId, role);
         if (agent == null)
         {
-            return new AgentResponse
+            return new OrchestratorResponse
             {
                 Success = false,
                 Content = $"角色 {targetRole} 未注册",
-                Errors = new List<string> { $"Role '{targetRole}' is not registered" }
+                Errors = [$"Role '{targetRole}' is not registered"]
             };
         }
 
         _logger.LogInformation("Routing to {Role} for project {ProjectId}", targetRole, projectId);
-        return await agent.ProcessAsync(message, cancellationToken);
+
+        try
+        {
+            var result = await agent.RunAsync(message, cancellationToken: cancellationToken);
+            var content = result?.ToString() ?? "";
+
+            return new OrchestratorResponse
+            {
+                Success = true,
+                Content = content,
+                Data = new Dictionary<string, object>
+                {
+                    ["roleType"] = targetRole
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Agent {Role} processing failed", targetRole);
+            return new OrchestratorResponse
+            {
+                Success = false,
+                Content = $"处理失败: {ex.Message}",
+                Errors = [ex.Message]
+            };
+        }
     }
 
     public async Task InitializeProjectAgentsAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Initializing agents for project {ProjectId}", projectId);
 
-        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (IAgent, DateTime)>());
+        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (AIAgent, DateTime)>());
 
-        // 初始化内置角色（secretary 按需创建）
         if (_agentFactory.Providers.TryGetValue("builtin", out var builtinProvider) && builtinProvider is BuiltinAgentProvider builtin)
         {
             foreach (var roleType in builtin.RoleConfigs.Keys)
@@ -116,7 +129,6 @@ public class OrchestrationService : IOrchestrator
             content = $"已初始化 {agents.Count} 个智能体角色"
         }, cancellationToken);
 
-        // 触发清理
         _ = Task.Run(() => CleanupInactiveAgentsAsync(cancellationToken));
     }
 
@@ -132,7 +144,7 @@ public class OrchestrationService : IOrchestrator
                 {
                     RoleType = roleType,
                     RoleName = roleType,
-                    Status = agentData.agent.Status,
+                    Status = AgentStatus.Idle,
                     LastUsed = agentData.lastUsed
                 });
             }
@@ -141,48 +153,33 @@ public class OrchestrationService : IOrchestrator
         return Task.FromResult<IReadOnlyList<AgentStatusInfo>>(result);
     }
 
-    private async Task<IAgent?> GetOrCreateAgentAsync(Guid projectId, AgentRole role)
+    private async Task<AIAgent?> GetOrCreateAgentAsync(Guid projectId, AgentRole role)
     {
         var roleType = role.RoleType;
 
-        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (IAgent, DateTime)>());
+        var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (AIAgent, DateTime)>());
 
         if (agents.TryGetValue(roleType, out var existingData))
         {
-            agents.TryUpdate(roleType, existingData, (existingData.agent, DateTime.UtcNow));
+            agents.TryUpdate(roleType, (existingData.agent, DateTime.UtcNow), existingData);
             return existingData.agent;
         }
 
         try
         {
-            var agent = _agentFactory.CreateAgent(role);
-
             // 解析供应商和 API Key
-            ProviderAccount? account = null;
-            string? apiKey = null;
             if (role.ModelProviderId != null)
             {
                 var resolved = await _providerResolver.ResolveAsync(role.ModelProviderId.Value);
                 if (resolved != null)
                 {
-                    account = resolved.Account;
-                    apiKey = resolved.ApiKey;
+                    role.ProviderAccount = resolved.Account;
+                    role.ApiKey = resolved.ApiKey;
                 }
             }
 
-            var context = new AgentContext
-            {
-                ProjectId = projectId,
-                AgentInstanceId = Guid.NewGuid(),
-                Role = role,
-                Project = new Project { Id = projectId },
-                Account = account,
-                ApiKey = apiKey,
-                NotificationService = _notification,
-                Language = "zh-CN"
-            };
+            var agent = _agentFactory.CreateAgent(role);
 
-            await agent.InitializeAsync(context);
             agents.TryAdd(roleType, (agent, DateTime.UtcNow));
             _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", roleType, projectId);
             return agent;

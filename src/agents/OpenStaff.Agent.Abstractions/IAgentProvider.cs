@@ -1,4 +1,4 @@
-using OpenStaff.Core.Agents;
+using Microsoft.Agents.AI;
 using OpenStaff.Core.Models;
 
 namespace OpenStaff.Agent;
@@ -17,6 +17,6 @@ public interface IAgentProvider
     /// <summary>获取该供应商的配置 Schema（前端据此渲染动态表单）</summary>
     AgentConfigSchema GetConfigSchema();
 
-    /// <summary>根据数据库角色配置创建智能体实例</summary>
-    IAgent CreateAgent(AgentRole role);
+    /// <summary>根据数据库角色配置创建 AIAgent 实例</summary>
+    AIAgent CreateAgent(AgentRole role);
 }

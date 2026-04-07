@@ -1,10 +1,10 @@
-using OpenStaff.Core.Agents;
+using Microsoft.Agents.AI;
 using OpenStaff.Core.Models;
 
 namespace OpenStaff.Agent;
 
 /// <summary>
-/// 智能体工厂 — 根据 ProviderType 路由到对应的 IAgentProvider 创建智能体
+/// 智能体工厂 — 根据 ProviderType 路由到对应的 IAgentProvider 创建 AIAgent
 /// </summary>
 public class AgentFactory
 {
@@ -16,8 +16,8 @@ public class AgentFactory
             _providers[provider.ProviderType] = provider;
     }
 
-    /// <summary>根据数据库角色创建智能体</summary>
-    public IAgent CreateAgent(AgentRole role)
+    /// <summary>根据数据库角色创建 AIAgent</summary>
+    public AIAgent CreateAgent(AgentRole role)
     {
         var providerType = role.ProviderType ?? "builtin";
         if (!_providers.TryGetValue(providerType, out var provider))

@@ -1,3 +1,4 @@
+using Microsoft.Agents.AI;
 using OpenStaff.Core.Agents;
 
 namespace OpenStaff.Core.Plugins;
@@ -10,7 +11,7 @@ public interface IAgentPlugin : IPlugin
     /// <summary>
     /// 创建智能体实例 / Create agent instance
     /// </summary>
-    IAgent CreateAgent(AgentContext context);
+    AIAgent CreateAgent(AgentContext context);
 
     /// <summary>
     /// 获取此插件提供的工具 / Get tools provided by this plugin

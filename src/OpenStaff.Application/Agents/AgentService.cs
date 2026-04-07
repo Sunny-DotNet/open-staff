@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure.Persistence;
@@ -65,7 +64,7 @@ public class AgentService
     /// 发送消息到智能体 — 通过 Orchestrator 路由
     /// Send message to agent — routed through Orchestrator
     /// </summary>
-    public async Task<AgentResponse> SendMessageAsync(Guid projectId, Guid agentId, SendMessageRequest request, CancellationToken ct)
+    public async Task<OrchestrationResponse> SendMessageAsync(Guid projectId, Guid agentId, SendMessageRequest request, CancellationToken ct)
     {
         var startTime = DateTime.UtcNow;
         try

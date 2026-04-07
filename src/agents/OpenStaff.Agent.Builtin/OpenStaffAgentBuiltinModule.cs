@@ -14,7 +14,6 @@ public class OpenStaffAgentBuiltinModule : OpenStaffModule
 
         services.AddSingleton<IPromptLoader, EmbeddedPromptLoader>();
         services.AddSingleton<ChatClientFactory>();
-        services.AddSingleton<AIAgentFactory>();
         services.AddSingleton<BuiltinAgentProvider>();
         services.AddSingleton<IAgentProvider>(sp => sp.GetRequiredService<BuiltinAgentProvider>());
     }

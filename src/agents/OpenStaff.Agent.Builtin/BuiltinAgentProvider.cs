@@ -1,7 +1,10 @@
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenStaff.Agent.Builtin.Prompts;
 using OpenStaff.Agent.Builtin.Roles;
+using OpenStaff.Agent.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 
@@ -14,22 +17,24 @@ public class BuiltinAgentProvider : IAgentProvider
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IAgentToolRegistry _toolRegistry;
-    private readonly AIAgentFactory _aiAgentFactory;
+    private readonly ChatClientFactory _chatClientFactory;
     private readonly IPromptLoader _promptLoader;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly Dictionary<string, RoleConfig> _roleConfigs = new(StringComparer.OrdinalIgnoreCase);
 
     public BuiltinAgentProvider(
         IServiceProvider serviceProvider,
         IAgentToolRegistry toolRegistry,
-        AIAgentFactory aiAgentFactory,
-        IPromptLoader promptLoader)
+        ChatClientFactory chatClientFactory,
+        IPromptLoader promptLoader,
+        ILoggerFactory loggerFactory)
     {
         _serviceProvider = serviceProvider;
         _toolRegistry = toolRegistry;
-        _aiAgentFactory = aiAgentFactory;
+        _chatClientFactory = chatClientFactory;
         _promptLoader = promptLoader;
+        _loggerFactory = loggerFactory;
 
-        // 加载内置角色配置
         foreach (var config in RoleConfigLoader.LoadAll())
             _roleConfigs[config.RoleType] = config;
     }
@@ -45,7 +50,7 @@ public class BuiltinAgentProvider : IAgentProvider
         Fields = []
     };
 
-    public IAgent CreateAgent(AgentRole role)
+    public AIAgent CreateAgent(AgentRole role)
     {
         RoleConfig config;
 
@@ -62,8 +67,29 @@ public class BuiltinAgentProvider : IAgentProvider
             config = BuildRoleConfigFromDb(role);
         }
 
-        var logger = _serviceProvider.GetRequiredService<ILogger<StandardAgent>>();
-        return new StandardAgent(config, _toolRegistry, _aiAgentFactory, logger);
+        var account = role.ProviderAccount
+            ?? throw new InvalidOperationException("ProviderAccount is required for builtin agent");
+        var apiKey = role.ApiKey
+            ?? throw new InvalidOperationException("ApiKey is required for builtin agent");
+
+        var modelName = config.ModelName ?? role.ModelName ?? "gpt-4o";
+        var chatClient = _chatClientFactory.Create(account.ProtocolType, apiKey, modelName, baseUrl: null);
+
+        IList<AITool>? aiTools = null;
+        if (config.Tools.Count > 0)
+        {
+            var toolContext = new AgentContext { Role = role };
+            var agentTools = _toolRegistry.GetTools(config.Tools);
+            if (agentTools.Count > 0)
+                aiTools = AgentToolBridge.ToAITools(agentTools, toolContext);
+        }
+
+        return new ChatClientAgent(
+            chatClient,
+            name: config.Name,
+            instructions: config.SystemPrompt,
+            tools: aiTools,
+            loggerFactory: _loggerFactory);
     }
 
     /// <summary>获取内置角色配置</summary>

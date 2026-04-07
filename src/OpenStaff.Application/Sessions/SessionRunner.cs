@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenStaff.Application.Orchestration;
-using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Notifications;
+using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure.Persistence;
 
 namespace OpenStaff.Application.Sessions;
@@ -268,15 +268,8 @@ public class SessionRunner
             });
 
             // 调用目标 Agent
-            var message = new AgentMessage
-            {
-                Content = frame.Purpose,
-                FromRole = frame.InitiatorRole,
-                Timestamp = DateTime.UtcNow
-            };
-
             var response = await _orchestration.RouteToAgentAsync(
-                session.ProjectId, frame.TargetRole ?? "communicator", message, ct);
+                session.ProjectId, frame.TargetRole ?? "communicator", frame.Purpose, ct);
 
             // 发布消息事件（群聊中显示 Agent 发言）
             await PushEventAsync(session.Id, SessionEventTypes.Message, frame.Id, new

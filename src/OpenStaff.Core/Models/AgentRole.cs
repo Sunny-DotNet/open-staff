@@ -22,9 +22,12 @@ public class AgentRole
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // 导航属性（ProviderAccount 不再是 EF 导航属性，仅用于运行时传递）
+    // 运行时属性（不持久化，由 OrchestrationService 解析后赋值）
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public ProviderAccount? ProviderAccount { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? ApiKey { get; set; }
     public Plugin? Plugin { get; set; }
     public ICollection<ProjectAgent> ProjectAgents { get; set; } = new List<ProjectAgent>();
 }

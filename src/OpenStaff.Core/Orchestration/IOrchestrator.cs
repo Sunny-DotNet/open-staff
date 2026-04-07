@@ -1,5 +1,3 @@
-using OpenStaff.Core.Agents;
-
 namespace OpenStaff.Core.Orchestration;
 
 /// <summary>
@@ -7,25 +5,23 @@ namespace OpenStaff.Core.Orchestration;
 /// </summary>
 public interface IOrchestrator
 {
-    /// <summary>
-    /// 处理用户输入 / Handle user input
-    /// </summary>
-    Task<AgentResponse> HandleUserInputAsync(Guid projectId, string input, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// 路由消息到指定角色 / Route message to a specific role
-    /// </summary>
-    Task<AgentResponse> RouteToAgentAsync(Guid projectId, string targetRole, AgentMessage message, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// 获取工程中所有角色的状态 / Get status of all agents in a project
-    /// </summary>
+    Task<OrchestrationResponse> HandleUserInputAsync(Guid projectId, string input, CancellationToken cancellationToken = default);
+    Task<OrchestrationResponse> RouteToAgentAsync(Guid projectId, string targetRole, string message, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AgentStatusInfo>> GetAgentStatusesAsync(Guid projectId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// 初始化工程的所有智能体 / Initialize all agents for a project
-    /// </summary>
     Task InitializeProjectAgentsAsync(Guid projectId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// 编排响应 / Orchestration response
+/// </summary>
+public class OrchestrationResponse
+{
+    public bool Success { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public string? TargetRole { get; set; }
+    public bool RequiresUserInput { get; set; }
+    public Dictionary<string, object> Data { get; set; } = new();
+    public List<string> Errors { get; set; } = new();
 }
 
 public class AgentStatusInfo

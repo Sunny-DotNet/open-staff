@@ -1,172 +1,116 @@
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Moq;
 using OpenStaff.Agent.Builtin;
+using OpenStaff.Agent.Tools;
 using OpenStaff.Core.Agents;
-using OpenStaff.Core.Notifications;
 using OpenStaff.Core.Models;
 using Xunit;
 
 namespace OpenStaff.Tests.Unit;
 
-public class StandardAgentTests
+public class BuiltinAgentProviderTests
 {
-    private static RoleConfig CreateConfig(string roleType = "communicator") => new()
+    private static BuiltinAgentProvider CreateProvider()
+    {
+        var services = new ServiceCollection()
+            .AddLogging()
+            .BuildServiceProvider();
+        var toolRegistry = new AgentToolRegistry();
+        var chatClientFactory = new ChatClientFactory(services.GetRequiredService<ILoggerFactory>());
+        var promptLoader = new OpenStaff.Agent.Builtin.Prompts.EmbeddedPromptLoader();
+        return new BuiltinAgentProvider(services, toolRegistry, chatClientFactory, promptLoader, services.GetRequiredService<ILoggerFactory>());
+    }
+
+    private static AgentRole CreateRole(string roleType = "secretary") => new()
     {
         RoleType = roleType,
-        Name = "TestRole",
-        SystemPrompt = "You are a test agent.",
-        IsBuiltin = true,
-        Tools = new List<string>(),
-        ModelParameters = new ModelParameters { Temperature = 0.5, MaxTokens = 2048 }
+        Name = roleType,
+        ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
+        ApiKey = "test-api-key"
     };
 
-    private static StandardAgent CreateAgent(
-        RoleConfig? config = null,
-        IAgentToolRegistry? toolRegistry = null,
-        AIAgentFactory? aiAgentFactory = null)
+    [Fact]
+    public void ProviderType_IsBuiltin()
     {
-        config ??= CreateConfig();
-        toolRegistry ??= new Mock<IAgentToolRegistry>().Object;
-        aiAgentFactory ??= new AIAgentFactory(new ChatClientFactory(new Mock<ILoggerFactory>().Object), new Mock<ILoggerFactory>().Object);
-        var logger = new Mock<ILogger<StandardAgent>>().Object;
-        return new StandardAgent(config, toolRegistry, aiAgentFactory, logger);
+        var provider = CreateProvider();
+        Assert.Equal("builtin", provider.ProviderType);
     }
 
     [Fact]
-    public void Constructor_SetsRoleTypeFromConfig()
+    public void GetRoleConfig_ReturnsConfigForBuiltinRole()
     {
-        var agent = CreateAgent(config: CreateConfig("architect"));
-        Assert.Equal("architect", agent.RoleType);
+        var provider = CreateProvider();
+        var config = provider.GetRoleConfig("secretary");
+        Assert.NotNull(config);
+        Assert.Equal("secretary", config!.RoleType);
     }
 
     [Fact]
-    public void Constructor_SetsRoleTypeFromConfig_Communicator()
+    public void GetRoleConfig_ReturnsNullForUnknownRole()
     {
-        var agent = CreateAgent(config: CreateConfig("communicator"));
-        Assert.Equal("communicator", agent.RoleType);
+        var provider = CreateProvider();
+        var config = provider.GetRoleConfig("nonexistent");
+        Assert.Null(config);
     }
 
     [Fact]
-    public void Constructor_SetsRoleTypeFromConfig_DecisionMaker()
+    public void RoleConfigs_ContainsBuiltinRoles()
     {
-        var agent = CreateAgent(config: CreateConfig("decision_maker"));
-        Assert.Equal("decision_maker", agent.RoleType);
+        var provider = CreateProvider();
+        Assert.True(provider.RoleConfigs.Count > 0);
     }
 
     [Fact]
-    public void Status_DefaultsToIdle()
+    public void CreateAgent_ReturnsAIAgent()
     {
-        var agent = CreateAgent();
-        Assert.Equal(AgentStatus.Idle, agent.Status);
+        var provider = CreateProvider();
+        var role = CreateRole();
+
+        var agent = provider.CreateAgent(role);
+        Assert.NotNull(agent);
+        Assert.IsAssignableFrom<AIAgent>(agent);
     }
 
     [Fact]
-    public void Agent_ImplementsIAgent()
+    public void CreateAgent_ThrowsWithoutProviderAccount()
     {
-        var agent = CreateAgent();
-        Assert.IsAssignableFrom<IAgent>(agent);
+        var provider = CreateProvider();
+        var role = new AgentRole { RoleType = "secretary", Name = "Secretary" };
+
+        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role));
     }
 
     [Fact]
-    public async Task InitializeAsync_SetsContextAndKeepsIdle()
+    public void CreateAgent_ThrowsWithoutApiKey()
     {
-        var agent = CreateAgent();
-        var context = new AgentContext
+        var provider = CreateProvider();
+        var role = new AgentRole
         {
-            ProjectId = Guid.NewGuid(),
-            AgentInstanceId = Guid.NewGuid(),
-            Role = new AgentRole { RoleType = "communicator", Name = "Test" },
-            Project = new Project { Id = Guid.NewGuid() },
-            NotificationService = new Mock<INotificationService>().Object,
-            Language = "en"
+            RoleType = "secretary",
+            Name = "Secretary",
+            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" }
         };
 
-        await agent.InitializeAsync(context);
-
-        Assert.Equal(AgentStatus.Idle, agent.Status);
+        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role));
     }
 
     [Fact]
-    public async Task ProcessAsync_WithoutProvider_ReturnsError()
+    public void CreateAgent_UsesDbRoleConfigForCustomRole()
     {
-        var config = CreateConfig("producer");
-        config.SystemPrompt = "You are a producer.";
-
-        var toolRegistryMock = new Mock<IAgentToolRegistry>();
-        toolRegistryMock
-            .Setup(t => t.GetTools(It.IsAny<IEnumerable<string>>()))
-            .Returns(new List<IAgentTool>());
-
-        var notificationMock = new Mock<INotificationService>();
-        notificationMock
-            .Setup(n => n.NotifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var agent = CreateAgent(config, toolRegistryMock.Object);
-        await agent.InitializeAsync(new AgentContext
+        var provider = CreateProvider();
+        var role = new AgentRole
         {
-            ProjectId = Guid.NewGuid(),
-            AgentInstanceId = Guid.NewGuid(),
-            Role = new AgentRole { RoleType = "producer", Name = "Producer" },
-            Project = new Project { Id = Guid.NewGuid() },
-            Account = null,
-            NotificationService = notificationMock.Object,
-            Language = "en"
-        });
+            RoleType = "my_custom_role",
+            Name = "Custom Role",
+            SystemPrompt = "You are a custom agent.",
+            ModelName = "gpt-4o",
+            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
+            ApiKey = "test-api-key"
+        };
 
-        var result = await agent.ProcessAsync(new AgentMessage { Content = "Build something" });
-
-        Assert.False(result.Success);
-        Assert.Contains("供应商", result.Content);
-    }
-
-    [Fact]
-    public async Task ProcessAsync_StatusReturnsToIdleOrErrorAfterProcess()
-    {
-        var config = CreateConfig("communicator");
-        config.SystemPrompt = "You are a communicator.";
-
-        var toolRegistryMock = new Mock<IAgentToolRegistry>();
-        toolRegistryMock.Setup(t => t.GetTools(It.IsAny<IEnumerable<string>>())).Returns(new List<IAgentTool>());
-
-        var notificationMock = new Mock<INotificationService>();
-        notificationMock
-            .Setup(n => n.NotifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var agent = CreateAgent(config, toolRegistryMock.Object);
-        await agent.InitializeAsync(new AgentContext
-        {
-            ProjectId = Guid.NewGuid(),
-            AgentInstanceId = Guid.NewGuid(),
-            Role = new AgentRole { RoleType = "communicator", Name = "Comm" },
-            Project = new Project { Id = Guid.NewGuid() },
-            Account = null,
-            NotificationService = notificationMock.Object,
-            Language = "en"
-        });
-
-        var result = await agent.ProcessAsync(new AgentMessage { Content = "hello" });
-
-        // Without provider, it returns error
-        Assert.False(result.Success);
-    }
-
-    [Fact]
-    public async Task StopAsync_SetsStatusToIdle()
-    {
-        var agent = CreateAgent();
-        await agent.InitializeAsync(new AgentContext
-        {
-            ProjectId = Guid.NewGuid(),
-            AgentInstanceId = Guid.NewGuid(),
-            Role = new AgentRole { RoleType = "communicator", Name = "Comm" },
-            Project = new Project { Id = Guid.NewGuid() },
-            NotificationService = new Mock<INotificationService>().Object
-        });
-
-        await agent.StopAsync();
-
-        Assert.Equal(AgentStatus.Idle, agent.Status);
+        var agent = provider.CreateAgent(role);
+        Assert.NotNull(agent);
+        Assert.IsAssignableFrom<AIAgent>(agent);
     }
 }
