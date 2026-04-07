@@ -28,6 +28,9 @@ public class AgentRole
 
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public string? ApiKey { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? EndpointOverride { get; set; }
     public Plugin? Plugin { get; set; }
     public ICollection<ProjectAgent> ProjectAgents { get; set; } = new List<ProjectAgent>();
 }

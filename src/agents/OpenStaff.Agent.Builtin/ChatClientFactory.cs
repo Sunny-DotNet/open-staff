@@ -1,3 +1,5 @@
+using Google.GenAI;
+using Google.GenAI.Types;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using OpenAI;
@@ -27,9 +29,22 @@ public class ChatClientFactory
         return protocolType switch
         {
             "openai" => CreateOpenAIChatClient(apiKey, model, baseUrl),
+            "google" => CreateGoogleChatClient(apiKey, model, baseUrl),
             "github-copilot" => CreateCopilotChatClient(apiKey, model, baseUrl),
             _ => CreateOpenAIChatClient(apiKey, model, baseUrl)
         };
+    }
+
+    private IChatClient CreateGoogleChatClient(string apiKey, string model, string? baseUrl)
+    {
+        HttpOptions? httpOptions = null;
+        if (!string.IsNullOrEmpty(baseUrl))
+        {
+            var uri = baseUrl.TrimEnd('/');
+            httpOptions = new () { BaseUrl = uri };
+        }
+
+        return new Client(vertexAI: false, apiKey: apiKey, httpOptions: httpOptions).AsIChatClient(model);
     }
 
     private static IChatClient CreateOpenAIChatClient(string apiKey, string model, string? baseUrl)

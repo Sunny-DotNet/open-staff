@@ -87,7 +87,7 @@ public class BuiltinAgentProvider : IAgentProvider
             ?? throw new InvalidOperationException("ApiKey is required for builtin agent");
 
         var modelName = config.ModelName ?? role.ModelName ?? "gpt-4o";
-        var chatClient = _chatClientFactory.Create(account.ProtocolType, apiKey, modelName, baseUrl: null);
+        var chatClient = _chatClientFactory.Create(account.ProtocolType, apiKey, modelName, baseUrl: role.EndpointOverride);
 
         IList<AITool>? aiTools = null;
         if (config.Tools.Count > 0)
