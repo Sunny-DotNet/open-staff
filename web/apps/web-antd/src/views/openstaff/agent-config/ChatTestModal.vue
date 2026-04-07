@@ -90,7 +90,6 @@ const chatContainerRef = ref<HTMLElement | null>(null);
 let currentSubscription: { dispose: () => void } | null = null;
 
 // Config panel state
-const avatarInput = ref<HTMLInputElement>();
 const configCollapsed = ref(false);
 const configForm = ref({
   name: '',
@@ -519,10 +518,10 @@ onUnmounted(() => {
 
         <!-- 头像上传 -->
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px">
-          <div
+          <label
+            for="chat-avatar-input"
             class="avatar-upload"
             style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
-            @click="avatarInput?.click()"
           >
             <img
               v-if="configForm.avatar"
@@ -531,9 +530,11 @@ onUnmounted(() => {
               style="width: 100%; height: 100%; object-fit: cover"
             />
             <span v-else style="font-size: 24px; color: var(--ant-color-text-quaternary)">📷</span>
-          </div>
+          </label>
           <div style="flex: 1">
-            <Button size="small" @click="avatarInput?.click()">上传头像</Button>
+            <label for="chat-avatar-input">
+              <Button size="small" style="pointer-events: none">上传头像</Button>
+            </label>
             <Button
               v-if="configForm.avatar"
               size="small"
@@ -549,7 +550,7 @@ onUnmounted(() => {
             </div>
           </div>
           <input
-            ref="avatarInput"
+            id="chat-avatar-input"
             type="file"
             accept="image/png,image/jpeg,image/svg+xml"
             style="display: none"
