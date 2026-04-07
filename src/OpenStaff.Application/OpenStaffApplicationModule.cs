@@ -1,11 +1,13 @@
+using GitHub.Copilot.SDK;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.DependencyInjection;
 using OpenStaff.Agent;
 using OpenStaff.Agent.Builtin;
-using OpenStaff.Application.Agents;
 using OpenStaff.Application.AgentRoles;
+using OpenStaff.Application.Agents;
 using OpenStaff.Application.Auth;
-using OpenStaff.Application.Contracts.Agents;
 using OpenStaff.Application.Contracts.AgentRoles;
+using OpenStaff.Application.Contracts.Agents;
 using OpenStaff.Application.Contracts.Auth;
 using OpenStaff.Application.Contracts.Files;
 using OpenStaff.Application.Contracts.McpServers;
@@ -31,12 +33,12 @@ using OpenStaff.Core.Agents;
 using OpenStaff.Core.Modularity;
 using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure;
-using OpenStaff.Plugins.ModelDataSource;
-using OpenStaff.Provider;
-
 using OpenStaff.Marketplace;
 using OpenStaff.Marketplace.Internal;
 using OpenStaff.Marketplace.Registry;
+using OpenStaff.Plugins.ModelDataSource;
+using OpenStaff.Provider;
+using static Google.Protobuf.WellKnownTypes.Field.Types;
 
 namespace OpenStaff.Application;
 
@@ -122,4 +124,81 @@ public class OpenStaffApplicationModule : OpenStaffModule
         // 市场
         services.AddScoped<Application.Contracts.Marketplace.IMarketplaceAppService, Marketplace.MarketplaceAppService>();
     }
+
+
+    /// <summary>
+    /// 应用初始化 — 启动 GitHub Copilot SDK 测试对话。
+    /// CopilotClient 内部会启动捆绑的 Copilot CLI 进程，
+    /// 前提：当前机器已通过 `gh auth login` 完成 GitHub 登录。
+    /// </summary>
+    public override void OnApplicationInitialization(ApplicationInitializationContext context)
+    {
+        var logger = context.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger<OpenStaffApplicationModule>();
+
+        // 后台启动，不阻塞应用初始化流程
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // ── 1. 启动 Copilot CLI 客户端 ──
+                await using var copilotClient = new CopilotClient();
+                await copilotClient.StartAsync();
+                logger.LogInformation("[CopilotTest] Copilot CLI 客户端已启动");
+
+                // ── 2. 会话配置 ──
+                var sessionConfig = new SessionConfig
+                {
+                    Streaming = true,
+
+                    // 权限回调（必填）：工具执行前由此决定放行或拒绝
+                    OnPermissionRequest = (request, _) =>
+                    {
+                        logger.LogInformation("[CopilotTest] 权限请求: {Kind}", request.Kind);
+                        // 测试环境自动批准所有工具调用；生产环境应替换为交互式确认
+                        return Task.FromResult(new PermissionRequestResult
+                        {
+                            Kind = PermissionRequestResultKind.Approved
+                        });
+                    },
+
+                    // 用户输入回调（可选）：启用 ask_user 工具后 Agent 可向用户提问
+                    OnUserInputRequest = (request, _) =>
+                    {
+                        logger.LogInformation("[CopilotTest] Agent 提问: {Question}", request.Question);
+                        // 测试环境自动回复；生产环境应接入前端 UI
+                        return Task.FromResult(new UserInputResponse
+                        {
+                            Answer = "继续",
+                            WasFreeform = true
+                        });
+                    }
+                };
+
+                // ── 3. 通过 Agent Framework 包装为 AIAgent ──
+                // ownsClient: true → Agent Dispose 时自动关闭 CopilotClient
+                var agent = copilotClient.AsAIAgent(sessionConfig, ownsClient: true);
+
+                // ── 4. 发送测试提示 ──
+                const string prompt = "List all files in the current directory";
+                logger.LogInformation("[CopilotTest] User: {Prompt}", prompt);
+
+                // ── 5. 流式接收响应 ──
+                await foreach (var update in agent.RunStreamingAsync(prompt))
+                {
+                    // update.ToString() 输出增量文本片段
+                    Console.Write(update);
+                }
+                Console.WriteLine();
+
+                logger.LogInformation("[CopilotTest] 测试对话完成");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[CopilotTest] Copilot 测试失败");
+            }
+        });
+    }
+
 }
