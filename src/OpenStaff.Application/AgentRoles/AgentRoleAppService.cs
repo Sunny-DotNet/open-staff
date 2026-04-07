@@ -19,7 +19,6 @@ public class AgentRoleAppService : IAgentRoleAppService
     private readonly AppDbContext _db;
     private readonly ProviderAccountService _accountService;
     private readonly AgentFactory _agentFactory;
-    private readonly ChatClientFactory _chatClientFactory;
     private readonly IProviderResolver _providerResolver;
     private readonly SessionStreamManager _streamManager;
     private readonly McpServers.McpClientManager _mcpClientManager;
@@ -28,7 +27,6 @@ public class AgentRoleAppService : IAgentRoleAppService
         AppDbContext db,
         ProviderAccountService accountService,
         AgentFactory agentFactory,
-        ChatClientFactory chatClientFactory,
         IProviderResolver providerResolver,
         SessionStreamManager streamManager,
         McpServers.McpClientManager mcpClientManager)
@@ -36,7 +34,6 @@ public class AgentRoleAppService : IAgentRoleAppService
         _db = db;
         _accountService = accountService;
         _agentFactory = agentFactory;
-        _chatClientFactory = chatClientFactory;
         _providerResolver = providerResolver;
         _streamManager = streamManager;
         _mcpClientManager = mcpClientManager;
@@ -169,7 +166,6 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         ProviderAccount? account = null;
         string? apiKey = null;
-        string? endpointOverride = null;
 
         if (providerId.HasValue)
         {
@@ -178,7 +174,6 @@ public class AgentRoleAppService : IAgentRoleAppService
             {
                 account = resolved.Account;
                 apiKey = resolved.ApiKey;
-                endpointOverride = resolved.EndpointOverride;
             }
         }
 
@@ -189,34 +184,30 @@ public class AgentRoleAppService : IAgentRoleAppService
                 : "请先在设置页面配置供应商的 API Key");
         }
 
-        // 解析角色配置（支持 Override 覆盖）
-        var builtinProvider = _agentFactory.Providers.GetValueOrDefault("builtin") as BuiltinAgentProvider;
-        var roleConfig = builtinProvider?.GetRoleConfig(role.RoleType);
-
-        // 如果 Override 带了 Soul/Name/Description，用 BuildSystemPrompt 生成覆盖的 systemPrompt
-        string systemPrompt;
+        // 应用 Override 到 AgentRole（用于 Provider 创建）
         if (liveOverride?.Soul != null || liveOverride?.Name != null || liveOverride?.Description != null)
         {
-            var tempRole = new AgentRole
-            {
-                Name = liveOverride?.Name ?? role.Name,
-                Description = liveOverride?.Description ?? role.Description,
-                Soul = MapSoulFromDto(liveOverride?.Soul) ?? role.Soul,
-            };
-            systemPrompt = BuildSystemPrompt(tempRole);
-        }
-        else
-        {
-            systemPrompt = !string.IsNullOrEmpty(role.SystemPrompt) ? role.SystemPrompt : roleConfig?.SystemPrompt ?? "";
+            role.Name = liveOverride?.Name ?? role.Name;
+            role.Description = liveOverride?.Description ?? role.Description;
+            role.Soul = MapSoulFromDto(liveOverride?.Soul) ?? role.Soul;
+            role.SystemPrompt = BuildSystemPrompt(role);
         }
 
-        var modelName = liveOverride?.ModelName
-            ?? (!string.IsNullOrEmpty(role.ModelName) ? role.ModelName : roleConfig?.ModelName ?? "gpt-4o");
-        var temperature = liveOverride?.Temperature;
+        if (!string.IsNullOrEmpty(liveOverride?.ModelName))
+            role.ModelName = liveOverride.ModelName;
+
+        role.ProviderAccount = account;
+        role.ApiKey = apiKey;
+
+        // 通过 AgentFactory/BuiltinAgentProvider 创建组件
+        var builtinProvider = _agentFactory.Providers.GetValueOrDefault("builtin") as BuiltinAgentProvider;
+        if (builtinProvider == null)
+            throw new InvalidOperationException("Builtin provider not registered");
+
+        var components = builtinProvider.PrepareAgent(role);
 
         var sessionId = Guid.NewGuid();
         var stream = _streamManager.Create(sessionId);
-
         stream.Push(SessionEventTypes.UserInput, payload: JsonSerializer.Serialize(new { content = message }));
 
         // 查询 MCP 绑定
@@ -226,8 +217,7 @@ public class AgentRoleAppService : IAgentRoleAppService
             .ToListAsync(ct);
 
         _ = Task.Run(() => RunTestChatStream(
-            stream, sessionId, account, apiKey, modelName, endpointOverride,
-            systemPrompt, message, temperature, mcpBindings, role));
+            stream, sessionId, components, message, liveOverride?.Temperature, mcpBindings, role));
 
         return sessionId;
     }
@@ -235,11 +225,7 @@ public class AgentRoleAppService : IAgentRoleAppService
     private async Task RunTestChatStream(
         SessionStream stream,
         Guid sessionId,
-        ProviderAccount account,
-        string apiKey,
-        string modelName,
-        string? endpointOverride,
-        string systemPrompt,
+        AgentComponents components,
         string userMessage,
         double? temperature,
         List<AgentRoleMcpConfig> mcpBindings,
@@ -251,19 +237,21 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         try
         {
-            var chatClient = _chatClientFactory.Create(
-                account.ProtocolType, apiKey, modelName, endpointOverride);
+            // 合并 Agent 内置工具 + MCP 工具
+            var allTools = new List<AITool>();
+            if (components.Tools != null)
+                allTools.AddRange(components.Tools);
 
-            // 加载 MCP 工具
             var mcpTools = await LoadMcpToolsAsync(stream, mcpBindings, bgCt);
+            allTools.AddRange(mcpTools);
 
             var chatOptions = new ChatOptions();
-            if (mcpTools.Count > 0) chatOptions.Tools = mcpTools;
+            if (allTools.Count > 0) chatOptions.Tools = allTools;
             if (temperature.HasValue) chatOptions.Temperature = (float)temperature.Value;
 
             var chatMessages = new List<Microsoft.Extensions.AI.ChatMessage>();
-            if (!string.IsNullOrEmpty(systemPrompt))
-                chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt));
+            if (!string.IsNullOrEmpty(components.Instructions))
+                chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, components.Instructions));
             chatMessages.Add(new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userMessage));
 
             // 流式推送（含工具调用循环）
@@ -278,7 +266,7 @@ public class AgentRoleAppService : IAgentRoleAppService
             {
                 var pendingToolCalls = new List<FunctionCallContent>();
 
-                await foreach (var update in chatClient.GetStreamingResponseAsync(
+                await foreach (var update in components.ChatClient.GetStreamingResponseAsync(
                     (IEnumerable<Microsoft.Extensions.AI.ChatMessage>)chatMessages, chatOptions, bgCt))
                 {
                     ProcessStreamingUpdate(update, stream, fullContent, thinkingContent,
@@ -287,7 +275,7 @@ public class AgentRoleAppService : IAgentRoleAppService
 
                 if (pendingToolCalls.Count == 0) break;
 
-                await ExecuteToolCallsAsync(chatMessages, pendingToolCalls, mcpTools, stream, bgCt);
+                await ExecuteToolCallsAsync(chatMessages, pendingToolCalls, allTools, stream, bgCt);
             }
 
             stopwatch.Stop();
@@ -296,7 +284,7 @@ public class AgentRoleAppService : IAgentRoleAppService
                 {
                     role = role.RoleType,
                     roleName = role.Name,
-                    model = modelName,
+                    model = role.ModelName,
                     content = fullContent.ToString(),
                     thinking = thinkingContent.Length > 0 ? thinkingContent.ToString() : null,
                     usage = new { inputTokens, outputTokens, totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0) },

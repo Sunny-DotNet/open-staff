@@ -52,6 +52,20 @@ public class BuiltinAgentProvider : IAgentProvider
 
     public AIAgent CreateAgent(AgentRole role)
     {
+        var components = PrepareAgent(role);
+        return new ChatClientAgent(
+            components.ChatClient,
+            name: components.Name,
+            instructions: components.Instructions,
+            tools: components.Tools,
+            loggerFactory: _loggerFactory);
+    }
+
+    /// <summary>
+    /// 准备智能体所需的组件（ChatClient、指令、工具），供流式调用等场景复用
+    /// </summary>
+    public AgentComponents PrepareAgent(AgentRole role)
+    {
         RoleConfig config;
 
         if (_roleConfigs.TryGetValue(role.RoleType, out var existingConfig))
@@ -84,12 +98,7 @@ public class BuiltinAgentProvider : IAgentProvider
                 aiTools = AgentToolBridge.ToAITools(agentTools, toolContext);
         }
 
-        return new ChatClientAgent(
-            chatClient,
-            name: config.Name,
-            instructions: config.SystemPrompt,
-            tools: aiTools,
-            loggerFactory: _loggerFactory);
+        return new AgentComponents(chatClient, config.Name, config.SystemPrompt, aiTools);
     }
 
     /// <summary>获取内置角色配置</summary>
