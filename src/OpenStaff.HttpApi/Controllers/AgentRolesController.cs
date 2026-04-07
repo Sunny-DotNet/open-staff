@@ -41,6 +41,10 @@ public class AgentRolesController : ControllerBase
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         => await _agentRoleAppService.DeleteAsync(id, ct) ? NoContent() : NotFound();
 
+    [HttpPost("vendor/{providerType}/reset")]
+    public async Task<IActionResult> ResetVendor(string providerType, CancellationToken ct)
+        => await _agentRoleAppService.ResetVendorAsync(providerType, ct) ? NoContent() : NotFound();
+
     [HttpPost("{id:guid}/test-chat")]
     public async Task<IActionResult> TestChat(Guid id, [FromBody] TestChatBody body, CancellationToken ct)
     {

@@ -55,6 +55,7 @@ const props = defineProps<{
   mode: 'create' | 'edit';
   open: boolean;
   providers: SettingsApi.ProviderAccount[];
+  vendorPreset?: { name: string; providerType: string; avatar: string } | null;
 }>();
 
 const emit = defineEmits<{
@@ -95,7 +96,12 @@ watch(
       loadRoleToForm(props.editingRole);
       loadMcpData(props.editingRole.id);
     } else if (val && props.mode === 'create') {
-      editForm.value = { ...DEFAULT_FORM, soul: { ...DEFAULT_FORM.soul } };
+      const preset = props.vendorPreset;
+      editForm.value = {
+        ...DEFAULT_FORM,
+        soul: { ...DEFAULT_FORM.soul },
+        ...(preset ? { name: preset.name, avatar: preset.avatar } : {}),
+      };
       mcpBindings.value = [];
     }
   },
@@ -249,7 +255,7 @@ async function removeMcpBinding(configId: string) {
           {{ mode === 'create' ? '🆕' : getRoleIcon(editingRole?.roleType ?? '') }}
         </span>
         <span style="font-size: 16px; font-weight: 600">
-          {{ mode === 'create' ? '新增员工' : (editingRole?.name ?? '') }}
+          {{ mode === 'create' ? (vendorPreset ? `配置 ${vendorPreset.name}` : '新增员工') : (editingRole?.name ?? '') }}
         </span>
         <Tag v-if="mode === 'edit' && editingRole?.isBuiltin" color="blue">内置</Tag>
       </Space>

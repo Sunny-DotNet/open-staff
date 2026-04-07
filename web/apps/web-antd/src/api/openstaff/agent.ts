@@ -12,6 +12,7 @@ export namespace AgentApi {
     modelName: string | null;
     modelProviderName: string | null;
     isBuiltin: boolean;
+    isVirtual: boolean;
     source: number;
     providerType: string | null;
     config: string | null;
@@ -142,6 +143,13 @@ export async function createAgentRoleApi(data: {
 /** 删除代理体角色（软删除） */
 export async function deleteAgentRoleApi(id: string): Promise<void> {
   await requestClient.delete(`/agent-roles/${id}`);
+}
+
+/** 重置 Vendor 角色（删除物化记录，恢复虚拟状态） */
+export async function resetVendorAgentApi(
+  providerType: string,
+): Promise<void> {
+  await requestClient.post(`/agent-roles/vendor/${providerType}/reset`);
 }
 
 /** 测试代理体对话（异步启动，返回 sessionId，通过 SignalR 订阅结果） */

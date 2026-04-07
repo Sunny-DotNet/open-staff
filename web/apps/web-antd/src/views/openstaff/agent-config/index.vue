@@ -25,6 +25,7 @@ import {
   createAgentRoleApi,
   deleteAgentRoleApi,
   getAgentRolesApi,
+  resetVendorAgentApi,
 } from '#/api/openstaff/agent';
 import { getProviderAccountsApi } from '#/api/openstaff/settings';
 import { getRoleIcon } from '#/constants/agent';
@@ -60,6 +61,13 @@ const chatModalVisible = ref(false);
 const chatRoleId = ref('');
 const chatRoleName = ref('');
 
+// Vendor 预设（虚拟 Agent 点击时传入 Drawer）
+const vendorPreset = ref<{
+  name: string;
+  providerType: string;
+  avatar: string;
+} | null>(null);
+
 // ===== 计算属性 =====
 const editingRole = computed(() =>
   roles.value.find((r) => r.id === editingRoleId.value),
@@ -91,14 +99,27 @@ function parseConfig(configStr: string | null): AgentApi.AgentRoleConfig {
 
 // ===== Drawer 操作 =====
 function openConfigDrawer(role: AgentApi.AgentRole) {
-  drawerMode.value = 'edit';
-  editingRoleId.value = role.id;
+  if (role.isVirtual) {
+    // 虚拟 Vendor Agent — 打开创建模式，预填供应商信息
+    drawerMode.value = 'create';
+    editingRoleId.value = '';
+    vendorPreset.value = {
+      name: role.name,
+      providerType: role.providerType || '',
+      avatar: role.avatar || '',
+    };
+  } else {
+    drawerMode.value = 'edit';
+    editingRoleId.value = role.id;
+    vendorPreset.value = null;
+  }
   drawerVisible.value = true;
 }
 
 function openCreateDrawer() {
   drawerMode.value = 'create';
   editingRoleId.value = '';
+  vendorPreset.value = null;
   drawerVisible.value = true;
 }
 
@@ -153,6 +174,7 @@ async function createRole(form: EditFormState) {
   }
 
   try {
+    const isVendor = !!vendorPreset.value;
     const roleType = form.name
       .trim()
       .toLowerCase()
@@ -174,10 +196,12 @@ async function createRole(form: EditFormState) {
       modelName: form.modelName || undefined,
       config: JSON.stringify(config),
       soul: form.soul,
+      source: isVendor ? 3 : 0,
+      providerType: isVendor ? vendorPreset.value!.providerType : undefined,
     });
 
     roles.value = await getAgentRolesApi();
-    message.success('员工创建成功');
+    message.success(isVendor ? '已配置' : '员工创建成功');
     drawerVisible.value = false;
   } catch {
     message.error('创建失败');
@@ -195,6 +219,21 @@ async function deleteRole(role: AgentApi.AgentRole) {
     }
   } catch {
     message.error('删除失败');
+  }
+}
+
+// ===== 重置 Vendor 角色 =====
+async function resetVendorRole(role: AgentApi.AgentRole) {
+  if (!role.providerType) return;
+  try {
+    await resetVendorAgentApi(role.providerType);
+    roles.value = await getAgentRolesApi();
+    message.success('已重置为默认');
+    if (editingRoleId.value === role.id) {
+      drawerVisible.value = false;
+    }
+  } catch {
+    message.error('重置失败');
   }
 }
 
@@ -253,6 +292,8 @@ import { updateAgentRoleApi } from '#/api/openstaff/agent';
               </span>
               <Space :size="4">
                 <Tag v-if="role.isBuiltin" color="blue">内置</Tag>
+                <Tag v-else-if="role.source === 3" color="purple">厂商</Tag>
+                <Tag v-if="role.isVirtual" color="default">未配置</Tag>
                 <Tag v-if="role.modelProviderName" color="green">
                   {{ role.modelProviderName }}
                 </Tag>
@@ -279,11 +320,36 @@ import { updateAgentRoleApi } from '#/api/openstaff/agent';
 
             <!-- 操作按钮 -->
             <div style="display: flex; gap: 8px" @click.stop>
-              <Button size="small" type="primary" ghost @click="openChatModal(role)">
+              <Button
+                v-if="!role.isVirtual"
+                size="small"
+                type="primary"
+                ghost
+                @click="openChatModal(role)"
+              >
                 💬 对话测试
               </Button>
+              <Button
+                v-if="role.isVirtual"
+                size="small"
+                type="primary"
+                @click="openConfigDrawer(role)"
+              >
+                ⚙️ 配置
+              </Button>
+              <!-- Vendor 物化后：重置按钮 -->
               <Popconfirm
-                v-if="!role.isBuiltin"
+                v-if="role.source === 3 && !role.isVirtual"
+                title="重置后将恢复为默认配置，确定？"
+                ok-text="确定"
+                cancel-text="取消"
+                @confirm="resetVendorRole(role)"
+              >
+                <Button size="small">重置</Button>
+              </Popconfirm>
+              <!-- 非内置、非 Vendor：删除按钮 -->
+              <Popconfirm
+                v-if="!role.isBuiltin && role.source !== 3"
                 title="确定要删除该员工吗？"
                 ok-text="确定"
                 cancel-text="取消"
@@ -303,6 +369,7 @@ import { updateAgentRoleApi } from '#/api/openstaff/agent';
       :mode="drawerMode"
       :editing-role="editingRole"
       :providers="providers"
+      :vendor-preset="vendorPreset"
       @update:open="drawerVisible = $event"
       @save="handleDrawerSave"
     />

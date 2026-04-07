@@ -11,6 +11,10 @@ public class AgentRoleDto
     public string? SystemPrompt { get; set; }
     public string? Avatar { get; set; }
     public bool IsBuiltin { get; set; }
+
+    /// <summary>是否为自动发现的虚拟条目（未物化到数据库）</summary>
+    public bool IsVirtual { get; set; }
+
     public AgentSource Source { get; set; }
     public string? ProviderType { get; set; }
     public string? ModelProviderId { get; set; }

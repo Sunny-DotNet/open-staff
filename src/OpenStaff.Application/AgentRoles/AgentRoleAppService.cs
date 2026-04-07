@@ -57,7 +57,36 @@ public class AgentRoleAppService : IAgentRoleAppService
             }
         }
 
-        return roles.Select(r => MapToDto(r, r.ModelProviderId.HasValue && providerNames.TryGetValue(r.ModelProviderId.Value, out var name) ? name : null, GetVendorAvatar(r))).ToList();
+        var result = roles.Select(r => MapToDto(r, r.ModelProviderId.HasValue && providerNames.TryGetValue(r.ModelProviderId.Value, out var name) ? name : null, GetVendorAvatar(r))).ToList();
+
+        // 追加未物化的 Vendor 虚拟条目
+        var materializedProviderTypes = roles
+            .Where(r => r.Source == AgentSource.Vendor)
+            .Select(r => r.ProviderType)
+            .Where(pt => !string.IsNullOrEmpty(pt))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var provider in _agentFactory.Providers.Values)
+        {
+            if (provider.ProviderType == "builtin") continue;
+            if (materializedProviderTypes.Contains(provider.ProviderType)) continue;
+
+            result.Add(new AgentRoleDto
+            {
+                Id = Guid.Empty,
+                Name = provider.DisplayName,
+                RoleType = provider.ProviderType,
+                Description = null,
+                Avatar = provider.AvatarDataUri,
+                IsBuiltin = false,
+                IsVirtual = true,
+                Source = AgentSource.Vendor,
+                ProviderType = provider.ProviderType,
+                CreatedAt = DateTime.MinValue
+            });
+        }
+
+        return result;
     }
 
     public async Task<AgentRoleDto?> GetByIdAsync(Guid id, CancellationToken ct)
@@ -153,9 +182,22 @@ public class AgentRoleAppService : IAgentRoleAppService
         var role = await _db.AgentRoles.FindAsync(new object[] { id }, ct);
         if (role == null) return false;
         if (role.IsBuiltin) throw new InvalidOperationException("不能删除内置角色");
+        if (role.Source == AgentSource.Vendor) throw new InvalidOperationException("Vendor 角色不能删除，请使用重置");
 
         role.IsActive = false;
         role.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> ResetVendorAsync(string providerType, CancellationToken ct)
+    {
+        var role = await _db.AgentRoles
+            .FirstOrDefaultAsync(r => r.Source == AgentSource.Vendor && r.ProviderType == providerType && r.IsActive, ct);
+        if (role == null) return false;
+
+        // 硬删除，恢复为虚拟状态
+        _db.AgentRoles.Remove(role);
         await _db.SaveChangesAsync(ct);
         return true;
     }
