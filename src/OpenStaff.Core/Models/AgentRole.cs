@@ -22,15 +22,6 @@ public class AgentRole
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // 运行时属性（不持久化，由 OrchestrationService 解析后赋值）
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public ProviderAccount? ProviderAccount { get; set; }
-
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public string? ApiKey { get; set; }
-
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public string? BaseUrl { get; set; }
     public Plugin? Plugin { get; set; }
     public ICollection<ProjectAgent> ProjectAgents { get; set; } = new List<ProjectAgent>();
 }

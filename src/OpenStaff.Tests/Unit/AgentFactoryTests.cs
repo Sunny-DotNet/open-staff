@@ -75,7 +75,8 @@ public class AgentFactoryTests
     {
         var factory = CreateFactory(CreateBuiltinProvider());
         var role = new AgentRole { RoleType = "test", ProviderType = "unknown" };
-        Assert.Throws<InvalidOperationException>(() => factory.CreateAgent(role));
+        var resolved = new ResolvedProvider { Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" }, ApiKey = "k" };
+        Assert.Throws<InvalidOperationException>(() => factory.CreateAgent(role, resolved));
     }
 
     [Fact]
@@ -87,11 +88,14 @@ public class AgentFactoryTests
         {
             RoleType = "secretary",
             Name = "Secretary",
-            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
+        };
+        var resolved = new ResolvedProvider
+        {
+            Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
             ApiKey = "test-key"
         };
 
-        var agent = factory.CreateAgent(role);
+        var agent = factory.CreateAgent(role, resolved);
         Assert.NotNull(agent);
         Assert.IsAssignableFrom<AIAgent>(agent);
     }
@@ -105,11 +109,14 @@ public class AgentFactoryTests
             RoleType = "secretary",
             Name = "Secretary",
             ProviderType = null,
-            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
+        };
+        var resolved = new ResolvedProvider
+        {
+            Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
             ApiKey = "test-key"
         };
 
-        var agent = factory.CreateAgent(role);
+        var agent = factory.CreateAgent(role, resolved);
         Assert.NotNull(agent);
     }
 }

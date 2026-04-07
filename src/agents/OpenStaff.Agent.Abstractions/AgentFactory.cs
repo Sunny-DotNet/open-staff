@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 
 namespace OpenStaff.Agent;
@@ -17,13 +18,13 @@ public class AgentFactory
     }
 
     /// <summary>根据数据库角色创建 AIAgent</summary>
-    public AIAgent CreateAgent(AgentRole role)
+    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
     {
         var providerType = role.ProviderType ?? "builtin";
-        if (!_providers.TryGetValue(providerType, out var provider))
+        if (!_providers.TryGetValue(providerType, out var agentProvider))
             throw new InvalidOperationException($"Agent provider '{providerType}' is not registered");
 
-        return provider.CreateAgent(role);
+        return agentProvider.CreateAgent(role, provider);
     }
 
     /// <summary>获取所有已注册的 Provider</summary>

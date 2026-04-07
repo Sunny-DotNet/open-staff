@@ -3,6 +3,7 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using OpenAI;
+using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using System.ClientModel;
 using System.ClientModel.Primitives;
@@ -54,7 +55,7 @@ public class GitHubCopilotAgentProvider : IAgentProvider
         ]
     };
 
-    public AIAgent CreateAgent(AgentRole role)
+    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
     {
         var config = AgentConfig.FromJson(role.Config);
         var token = config.GetRequired("token");

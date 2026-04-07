@@ -21,8 +21,6 @@ public class AgentRoleConfiguration : IEntityTypeConfiguration<AgentRole>
             soul.ToJson();
         });
 
-        builder.Ignore(x => x.ProviderAccount);
-
         builder.HasOne(x => x.Plugin)
             .WithMany(x => x.AgentRoles)
             .HasForeignKey(x => x.PluginId)

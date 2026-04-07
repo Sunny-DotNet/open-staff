@@ -47,13 +47,17 @@ public class AgentRoleAppService : IAgentRoleAppService
             .ThenBy(r => r.Name)
             .ToListAsync(ct);
 
+        var providerNames = new Dictionary<Guid, string>();
         foreach (var role in roles)
         {
-            if (role.ModelProviderId.HasValue)
-                role.ProviderAccount = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
+            if (role.ModelProviderId.HasValue && !providerNames.ContainsKey(role.ModelProviderId.Value))
+            {
+                var account = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
+                if (account != null) providerNames[role.ModelProviderId.Value] = account.Name;
+            }
         }
 
-        return roles.Select(MapToDto).ToList();
+        return roles.Select(r => MapToDto(r, r.ModelProviderId.HasValue && providerNames.TryGetValue(r.ModelProviderId.Value, out var name) ? name : null)).ToList();
     }
 
     public async Task<AgentRoleDto?> GetByIdAsync(Guid id, CancellationToken ct)
@@ -63,7 +67,10 @@ public class AgentRoleAppService : IAgentRoleAppService
         if (role == null) return null;
 
         if (role.ModelProviderId.HasValue)
-            role.ProviderAccount = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
+        {
+            var account = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
+            return MapToDto(role, account?.Name);
+        }
 
         return MapToDto(role);
     }
@@ -131,7 +138,10 @@ public class AgentRoleAppService : IAgentRoleAppService
         await _db.SaveChangesAsync(ct);
 
         if (role.ModelProviderId.HasValue)
-            role.ProviderAccount = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
+        {
+            var account = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
+            return MapToDto(role, account?.Name);
+        }
         return MapToDto(role);
     }
 
@@ -164,24 +174,15 @@ public class AgentRoleAppService : IAgentRoleAppService
             ? Guid.Parse(liveOverride.ModelProviderId)
             : role.ModelProviderId;
 
-        ProviderAccount? account = null;
-        string? apiKey = null;
-        string? baseUrl = null;
-
+        ResolvedProvider? resolved = null;
         if (providerId.HasValue)
         {
-            var resolved = await _providerResolver.ResolveAsync(providerId.Value, ct);
-            if (resolved != null)
-            {
-                account = resolved.Account;
-                apiKey = resolved.ApiKey;
-                baseUrl = resolved.BaseUrl;
-            }
+            resolved = await _providerResolver.ResolveAsync(providerId.Value, ct);
         }
 
-        if (account == null || string.IsNullOrEmpty(apiKey))
+        if (resolved == null || string.IsNullOrEmpty(resolved.ApiKey))
         {
-            throw new InvalidOperationException(account == null
+            throw new InvalidOperationException(resolved == null
                 ? "请先在角色配置中选择模型供应商"
                 : "请先在设置页面配置供应商的 API Key");
         }
@@ -198,16 +199,12 @@ public class AgentRoleAppService : IAgentRoleAppService
         if (!string.IsNullOrEmpty(liveOverride?.ModelName))
             role.ModelName = liveOverride.ModelName;
 
-        role.ProviderAccount = account;
-        role.ApiKey = apiKey;
-        role.BaseUrl = baseUrl;
-
         // 通过 AgentFactory/BuiltinAgentProvider 创建组件
         var builtinProvider = _agentFactory.Providers.GetValueOrDefault("builtin") as BuiltinAgentProvider;
         if (builtinProvider == null)
             throw new InvalidOperationException("Builtin provider not registered");
 
-        var components = builtinProvider.PrepareAgent(role);
+        var components = builtinProvider.PrepareAgent(role, resolved);
 
         var sessionId = Guid.NewGuid();
         var stream = _streamManager.Create(sessionId);
@@ -452,7 +449,7 @@ public class AgentRoleAppService : IAgentRoleAppService
         }).ToList();
     }
 
-    private static AgentRoleDto MapToDto(AgentRole role) => new()
+    private static AgentRoleDto MapToDto(AgentRole role, string? providerName = null) => new()
     {
         Id = role.Id,
         Name = role.Name,
@@ -460,7 +457,7 @@ public class AgentRoleAppService : IAgentRoleAppService
         Description = role.Description,
         SystemPrompt = role.SystemPrompt,
         ModelProviderId = role.ModelProviderId?.ToString(),
-        ModelProviderName = role.ProviderAccount?.Name,
+        ModelProviderName = providerName,
         ModelName = role.ModelName,
         IsBuiltin = role.IsBuiltin,
         Source = role.Source,

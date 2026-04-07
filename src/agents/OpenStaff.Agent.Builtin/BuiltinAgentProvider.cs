@@ -50,9 +50,9 @@ public class BuiltinAgentProvider : IAgentProvider
         Fields = []
     };
 
-    public AIAgent CreateAgent(AgentRole role)
+    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
     {
-        var components = PrepareAgent(role);
+        var components = PrepareAgent(role, provider);
         return new ChatClientAgent(
             components.ChatClient,
             name: components.Name,
@@ -64,7 +64,7 @@ public class BuiltinAgentProvider : IAgentProvider
     /// <summary>
     /// 准备智能体所需的组件（ChatClient、指令、工具），供流式调用等场景复用
     /// </summary>
-    public AgentComponents PrepareAgent(AgentRole role)
+    public AgentComponents PrepareAgent(AgentRole role, ResolvedProvider provider)
     {
         RoleConfig config;
 
@@ -81,13 +81,14 @@ public class BuiltinAgentProvider : IAgentProvider
             config = BuildRoleConfigFromDb(role);
         }
 
-        var account = role.ProviderAccount
+        var account = provider.Account
             ?? throw new InvalidOperationException("ProviderAccount is required for builtin agent");
-        var apiKey = role.ApiKey
-            ?? throw new InvalidOperationException("ApiKey is required for builtin agent");
+        if (string.IsNullOrEmpty(provider.ApiKey))
+            throw new InvalidOperationException("ApiKey is required for builtin agent");
+        var apiKey = provider.ApiKey;
 
         var modelName = config.ModelName ?? role.ModelName ?? "gpt-4o";
-        var chatClient = _chatClientFactory.Create(account.ProtocolType, apiKey, modelName, baseUrl: role.BaseUrl);
+        var chatClient = _chatClientFactory.Create(account.ProtocolType, apiKey, modelName, baseUrl: provider.BaseUrl);
 
         IList<AITool>? aiTools = null;
         if (config.Tools.Count > 0)

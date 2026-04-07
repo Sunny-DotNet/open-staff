@@ -2,6 +2,7 @@ using Google.GenAI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 
 namespace OpenStaff.Agent.Vendor.Google;
@@ -50,7 +51,7 @@ public class GoogleAgentProvider : IAgentProvider
         ]
     };
 
-    public AIAgent CreateAgent(AgentRole role)
+    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
     {
         var config = AgentConfig.FromJson(role.Config);
         var apiKey = config.GetRequired("apiKey");

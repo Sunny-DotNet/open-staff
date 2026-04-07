@@ -168,18 +168,16 @@ public class OrchestrationService : IOrchestrator
         try
         {
             // 解析供应商和 API Key
+            ResolvedProvider? resolved = null;
             if (role.ModelProviderId != null)
             {
-                var resolved = await _providerResolver.ResolveAsync(role.ModelProviderId.Value);
-                if (resolved != null)
-                {
-                    role.ProviderAccount = resolved.Account;
-                    role.ApiKey = resolved.ApiKey;
-                    role.BaseUrl = resolved.BaseUrl;
-                }
+                resolved = await _providerResolver.ResolveAsync(role.ModelProviderId.Value);
             }
 
-            var agent = _agentFactory.CreateAgent(role);
+            if (resolved == null)
+                throw new InvalidOperationException($"Cannot resolve provider for role '{roleType}'");
+
+            var agent = _agentFactory.CreateAgent(role, resolved);
 
             agents.TryAdd(roleType, (agent, DateTime.UtcNow));
             _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", roleType, projectId);

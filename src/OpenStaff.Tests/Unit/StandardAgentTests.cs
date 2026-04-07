@@ -26,7 +26,11 @@ public class BuiltinAgentProviderTests
     {
         RoleType = roleType,
         Name = roleType,
-        ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
+    };
+
+    private static ResolvedProvider CreateResolvedProvider() => new()
+    {
+        Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
         ApiKey = "test-api-key"
     };
 
@@ -66,8 +70,9 @@ public class BuiltinAgentProviderTests
     {
         var provider = CreateProvider();
         var role = CreateRole();
+        var resolved = CreateResolvedProvider();
 
-        var agent = provider.CreateAgent(role);
+        var agent = provider.CreateAgent(role, resolved);
         Assert.NotNull(agent);
         Assert.IsAssignableFrom<AIAgent>(agent);
     }
@@ -77,8 +82,9 @@ public class BuiltinAgentProviderTests
     {
         var provider = CreateProvider();
         var role = new AgentRole { RoleType = "secretary", Name = "Secretary" };
+        var resolved = new ResolvedProvider { ApiKey = "k" };
 
-        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role));
+        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role, resolved));
     }
 
     [Fact]
@@ -89,10 +95,13 @@ public class BuiltinAgentProviderTests
         {
             RoleType = "secretary",
             Name = "Secretary",
-            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" }
+        };
+        var resolved = new ResolvedProvider
+        {
+            Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" }
         };
 
-        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role));
+        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role, resolved));
     }
 
     [Fact]
@@ -105,11 +114,10 @@ public class BuiltinAgentProviderTests
             Name = "Custom Role",
             SystemPrompt = "You are a custom agent.",
             ModelName = "gpt-4o",
-            ProviderAccount = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
-            ApiKey = "test-api-key"
         };
+        var resolved = CreateResolvedProvider();
 
-        var agent = provider.CreateAgent(role);
+        var agent = provider.CreateAgent(role, resolved);
         Assert.NotNull(agent);
         Assert.IsAssignableFrom<AIAgent>(agent);
     }
