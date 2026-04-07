@@ -25,7 +25,6 @@ import {
   Spin,
   Tag,
   Typography,
-  Upload,
 } from 'ant-design-vue';
 
 import {
@@ -136,22 +135,29 @@ function filterModelOption(input: string, option: any) {
   return val.includes(search);
 }
 
-function handleAvatarUpload(file: File) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, 128, 128);
-      editForm.value.avatar = canvas.toDataURL('image/png');
+function triggerAvatarUpload() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/png,image/jpeg,image/svg+xml';
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, 128, 128);
+        editForm.value.avatar = canvas.toDataURL('image/png');
+      };
+      img.src = reader.result as string;
     };
-    img.src = reader.result as string;
+    reader.readAsDataURL(file);
   };
-  reader.readAsDataURL(file);
-  return false; // prevent default upload
+  input.click();
 }
 
 function handleSave() {
@@ -255,7 +261,8 @@ async function removeMcpBinding(configId: string) {
     <!-- 头像上传 -->
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
       <div
-        style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
+        style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
+        @click="triggerAvatarUpload"
       >
         <img
           v-if="editForm.avatar"
@@ -266,13 +273,7 @@ async function removeMcpBinding(configId: string) {
         <span v-else style="font-size: 24px; color: var(--ant-color-text-quaternary)">📷</span>
       </div>
       <div style="flex: 1">
-        <Upload
-          :before-upload="handleAvatarUpload"
-          :show-upload-list="false"
-          accept="image/png,image/jpeg,image/svg+xml"
-        >
-          <Button size="small">上传头像</Button>
-        </Upload>
+        <Button size="small" @click="triggerAvatarUpload">上传头像</Button>
         <Button
           v-if="editForm.avatar"
           size="small"
