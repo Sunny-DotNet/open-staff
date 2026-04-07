@@ -34,6 +34,7 @@ import {
 import {
   getAgentRoleApi,
   testAgentChatApi,
+  updateAgentRoleApi,
 } from '#/api/openstaff/agent';
 import {
   createAgentMcpBindingApi,
@@ -416,6 +417,38 @@ function clearChat() {
   chatMessages.value = [];
 }
 
+// Save state
+const saving = ref(false);
+
+async function saveConfig() {
+  if (!props.roleId) return;
+  saving.value = true;
+  try {
+    const configJson: AgentApi.AgentRoleConfig = {
+      modelParameters: {
+        temperature: configForm.value.temperature,
+        maxTokens: configForm.value.maxTokens,
+      },
+      tools: configForm.value.tools,
+    };
+    await updateAgentRoleApi(props.roleId, {
+      name: configForm.value.name || undefined,
+      description: configForm.value.description || undefined,
+      systemPrompt: configForm.value.systemPrompt || undefined,
+      modelProviderId: configForm.value.modelProviderId || undefined,
+      modelName: configForm.value.modelName || undefined,
+      soul: configForm.value.soul,
+      config: JSON.stringify(configJson),
+    });
+    message.success('配置已保存');
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    message.error('保存失败: ' + msg);
+  } finally {
+    saving.value = false;
+  }
+}
+
 onUnmounted(() => {
   if (currentSubscription) {
     currentSubscription.dispose();
@@ -447,9 +480,14 @@ onUnmounted(() => {
     >
       <div class="config-header">
         <span style="font-weight: 600">⚙️ 配置</span>
-        <Button size="small" type="text" @click="configCollapsed = true">
-          ◀
-        </Button>
+        <Space size="small">
+          <Button size="small" type="primary" :loading="saving" @click="saveConfig">
+            💾 保存
+          </Button>
+          <Button size="small" type="text" @click="configCollapsed = true">
+            ◀
+          </Button>
+        </Space>
       </div>
       <div class="config-body">
         <!-- 基本信息区 -->
@@ -463,6 +501,13 @@ onUnmounted(() => {
               v-model:value="configForm.description"
               :rows="2"
               placeholder="描述"
+            />
+          </FormItem>
+          <FormItem label="提示词">
+            <Input.TextArea
+              v-model:value="configForm.systemPrompt"
+              :rows="4"
+              placeholder="系统提示词"
             />
           </FormItem>
         </Form>

@@ -41,6 +41,7 @@ public class ChatClientFactory
         if (!string.IsNullOrEmpty(baseUrl))
         {
             var uri = baseUrl.TrimEnd('/');
+            if (uri.EndsWith("/v1beta2")) uri = uri[..^8];
             httpOptions = new () { BaseUrl = uri };
         }
 
