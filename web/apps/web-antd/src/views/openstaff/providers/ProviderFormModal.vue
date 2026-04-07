@@ -48,7 +48,13 @@ const currentProtocol = computed(() =>
 function buildDefaultEnvConfig(proto: SettingsApi.ProtocolMetadata): Record<string, string | boolean | number> {
   const config: Record<string, string | boolean | number> = {};
   for (const field of proto.envSchema) {
-    config[field.name] = field.defaultValue ?? (field.fieldType === 'bool' ? false : '');
+    if (field.fieldType === 'bool') {
+      config[field.name] = field.defaultValue === 'True' || field.defaultValue === 'true';
+    } else if (field.fieldType === 'number') {
+      config[field.name] = Number(field.defaultValue) || 0;
+    } else {
+      config[field.name] = field.defaultValue ?? '';
+    }
   }
   return config;
 }
@@ -66,7 +72,22 @@ watch(
         (p) => p.providerKey === props.editingAccount!.protocolType,
       );
       const base = proto ? buildDefaultEnvConfig(proto) : {};
-      formState.envConfig = { ...base, ...(props.editingAccount.envConfig ?? {}) };
+      const raw = props.editingAccount.envConfig ?? {};
+      // 按 schema 类型强制转换后端返回值
+      if (proto) {
+        for (const field of proto.envSchema) {
+          if (field.name in raw) {
+            if (field.fieldType === 'bool') {
+              base[field.name] = raw[field.name] === true || raw[field.name] === 'True' || raw[field.name] === 'true';
+            } else if (field.fieldType === 'number') {
+              base[field.name] = Number(raw[field.name]) || 0;
+            } else {
+              base[field.name] = raw[field.name] ?? '';
+            }
+          }
+        }
+      }
+      formState.envConfig = base;
     } else {
       const defaultProto = props.protocols[0];
       formState.protocolType = defaultProto?.providerKey ?? '';

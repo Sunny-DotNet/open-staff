@@ -153,9 +153,6 @@ internal class ProtocolFactory : IProtocolFactory
         return null;
     }
 
-    private static readonly HashSet<string> SecretKeywords =
-        new(StringComparer.OrdinalIgnoreCase) { "key", "secret", "password", "token" };
-
     private static List<ProtocolEnvField> BuildEnvSchema(Type envType)
     {
         var fields = new List<ProtocolEnvField>();
@@ -179,8 +176,8 @@ internal class ProtocolFactory : IProtocolFactory
 
     private static string ResolveFieldType(PropertyInfo prop)
     {
-        // 属性名含敏感关键词 → secret
-        if (SecretKeywords.Any(kw => prop.Name.Contains(kw, StringComparison.OrdinalIgnoreCase)))
+        // 有 [Encrypted] 特性 → secret
+        if (prop.GetCustomAttribute<EncryptedAttribute>() != null)
             return "secret";
 
         var type = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
