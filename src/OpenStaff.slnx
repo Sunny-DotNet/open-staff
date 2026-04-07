@@ -22,6 +22,7 @@
     <Project Path="agents/OpenStaff.Agent.Vendor.Anthropic/OpenStaff.Agent.Vendor.Anthropic.csproj" />
     <Project Path="agents/OpenStaff.Agent.Vendor.Google/OpenStaff.Agent.Vendor.Google.csproj" />
     <Project Path="agents/OpenStaff.Agent.Vendor.GitHubCopilot/OpenStaff.Agent.Vendor.GitHubCopilot.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Vendor.OpenAI/OpenStaff.Agent.Vendor.OpenAI.csproj" />
   </Folder>
   <Project Path="OpenStaff.Api/OpenStaff.Api.csproj" />
   <Project Path="OpenStaff.AppHost/OpenStaff.AppHost.csproj" />

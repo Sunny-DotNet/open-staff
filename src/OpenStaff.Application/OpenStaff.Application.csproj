@@ -16,6 +16,7 @@
     <ProjectReference Include="..\agents\OpenStaff.Agent.Vendor.Anthropic\OpenStaff.Agent.Vendor.Anthropic.csproj" />
     <ProjectReference Include="..\agents\OpenStaff.Agent.Vendor.Google\OpenStaff.Agent.Vendor.Google.csproj" />
     <ProjectReference Include="..\agents\OpenStaff.Agent.Vendor.GitHubCopilot\OpenStaff.Agent.Vendor.GitHubCopilot.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Vendor.OpenAI\OpenStaff.Agent.Vendor.OpenAI.csproj" />
     <ProjectReference Include="..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.Anthropic\OpenStaff.Provider.Anthropic.csproj" />

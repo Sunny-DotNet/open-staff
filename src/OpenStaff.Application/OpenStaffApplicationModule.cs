@@ -64,6 +64,7 @@ public class OpenStaffApplicationModule : OpenStaffModule
         services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.Anthropic.AnthropicAgentProvider>();
         services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.Google.GoogleAgentProvider>();
         services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.GitHubCopilot.GitHubCopilotAgentProvider>();
+        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.OpenAI.OpenAIAgentProvider>();
 
         // 编排服务 — 依赖 AgentFactory + IProviderResolver + INotificationService
         services.AddSingleton<OrchestrationService>(sp =>

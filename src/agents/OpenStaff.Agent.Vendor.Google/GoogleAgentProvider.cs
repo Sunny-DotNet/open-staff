@@ -30,14 +30,6 @@ public class GoogleAgentProvider : IAgentProvider
         [
             new AgentConfigField
             {
-                Key = "apiKey",
-                Label = "API Key",
-                FieldType = "password",
-                Required = true,
-                Placeholder = "AIza..."
-            },
-            new AgentConfigField
-            {
                 Key = "model",
                 Label = "模型",
                 FieldType = "select",
@@ -56,7 +48,8 @@ public class GoogleAgentProvider : IAgentProvider
     public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
     {
         var config = AgentConfig.FromJson(role.Config);
-        var apiKey = config.GetRequired("apiKey");
+        var apiKey = provider.ApiKey
+            ?? throw new InvalidOperationException("请先在供应商管理中配置 Google API Key");
         var model = config.Get("model") ?? "gemini-2.5-flash";
         var systemPrompt = role.SystemPrompt ?? "";
 

@@ -29,14 +29,6 @@ public class AnthropicAgentProvider : IAgentProvider
         [
             new AgentConfigField
             {
-                Key = "apiKey",
-                Label = "API Key",
-                FieldType = "password",
-                Required = true,
-                Placeholder = "sk-ant-..."
-            },
-            new AgentConfigField
-            {
                 Key = "model",
                 Label = "模型",
                 FieldType = "select",
@@ -55,7 +47,8 @@ public class AnthropicAgentProvider : IAgentProvider
     public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
     {
         var config = AgentConfig.FromJson(role.Config);
-        var apiKey = config.GetRequired("apiKey");
+        var apiKey = provider.ApiKey
+            ?? throw new InvalidOperationException("请先在供应商管理中配置 Anthropic API Key");
         var model = config.Get("model") ?? "claude-sonnet-4-20250514";
         var systemPrompt = role.SystemPrompt ?? "";
 

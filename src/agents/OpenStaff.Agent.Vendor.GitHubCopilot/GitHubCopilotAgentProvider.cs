@@ -28,17 +28,9 @@ public class GitHubCopilotAgentProvider : IAgentProvider
     {
         ProviderType = ProviderType,
         DisplayName = DisplayName,
-        Description = "GitHub Copilot 智能体（需要 Copilot 订阅，Token 自动管理）",
+        Description = "GitHub Copilot 智能体（通过设备授权自动获取 Token）",
         Fields =
         [
-            new AgentConfigField
-            {
-                Key = "token",
-                Label = "Copilot Token",
-                FieldType = "password",
-                Required = true,
-                Placeholder = "自动获取或手动填入"
-            },
             new AgentConfigField
             {
                 Key = "model",
@@ -59,12 +51,15 @@ public class GitHubCopilotAgentProvider : IAgentProvider
 
     public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
     {
+        // provider.ApiKey 已由 ApiKeyResolver 自动完成 oauth_token → github_token 交换
+        var token = provider.ApiKey
+            ?? throw new InvalidOperationException("请先在供应商管理中完成 GitHub Copilot 设备授权");
+
         var config = AgentConfig.FromJson(role.Config);
-        var token = config.GetRequired("token");
         var model = config.Get("model") ?? "gpt-4o";
         var systemPrompt = role.SystemPrompt ?? "";
 
-        var endpoint = "https://api.individual.githubcopilot.com";
+        var endpoint = provider.BaseUrl ?? "https://api.individual.githubcopilot.com";
         var credential = new ApiKeyCredential(token);
         var options = new OpenAIClientOptions { Endpoint = new Uri(endpoint) };
         options.AddPolicy(new CopilotHeaderPolicy(), PipelinePosition.PerCall);
