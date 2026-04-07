@@ -13,10 +13,9 @@ internal class AnthropicProtocol(IServiceProvider serviceProvider) : VendorProto
 }
 
 
-public class AnthropicProtocolEnv:ProtocolEnvBase
+public class AnthropicProtocolEnv: ProtocolHasApiKeyEnvBase
 {
     public override string BaseUrl { get; set; } = "https://api.anthropic.com";
-    public bool FromEnv { get; set; } = true;
-    public string ApiKey { get; set; } = string.Empty;
-    public string EnvName { get; set; } = string.Empty;
+
+    protected override string ApiKeyFromEnvDefault => "ANTHROPIC_AUTH_TOKEN";
 }

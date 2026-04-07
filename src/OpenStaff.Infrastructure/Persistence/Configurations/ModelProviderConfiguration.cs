@@ -12,7 +12,7 @@ public class ProviderAccountConfiguration : IEntityTypeConfiguration<ProviderAcc
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Name).HasMaxLength(100).IsRequired();
         builder.Property(e => e.ProtocolType).HasMaxLength(50).IsRequired();
-        builder.Property(e => e.EnvConfigEncrypted).HasColumnType("text");
+        builder.Property(e => e.EnvConfig).HasColumnName("EnvConfig").HasColumnType("text");
 
         builder.HasIndex(e => e.ProtocolType);
         builder.HasIndex(e => e.IsEnabled);

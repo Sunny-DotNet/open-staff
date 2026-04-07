@@ -69,6 +69,20 @@ public abstract class VendorProtocolBase<TProtocolEnv>(IServiceProvider serviceP
     }
 }
 public abstract class ProtocolEnvBase {
-
     public abstract string BaseUrl { get; set; }
 }
+public abstract class ProtocolHasApiKeyEnvBase: ProtocolEnvBase
+{
+    protected abstract string ApiKeyFromEnvDefault { get; }
+    public virtual bool ApiKeyFromEnv { get; set; }
+    public virtual string ApiKeyEnvName { get; set; }
+    [Encrypted]
+    public virtual string ApiKey { get; set; } = string.Empty;
+    protected ProtocolHasApiKeyEnvBase()
+    {
+        ApiKeyEnvName = ApiKeyFromEnvDefault;
+    }
+}
+
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class EncryptedAttribute() : Attribute;

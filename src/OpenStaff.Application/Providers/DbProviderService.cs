@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using OpenStaff.Core.Models;
 using OpenStaff.Infrastructure.Persistence;
 using OpenStaff.Infrastructure.Security;
@@ -11,12 +12,23 @@ public class ProviderAccountService
 {
     private readonly AppDbContext _db;
     private readonly EncryptionService _encryption;
+    private readonly IProtocolFactory _protocolFactory;
+    private readonly bool _isDevelopment;
 
-    public ProviderAccountService(AppDbContext db, EncryptionService encryption)
+    public ProviderAccountService(
+        AppDbContext db,
+        EncryptionService encryption,
+        IProtocolFactory protocolFactory,
+        IHostEnvironment hostEnvironment)
     {
         _db = db;
         _encryption = encryption;
+        _protocolFactory = protocolFactory;
+        _isDevelopment = hostEnvironment.IsDevelopment();
     }
+
+    private Func<string, string>? EncryptFunc => _isDevelopment ? null : _encryption.Encrypt;
+    private Func<string, string>? DecryptFunc => _isDevelopment ? null : _encryption.Decrypt;
 
     public async Task<List<ProviderAccount>> GetAllAsync()
     {
@@ -39,33 +51,37 @@ public class ProviderAccountService
     }
 
     /// <summary>
-    /// 解密并反序列化 EnvConfig
+    /// 反序列化 EnvConfig（[Encrypted] 字段自动解密）
     /// </summary>
     public T? GetEnvConfig<T>(ProviderAccount account) where T : ProtocolEnvBase
     {
-        if (string.IsNullOrEmpty(account.EnvConfigEncrypted)) return null;
-        var json = _encryption.Decrypt(account.EnvConfigEncrypted);
-        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (string.IsNullOrEmpty(account.EnvConfig)) return null;
+        return ProtocolEnvSerializer.Deserialize<T>(account.EnvConfig, DecryptFunc);
     }
 
     /// <summary>
-    /// 解密 EnvConfig 为 JSON 字符串
-    /// </summary>
-    public string? DecryptEnvConfig(ProviderAccount account)
-    {
-        if (string.IsNullOrEmpty(account.EnvConfigEncrypted)) return null;
-        return _encryption.Decrypt(account.EnvConfigEncrypted);
-    }
-
-    /// <summary>
-    /// 解密 EnvConfig 为 Dictionary（用于返回给前端，去除敏感值）
+    /// 反序列化 EnvConfig 为 Dictionary（[Encrypted] 字段自动解密）
     /// </summary>
     public Dictionary<string, object?>? GetEnvConfigDict(ProviderAccount account)
     {
-        var json = DecryptEnvConfig(account);
-        if (json == null) return null;
-        return JsonSerializer.Deserialize<Dictionary<string, object?>>(json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (string.IsNullOrEmpty(account.EnvConfig)) return null;
+        var envType = _protocolFactory.GetProtocolEnvType(account.ProtocolType);
+        if (envType == null)
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, object?>>(account.EnvConfig,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        return ProtocolEnvSerializer.DeserializeToDict(account.EnvConfig, envType, DecryptFunc);
+    }
+
+    /// <summary>
+    /// 解密 EnvConfig 为明文 JSON 字符串（[Encrypted] 字段自动解密）
+    /// </summary>
+    public string? DecryptEnvConfig(ProviderAccount account)
+    {
+        if (string.IsNullOrEmpty(account.EnvConfig)) return null;
+        var dict = GetEnvConfigDict(account);
+        return dict == null ? null : JsonSerializer.Serialize(dict);
     }
 
     public async Task<ProviderAccount> CreateAsync(CreateProviderAccountRequest request)
@@ -80,8 +96,7 @@ public class ProviderAccountService
 
         if (request.EnvConfig != null)
         {
-            var json = JsonSerializer.Serialize(request.EnvConfig);
-            account.EnvConfigEncrypted = _encryption.Encrypt(json);
+            account.EnvConfig = SerializeEnvConfig(request.ProtocolType, request.EnvConfig);
         }
 
         _db.ProviderAccounts.Add(account);
@@ -99,8 +114,7 @@ public class ProviderAccountService
 
         if (request.EnvConfig != null)
         {
-            var json = JsonSerializer.Serialize(request.EnvConfig);
-            account.EnvConfigEncrypted = _encryption.Encrypt(json);
+            account.EnvConfig = SerializeEnvConfig(account.ProtocolType, request.EnvConfig);
         }
 
         account.UpdatedAt = DateTime.UtcNow;
@@ -119,8 +133,7 @@ public class ProviderAccountService
         var dict = GetEnvConfigDict(account) ?? new Dictionary<string, object?>();
         dict[fieldName] = value;
 
-        var json = JsonSerializer.Serialize(dict);
-        account.EnvConfigEncrypted = _encryption.Encrypt(json);
+        account.EnvConfig = SerializeEnvConfig(account.ProtocolType, dict);
         account.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
     }
@@ -133,6 +146,29 @@ public class ProviderAccountService
         _db.ProviderAccounts.Remove(account);
         await _db.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// 序列化 EnvConfig（通过 ProtocolEnvType 确定哪些字段需要加密）
+    /// </summary>
+    private string SerializeEnvConfig(string protocolType, IDictionary<string, object?> envConfig)
+    {
+        var envType = _protocolFactory.GetProtocolEnvType(protocolType);
+        if (envType == null)
+        {
+            return JsonSerializer.Serialize(envConfig);
+        }
+
+        // 先序列化为 JSON → 反序列化为强类型 → 再用 Serializer 加密序列化
+        var json = JsonSerializer.Serialize(envConfig);
+        var method = typeof(ProtocolEnvSerializer)
+            .GetMethod(nameof(ProtocolEnvSerializer.Serialize))!
+            .MakeGenericMethod(envType);
+        var env = JsonSerializer.Deserialize(json, envType,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (env == null) return json;
+
+        return (string)method.Invoke(null, [env, EncryptFunc])!;
     }
 }
 

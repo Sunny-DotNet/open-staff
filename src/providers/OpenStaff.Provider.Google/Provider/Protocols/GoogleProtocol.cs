@@ -12,10 +12,9 @@ internal class GoogleProtocol(IServiceProvider serviceProvider) : VendorProtocol
 
     public override ModelProtocolType ProtocolType => ModelProtocolType.GoogleGenerateContent;
 }
-public class GoogleProtocolEnv: ProtocolEnvBase
+public class GoogleProtocolEnv: ProtocolHasApiKeyEnvBase
 {
     public override string BaseUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta2";
-    public bool FromEnv { get; set; } = true;
-    public string ApiKey { get; set; } = string.Empty;
-    public string EnvName { get; set; } = string.Empty;
+
+    protected override string ApiKeyFromEnvDefault => "GOOGLE_API_KEY";
 }

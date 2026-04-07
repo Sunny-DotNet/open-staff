@@ -197,10 +197,9 @@ public class NewApiProtocol(IServiceProvider serviceProvider) : ProtocolBase<New
     }
 }
 
-public class NewApiProtocolEnv : ProtocolEnvBase
+public class NewApiProtocolEnv : ProtocolHasApiKeyEnvBase
 {
-    public override string BaseUrl { get; set; } = string.Empty;
-    public bool FromEnv { get; set; } = true;
-    public string ApiKey { get; set; } = string.Empty;
-    public string EnvName { get; set; } = string.Empty;
+    public override string BaseUrl { set; get; } = string.Empty;
+
+    protected override string ApiKeyFromEnvDefault => "NEW_API_AUTH_TOKEN";
 }

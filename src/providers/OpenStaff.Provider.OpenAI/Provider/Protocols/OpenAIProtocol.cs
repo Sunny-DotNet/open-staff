@@ -15,10 +15,9 @@ internal class OpenAIProtocol(IServiceProvider serviceProvider) : VendorProtocol
     public override ModelProtocolType ProtocolType => ModelProtocolType.OpenAIChatCompletions | ModelProtocolType.OpenAIResponse;
 
 }
-public class OpenAIProtocolEnv: ProtocolEnvBase
+public class OpenAIProtocolEnv: ProtocolHasApiKeyEnvBase
 {
     public override string BaseUrl { get; set; } = "https://api.openai.com/v1";
-    public bool FromEnv { get; set; } = true;
-    public string ApiKey { get; set; } = string.Empty;
-    public string EnvName { get; set; } = string.Empty;
+
+    protected override string ApiKeyFromEnvDefault => "OPENAI_API_KEY";
 }
