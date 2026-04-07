@@ -7,6 +7,7 @@ export namespace AgentApi {
     roleType: string;
     description: string | null;
     systemPrompt: string | null;
+    avatar: string | null;
     modelProviderId: string | null;
     modelName: string | null;
     modelProviderName: string | null;
@@ -39,6 +40,7 @@ export namespace AgentApi {
   }
 
   export interface UpdateAgentRoleParams {
+    avatar?: string;
     config?: string;
     description?: string;
     modelName?: string;

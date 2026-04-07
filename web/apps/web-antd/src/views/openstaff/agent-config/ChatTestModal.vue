@@ -95,6 +95,7 @@ const configForm = ref({
   name: '',
   description: '',
   systemPrompt: '',
+  avatar: '' as string,
   modelProviderId: '' as string,
   modelName: '' as string,
   temperature: 0.7,
@@ -178,6 +179,7 @@ async function loadRoleConfig() {
       name: role.name || '',
       description: role.description || '',
       systemPrompt: role.systemPrompt || '',
+      avatar: role.avatar || '',
       modelProviderId: role.modelProviderId || '',
       modelName: role.modelName || '',
       temperature: config.modelParameters?.temperature ?? 0.7,
@@ -435,6 +437,7 @@ async function saveConfig() {
       name: configForm.value.name || undefined,
       description: configForm.value.description || undefined,
       systemPrompt: configForm.value.systemPrompt || undefined,
+      avatar: configForm.value.avatar || undefined,
       modelProviderId: configForm.value.modelProviderId || undefined,
       modelName: configForm.value.modelName || undefined,
       soul: configForm.value.soul,
@@ -447,6 +450,26 @@ async function saveConfig() {
   } finally {
     saving.value = false;
   }
+}
+
+function handleAvatarUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, 128, 128);
+      configForm.value.avatar = canvas.toDataURL('image/png');
+    };
+    img.src = reader.result as string;
+  };
+  reader.readAsDataURL(file);
+  (e.target as HTMLInputElement).value = '';
 }
 
 onUnmounted(() => {
@@ -492,6 +515,47 @@ onUnmounted(() => {
       <div class="config-body">
         <!-- 基本信息区 -->
         <Divider orientation="left" style="margin: 0 0 12px; font-size: 13px">基本信息</Divider>
+
+        <!-- 头像上传 -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px">
+          <div
+            class="avatar-upload"
+            style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
+            @click="($refs.avatarInput as HTMLInputElement)?.click()"
+          >
+            <img
+              v-if="configForm.avatar"
+              :src="configForm.avatar"
+              alt="头像"
+              style="width: 100%; height: 100%; object-fit: cover"
+            />
+            <span v-else style="font-size: 24px; color: var(--ant-color-text-quaternary)">📷</span>
+          </div>
+          <div style="flex: 1">
+            <Button size="small" @click="($refs.avatarInput as HTMLInputElement)?.click()">上传头像</Button>
+            <Button
+              v-if="configForm.avatar"
+              size="small"
+              type="text"
+              danger
+              style="margin-left: 4px"
+              @click="configForm.avatar = ''"
+            >
+              移除
+            </Button>
+            <div style="font-size: 11px; color: var(--ant-color-text-tertiary); margin-top: 2px">
+              128×128，支持 PNG/JPG
+            </div>
+          </div>
+          <input
+            ref="avatarInput"
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml"
+            style="display: none"
+            @change="handleAvatarUpload"
+          />
+        </div>
+
         <Form :label-col="{ span: 6 }" size="small">
           <FormItem label="名称">
             <Input v-model:value="configForm.name" placeholder="员工名称" />

@@ -19,6 +19,10 @@ public class GoogleAgentProvider : IAgentProvider
     public string ProviderType => "google";
     public string DisplayName => "Google Gemini";
 
+    public string? AvatarDataUri => "data:image/svg+xml;base64,"
+        + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+            """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="24" fill="#1A73E8"/><text x="64" y="82" text-anchor="middle" font-size="64" font-family="sans-serif" fill="white">G</text></svg>"""));
+
     public AgentConfigSchema GetConfigSchema() => new()
     {
         ProviderType = ProviderType,

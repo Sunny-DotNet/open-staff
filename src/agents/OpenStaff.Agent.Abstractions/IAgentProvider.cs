@@ -15,6 +15,9 @@ public interface IAgentProvider
     /// <summary>显示名称（如 "内置标准", "Anthropic Claude"）</summary>
     string DisplayName { get; }
 
+    /// <summary>供应商品牌头像 data URI（Vendor 返回 SVG，Builtin 返回 null）</summary>
+    string? AvatarDataUri => null;
+
     /// <summary>获取该供应商的配置 Schema（前端据此渲染动态表单）</summary>
     AgentConfigSchema GetConfigSchema();
 

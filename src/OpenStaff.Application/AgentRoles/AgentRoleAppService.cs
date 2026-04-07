@@ -57,7 +57,7 @@ public class AgentRoleAppService : IAgentRoleAppService
             }
         }
 
-        return roles.Select(r => MapToDto(r, r.ModelProviderId.HasValue && providerNames.TryGetValue(r.ModelProviderId.Value, out var name) ? name : null)).ToList();
+        return roles.Select(r => MapToDto(r, r.ModelProviderId.HasValue && providerNames.TryGetValue(r.ModelProviderId.Value, out var name) ? name : null, GetVendorAvatar(r))).ToList();
     }
 
     public async Task<AgentRoleDto?> GetByIdAsync(Guid id, CancellationToken ct)
@@ -66,13 +66,14 @@ public class AgentRoleAppService : IAgentRoleAppService
             .FirstOrDefaultAsync(r => r.Id == id && r.IsActive, ct);
         if (role == null) return null;
 
+        var vendorAvatar = GetVendorAvatar(role);
         if (role.ModelProviderId.HasValue)
         {
             var account = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
-            return MapToDto(role, account?.Name);
+            return MapToDto(role, account?.Name, vendorAvatar);
         }
 
-        return MapToDto(role);
+        return MapToDto(role, vendorAvatar: vendorAvatar);
     }
 
     public async Task<AgentRoleDto> CreateAsync(CreateAgentRoleInput input, CancellationToken ct)
@@ -84,6 +85,7 @@ public class AgentRoleAppService : IAgentRoleAppService
             RoleType = input.RoleType,
             Description = input.Description,
             SystemPrompt = input.SystemPrompt,
+            Avatar = input.Avatar,
             Source = input.Source,
             ProviderType = input.ProviderType,
             ModelProviderId = string.IsNullOrEmpty(input.ModelProviderId) ? null : Guid.Parse(input.ModelProviderId),
@@ -99,7 +101,7 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         _db.AgentRoles.Add(role);
         await _db.SaveChangesAsync(ct);
-        return MapToDto(role);
+        return MapToDto(role, vendorAvatar: GetVendorAvatar(role));
     }
 
     public async Task<AgentRoleDto?> UpdateAsync(Guid id, UpdateAgentRoleInput input, CancellationToken ct)
@@ -134,15 +136,16 @@ public class AgentRoleAppService : IAgentRoleAppService
             role.SystemPrompt = BuildSystemPrompt(role);
         }
 
+        if (input.Avatar != null) role.Avatar = input.Avatar;
         role.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
         if (role.ModelProviderId.HasValue)
         {
             var account = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
-            return MapToDto(role, account?.Name);
+            return MapToDto(role, account?.Name, GetVendorAvatar(role));
         }
-        return MapToDto(role);
+        return MapToDto(role, vendorAvatar: GetVendorAvatar(role));
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct)
@@ -449,13 +452,14 @@ public class AgentRoleAppService : IAgentRoleAppService
         }).ToList();
     }
 
-    private static AgentRoleDto MapToDto(AgentRole role, string? providerName = null) => new()
+    private static AgentRoleDto MapToDto(AgentRole role, string? providerName = null, string? vendorAvatar = null) => new()
     {
         Id = role.Id,
         Name = role.Name,
         RoleType = role.RoleType,
         Description = role.Description,
         SystemPrompt = role.SystemPrompt,
+        Avatar = role.Avatar ?? vendorAvatar,
         ModelProviderId = role.ModelProviderId?.ToString(),
         ModelProviderName = providerName,
         ModelName = role.ModelName,
@@ -483,6 +487,13 @@ public class AgentRoleAppService : IAgentRoleAppService
             Attitudes = dto.Attitudes ?? [],
             Custom = dto.Custom
         };
+    }
+
+    private string? GetVendorAvatar(AgentRole role)
+    {
+        var providerType = role.ProviderType;
+        if (string.IsNullOrEmpty(providerType) || providerType == "builtin") return null;
+        return _agentFactory.Providers.TryGetValue(providerType, out var provider) ? provider.AvatarDataUri : null;
     }
 
     private static string BuildSystemPrompt(AgentRole role)

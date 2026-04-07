@@ -34,6 +34,7 @@ import ChatTestModal from './ChatTestModal.vue';
 
 // ===== 类型 =====
 interface EditFormState {
+  avatar: string;
   description: string;
   maxTokens: number;
   modelProviderId: string;
@@ -123,6 +124,7 @@ async function handleDrawerSave(form: EditFormState) {
     };
 
     const updateData: AgentApi.UpdateAgentRoleParams = {
+      avatar: form.avatar || undefined,
       modelProviderId: form.modelProviderId || undefined,
       modelName: form.modelName || undefined,
       config: JSON.stringify(updatedConfig),
@@ -238,9 +240,15 @@ import { updateAgentRoleApi } from '#/api/openstaff/agent';
             :body-style="{ padding: '20px' }"
             @click="openConfigDrawer(role)"
           >
-            <!-- 卡片头部：图标 + 标签 -->
+            <!-- 卡片头部：头像 + 标签 -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px">
-              <span style="font-size: 36px; line-height: 1">
+              <img
+                v-if="role.avatar"
+                :src="role.avatar"
+                :alt="role.name"
+                style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover"
+              />
+              <span v-else style="font-size: 36px; line-height: 1">
                 {{ getRoleIcon(role.roleType) }}
               </span>
               <Space :size="4">

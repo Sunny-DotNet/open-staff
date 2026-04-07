@@ -39,6 +39,7 @@ import { getRoleIcon } from '#/constants/agent';
 import SoulConfigSection from './SoulConfigSection.vue';
 
 interface EditFormState {
+  avatar: string;
   description: string;
   maxTokens: number;
   modelProviderId: string;
@@ -62,6 +63,7 @@ const emit = defineEmits<{
 }>();
 
 const DEFAULT_FORM: EditFormState = {
+  avatar: '',
   name: '',
   description: '',
   modelProviderId: '',
@@ -110,6 +112,7 @@ function parseConfig(configStr: null | string): AgentApi.AgentRoleConfig {
 function loadRoleToForm(role: AgentApi.AgentRole) {
   const config = parseConfig(role.config);
   editForm.value = {
+    avatar: role.avatar ?? '',
     name: role.name,
     description: role.description ?? '',
     modelProviderId: role.modelProviderId ?? '',
@@ -130,6 +133,26 @@ function filterModelOption(input: string, option: any) {
   const search = input.toLowerCase();
   const val = (option?.value || '').toString().toLowerCase();
   return val.includes(search);
+}
+
+function handleAvatarUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, 128, 128);
+      editForm.value.avatar = canvas.toDataURL('image/png');
+    };
+    img.src = reader.result as string;
+  };
+  reader.readAsDataURL(file);
+  (e.target as HTMLInputElement).value = '';
 }
 
 function handleSave() {
@@ -211,7 +234,13 @@ async function removeMcpBinding(configId: string) {
   >
     <template #title>
       <Space>
-        <span style="font-size: 24px">
+        <img
+          v-if="editForm.avatar"
+          :src="editForm.avatar"
+          alt=""
+          style="width: 28px; height: 28px; border-radius: 6px; object-fit: cover"
+        />
+        <span v-else style="font-size: 24px">
           {{ mode === 'create' ? '🆕' : getRoleIcon(editingRole?.roleType ?? '') }}
         </span>
         <span style="font-size: 16px; font-weight: 600">
@@ -223,6 +252,46 @@ async function removeMcpBinding(configId: string) {
 
     <!-- 基本信息区 -->
     <Divider orientation="left" style="margin: 0 0 16px">基本信息</Divider>
+
+    <!-- 头像上传 -->
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
+      <div
+        style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
+        @click="($refs.avatarInput as HTMLInputElement)?.click()"
+      >
+        <img
+          v-if="editForm.avatar"
+          :src="editForm.avatar"
+          alt="头像"
+          style="width: 100%; height: 100%; object-fit: cover"
+        />
+        <span v-else style="font-size: 24px; color: var(--ant-color-text-quaternary)">📷</span>
+      </div>
+      <div style="flex: 1">
+        <Button size="small" @click="($refs.avatarInput as HTMLInputElement)?.click()">上传头像</Button>
+        <Button
+          v-if="editForm.avatar"
+          size="small"
+          type="text"
+          danger
+          style="margin-left: 4px"
+          @click="editForm.avatar = ''"
+        >
+          移除
+        </Button>
+        <div style="font-size: 11px; color: var(--ant-color-text-tertiary); margin-top: 2px">
+          128×128，支持 PNG/JPG
+        </div>
+      </div>
+      <input
+        ref="avatarInput"
+        type="file"
+        accept="image/png,image/jpeg,image/svg+xml"
+        style="display: none"
+        @change="handleAvatarUpload"
+      />
+    </div>
+
     <Form :label-col="{ span: 6 }" size="small">
       <FormItem label="名称" required>
         <Input

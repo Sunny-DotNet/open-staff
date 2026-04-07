@@ -10,6 +10,7 @@ public class AgentRole
     public string RoleType { get; set; } = string.Empty; // 角色类型标识
     public string? Description { get; set; }
     public string? SystemPrompt { get; set; } // 系统提示词
+    public string? Avatar { get; set; } // 头像 data URI (base64)
     public Guid? ModelProviderId { get; set; } // 绑定的模型供应商
     public string? ModelName { get; set; } // 使用的具体模型
     public AgentSource Source { get; set; } = AgentSource.Custom;

@@ -9,6 +9,7 @@ public class AgentRoleDto
     public string RoleType { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? SystemPrompt { get; set; }
+    public string? Avatar { get; set; }
     public bool IsBuiltin { get; set; }
     public AgentSource Source { get; set; }
     public string? ProviderType { get; set; }
@@ -34,6 +35,7 @@ public class CreateAgentRoleInput
     public string RoleType { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? SystemPrompt { get; set; }
+    public string? Avatar { get; set; }
     public AgentSource Source { get; set; } = AgentSource.Custom;
     public string? ProviderType { get; set; }
     public string? ModelProviderId { get; set; }
@@ -47,6 +49,7 @@ public class UpdateAgentRoleInput
     public string? Name { get; set; }
     public string? Description { get; set; }
     public string? SystemPrompt { get; set; }
+    public string? Avatar { get; set; }
     public string? ModelProviderId { get; set; }
     public string? ModelName { get; set; }
     public string? Config { get; set; }
