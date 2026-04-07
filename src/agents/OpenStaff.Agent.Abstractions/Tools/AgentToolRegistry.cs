@@ -1,6 +1,6 @@
 using OpenStaff.Core.Agents;
 
-namespace OpenStaff.Agents.Tools;
+namespace OpenStaff.Agent.Tools;
 
 public class AgentToolRegistry : IAgentToolRegistry
 {

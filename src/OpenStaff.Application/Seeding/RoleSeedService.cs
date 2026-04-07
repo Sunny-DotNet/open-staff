@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using OpenStaff.Agents.Roles;
+using OpenStaff.Agent.Builtin;
+using OpenStaff.Agent.Builtin.Roles;
 using OpenStaff.Core.Agents;
 using OpenStaff.Infrastructure.Persistence;
 
@@ -25,15 +26,14 @@ public class RoleSeedService : IHostedService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var agentFactory = scope.ServiceProvider.GetRequiredService<OpenStaff.Agents.AgentFactory>();
-        var promptLoader = scope.ServiceProvider.GetRequiredService<IPromptLoader>();
+        var builtinProvider = scope.ServiceProvider.GetRequiredService<BuiltinAgentProvider>();
+        var promptLoader = builtinProvider.PromptLoader;
 
         var roleConfigs = RoleConfigLoader.LoadBuiltin();
-        var language = "zh-CN"; // 默认语言
+        var language = "zh-CN";
 
         foreach (var config in roleConfigs)
         {
-            // 加载嵌入资源的完整提示词文本
             var fullPrompt = promptLoader.Load(config.SystemPrompt, language);
 
             var existing = await dbContext.AgentRoles
@@ -67,31 +67,14 @@ public class RoleSeedService : IHostedService
             }
             else if (existing.IsBuiltin)
             {
-                // 内置角色每次启动时更新提示词（跟随嵌入资源更新）
                 existing.SystemPrompt = fullPrompt;
                 existing.UpdatedAt = DateTime.UtcNow;
             }
 
-            // 同时把完整文本更新到 RoleConfig，供 AgentFactory 使用
             config.SystemPrompt = fullPrompt;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        // 注册内置 RoleConfig（已含完整提示词）
-        foreach (var config in roleConfigs)
-        {
-            agentFactory.RegisterRole(config);
-        }
-
-        // 将所有 DB 角色注册到 AgentFactory（包含 ModelProviderId 等运行时信息）
-        var allRoles = await dbContext.AgentRoles.Where(r => r.IsActive).ToListAsync(cancellationToken);
-        foreach (var dbRole in allRoles)
-        {
-            agentFactory.RegisterDbRole(dbRole);
-            _logger.LogDebug("Registered DB role: {RoleType} (ProviderId={ProviderId})",
-                dbRole.RoleType, dbRole.ModelProviderId);
-        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

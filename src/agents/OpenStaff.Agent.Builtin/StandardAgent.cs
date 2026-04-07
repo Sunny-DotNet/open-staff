@@ -1,17 +1,16 @@
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using OpenStaff.Agents.Tools;
+using OpenStaff.Agent.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using AgentResponse = OpenStaff.Core.Agents.AgentResponse;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
-namespace OpenStaff.Agents;
+namespace OpenStaff.Agent.Builtin;
 
 /// <summary>
-/// 标准智能体 — 所有角色使用同一实现，内部委托 AIAgent 处理 LLM 交互
-/// Standard agent — single implementation for all roles, delegates to AIAgent for LLM interaction
+/// 标准智能体 — 所有内置/自定义角色使用同一实现
 /// </summary>
 public class StandardAgent : AgentBase
 {
@@ -37,16 +36,13 @@ public class StandardAgent : AgentBase
         Status = AgentStatus.Thinking;
         try
         {
-            // 1. System prompt 直接使用（已在种子/创建时存储完整文本）
             var systemPrompt = _config.SystemPrompt;
 
-            // 2. Publish thinking event
             var preview = message.Content?.Length > 100
                 ? message.Content.Substring(0, 100) + "..."
                 : message.Content ?? "";
             await PublishEventAsync(EventTypes.Thought, $"[{_config.Name}] 正在处理: {preview}");
 
-            // 3. Validate provider context
             if (Context?.Account == null || string.IsNullOrEmpty(Context.ApiKey))
             {
                 return new AgentResponse
@@ -57,7 +53,6 @@ public class StandardAgent : AgentBase
                 };
             }
 
-            // 4. Resolve tools from registry
             IList<AITool>? aiTools = null;
             if (_config.Tools.Count > 0 && Context != null)
             {
@@ -71,7 +66,6 @@ public class StandardAgent : AgentBase
                 }
             }
 
-            // 5. Create AIAgent via factory with resolved provider + tools
             var modelName = _config.ModelName ?? Context!.Role?.ModelName ?? "gpt-4o";
             var aiAgent = _aiAgentFactory.CreateAgent(
                 protocolType: Context!.Account!.ProtocolType,
@@ -82,17 +76,14 @@ public class StandardAgent : AgentBase
                 agentName: _config.Name,
                 tools: aiTools);
 
-            // 6. Build chat messages
             var chatMessages = new List<ChatMessage>
             {
                 new(ChatRole.User, message.Content ?? "")
             };
 
-            // 7. Run via AIAgent (handles tool-calling loop internally)
             var result = await aiAgent.RunAsync(chatMessages, session: null, options: null, cancellationToken: cancellationToken);
             var content = result?.ToString() ?? "";
 
-            // 8. Check routing markers
             var targetRole = CheckRoutingMarkers(content);
             var response = new AgentResponse
             {
@@ -106,13 +97,9 @@ public class StandardAgent : AgentBase
             };
 
             if (targetRole != null)
-            {
                 response.TargetRole = targetRole;
-            }
             else if (_config.Routing?.DefaultNext != null)
-            {
                 response.TargetRole = _config.Routing.DefaultNext;
-            }
 
             Status = AgentStatus.Idle;
             return response;
@@ -130,9 +117,6 @@ public class StandardAgent : AgentBase
         }
     }
 
-    /// <summary>
-    /// 检查路由标记 / Check routing markers in response
-    /// </summary>
     private string? CheckRoutingMarkers(string? content)
     {
         if (string.IsNullOrEmpty(content) || _config.Routing?.Markers == null)

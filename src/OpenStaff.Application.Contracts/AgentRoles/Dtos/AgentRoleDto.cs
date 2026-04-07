@@ -11,7 +11,7 @@ public class AgentRoleDto
     public string? SystemPrompt { get; set; }
     public bool IsBuiltin { get; set; }
     public AgentSource Source { get; set; }
-    public string? VendorType { get; set; }
+    public string? ProviderType { get; set; }
     public string? ModelProviderId { get; set; }
     public string? ModelProviderName { get; set; }
     public string? ModelName { get; set; }
@@ -35,7 +35,7 @@ public class CreateAgentRoleInput
     public string? Description { get; set; }
     public string? SystemPrompt { get; set; }
     public AgentSource Source { get; set; } = AgentSource.Custom;
-    public string? VendorType { get; set; }
+    public string? ProviderType { get; set; }
     public string? ModelProviderId { get; set; }
     public string? ModelName { get; set; }
     public string? Config { get; set; }

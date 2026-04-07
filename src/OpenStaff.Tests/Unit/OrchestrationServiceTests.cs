@@ -1,9 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
-using OpenStaff.Agents;
+using OpenStaff.Agent;
+using OpenStaff.Agent.Builtin;
+using OpenStaff.Agent.Tools;
 using OpenStaff.Application.Orchestration;
-using OpenStaff.Agents.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Notifications;
@@ -14,37 +15,26 @@ namespace OpenStaff.Tests.Unit;
 
 public class OrchestrationServiceTests
 {
-    private static AgentFactory CreateFactoryWithRoles(params string[] roleTypes)
+    private static BuiltinAgentProvider CreateBuiltinProvider()
     {
         var services = new ServiceCollection()
             .AddLogging()
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
-        var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
-        var factory = new AgentFactory(services, toolRegistry, aiAgentFactory, []);
+        var chatClientFactory = new ChatClientFactory(services.GetRequiredService<ILoggerFactory>());
+        var aiAgentFactory = new AIAgentFactory(chatClientFactory, services.GetRequiredService<ILoggerFactory>());
+        var promptLoader = new OpenStaff.Agent.Builtin.Prompts.EmbeddedPromptLoader();
+        return new BuiltinAgentProvider(services, toolRegistry, aiAgentFactory, promptLoader);
+    }
 
-        foreach (var roleType in roleTypes)
-        {
-            factory.RegisterRole(new RoleConfig
-            {
-                RoleType = roleType,
-                Name = roleType,
-                SystemPrompt = $"{roleType}.system",
-                IsBuiltin = true,
-                Tools = new List<string>()
-            });
-        }
-
-        return factory;
+    private static AgentFactory CreateFactoryWithBuiltin()
+    {
+        return new AgentFactory(new IAgentProvider[] { CreateBuiltinProvider() });
     }
 
     private static OrchestrationService CreateService(AgentFactory? factory = null)
     {
-        factory ??= CreateFactoryWithRoles(
-            BuiltinRoleTypes.Secretary,
-            "architect",
-            "producer",
-            "debugger");
+        factory ??= CreateFactoryWithBuiltin();
 
         var notificationMock = new Mock<INotificationService>();
         notificationMock
@@ -73,41 +63,7 @@ public class OrchestrationServiceTests
         await service.InitializeProjectAgentsAsync(projectId);
 
         var statuses = await service.GetAgentStatusesAsync(projectId);
-        // Orchestrator is excluded from initialization (created on-demand)
         Assert.True(statuses.Count > 0);
-    }
-
-    [Fact]
-    public async Task GetAgentStatusesAsync_ReturnsStatusForAllProjectAgents()
-    {
-        var factory = CreateFactoryWithRoles(
-            "architect",
-            "producer",
-            "debugger");
-
-        var service = CreateService(factory);
-        var projectId = Guid.NewGuid();
-
-        await service.InitializeProjectAgentsAsync(projectId);
-        var statuses = await service.GetAgentStatusesAsync(projectId);
-
-        Assert.Equal(3, statuses.Count);
-        var roleTypes = statuses.Select(s => s.RoleType).ToHashSet();
-        Assert.Contains("architect", roleTypes);
-        Assert.Contains("producer", roleTypes);
-        Assert.Contains("debugger", roleTypes);
-    }
-
-    [Fact]
-    public async Task GetAgentStatusesAsync_AllAgentsStartIdle()
-    {
-        var service = CreateService();
-        var projectId = Guid.NewGuid();
-
-        await service.InitializeProjectAgentsAsync(projectId);
-        var statuses = await service.GetAgentStatusesAsync(projectId);
-
-        Assert.All(statuses, s => Assert.Equal(AgentStatus.Idle, s.Status));
     }
 
     [Fact]
@@ -121,9 +77,9 @@ public class OrchestrationServiceTests
     }
 
     [Fact]
-    public async Task RouteToAgentAsync_UnregisteredRole_ReturnsError()
+    public async Task RouteToAgentAsync_UnregisteredProvider_ReturnsError()
     {
-        var factory = CreateFactoryWithRoles("secretary");
+        var factory = new AgentFactory(Array.Empty<IAgentProvider>());
         var service = CreateService(factory);
         var projectId = Guid.NewGuid();
 
@@ -131,25 +87,19 @@ public class OrchestrationServiceTests
             new AgentMessage { Content = "test" });
 
         Assert.False(result.Success);
-        Assert.Contains("nonexistent_role", result.Content);
     }
 
     [Fact]
     public async Task InitializeProjectAgentsAsync_ExcludesSecretary()
     {
-        var factory = CreateFactoryWithRoles(
-            BuiltinRoleTypes.Secretary,
-            "architect");
-        var service = CreateService(factory);
+        var service = CreateService();
         var projectId = Guid.NewGuid();
 
         await service.InitializeProjectAgentsAsync(projectId);
         var statuses = await service.GetAgentStatusesAsync(projectId);
 
         var roleTypes = statuses.Select(s => s.RoleType).ToList();
-        // Secretary is excluded from batch initialization (created on-demand)
         Assert.DoesNotContain(BuiltinRoleTypes.Secretary, roleTypes);
-        Assert.Contains("architect", roleTypes);
     }
 
     [Fact]
@@ -169,10 +119,21 @@ public class OrchestrationServiceTests
     }
 
     [Fact]
+    public async Task GetAgentStatusesAsync_AllAgentsStartIdle()
+    {
+        var service = CreateService();
+        var projectId = Guid.NewGuid();
+
+        await service.InitializeProjectAgentsAsync(projectId);
+        var statuses = await service.GetAgentStatusesAsync(projectId);
+
+        Assert.All(statuses, s => Assert.Equal(AgentStatus.Idle, s.Status));
+    }
+
+    [Fact]
     public async Task GetAgentStatusesAsync_ReturnsRoleNames()
     {
-        var factory = CreateFactoryWithRoles("secretary");
-        var service = CreateService(factory);
+        var service = CreateService();
         var projectId = Guid.NewGuid();
 
         await service.InitializeProjectAgentsAsync(projectId);

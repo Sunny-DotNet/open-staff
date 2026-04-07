@@ -16,13 +16,13 @@
     <Project Path="marketplace/OpenStaff.Marketplace.Internal/OpenStaff.Marketplace.Internal.csproj" />
     <Project Path="marketplace/OpenStaff.Marketplace.Registry/OpenStaff.Marketplace.Registry.csproj" />
   </Folder>
-  <Folder Name="/vendors/">
-    <Project Path="vendors/OpenStaff.Vendor.Abstractions/OpenStaff.Vendor.Abstractions.csproj" />
-    <Project Path="vendors/OpenStaff.Vendor.Anthropic/OpenStaff.Vendor.Anthropic.csproj" />
-    <Project Path="vendors/OpenStaff.Vendor.Google/OpenStaff.Vendor.Google.csproj" />
-    <Project Path="vendors/OpenStaff.Vendor.GitHubCopilot/OpenStaff.Vendor.GitHubCopilot.csproj" />
+  <Folder Name="/agents/">
+    <Project Path="agents/OpenStaff.Agent.Abstractions/OpenStaff.Agent.Abstractions.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Builtin/OpenStaff.Agent.Builtin.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Vendor.Anthropic/OpenStaff.Agent.Vendor.Anthropic.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Vendor.Google/OpenStaff.Agent.Vendor.Google.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Vendor.GitHubCopilot/OpenStaff.Agent.Vendor.GitHubCopilot.csproj" />
   </Folder>
-  <Project Path="OpenStaff.Agents/OpenStaff.Agents.csproj" />
   <Project Path="OpenStaff.Api/OpenStaff.Api.csproj" />
   <Project Path="OpenStaff.AppHost/OpenStaff.AppHost.csproj" />
   <Project Path="OpenStaff.Application/OpenStaff.Application.csproj" />

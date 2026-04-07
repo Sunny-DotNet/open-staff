@@ -13,7 +13,7 @@ public class AgentRole
     public Guid? ModelProviderId { get; set; } // 绑定的模型供应商
     public string? ModelName { get; set; } // 使用的具体模型
     public AgentSource Source { get; set; } = AgentSource.Custom;
-    public string? VendorType { get; set; } // 仅 Source=Vendor 时有值（"anthropic", "google", "github-copilot"）
+    public string? ProviderType { get; set; } // 智能体供应商类型（"builtin", "anthropic", "google", "github-copilot"）
     public bool IsBuiltin { get; set; } = false;
     public bool IsActive { get; set; } = true;
     public Guid? PluginId { get; set; } // 关联插件(自定义角色)

@@ -5,11 +5,10 @@ using OpenAI.Chat;
 using System.ClientModel;
 using System.ClientModel.Primitives;
 
-namespace OpenStaff.Agents;
+namespace OpenStaff.Agent.Builtin;
 
 /// <summary>
-/// IChatClient 工厂 — 仅处理 OpenAI 兼容协议（openai, github-copilot, NewApi 等）
-/// Vendor 智能体（Anthropic, Google）通过各自的 Vendor 项目直接创建
+/// IChatClient 工厂 — 仅处理 OpenAI 兼容协议
 /// </summary>
 public class ChatClientFactory
 {
@@ -20,9 +19,6 @@ public class ChatClientFactory
         _loggerFactory = loggerFactory;
     }
 
-    /// <summary>
-    /// 创建 IChatClient — 仅支持 OpenAI 兼容协议
-    /// </summary>
     public IChatClient Create(string protocolType, string apiKey, string model, string? baseUrl = null)
     {
         var logger = _loggerFactory.CreateLogger<ChatClientFactory>();
@@ -32,7 +28,6 @@ public class ChatClientFactory
         {
             "openai" => CreateOpenAIChatClient(apiKey, model, baseUrl),
             "github-copilot" => CreateCopilotChatClient(apiKey, model, baseUrl),
-            // NewApi 和其他 OpenAI 兼容协议
             _ => CreateOpenAIChatClient(apiKey, model, baseUrl)
         };
     }

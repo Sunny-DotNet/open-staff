@@ -12,7 +12,7 @@ export namespace AgentApi {
     modelProviderName: string | null;
     isBuiltin: boolean;
     source: number;
-    vendorType: string | null;
+    providerType: string | null;
     config: string | null;
     soul: AgentSoul | null;
     createdAt: string;
@@ -128,7 +128,7 @@ export async function createAgentRoleApi(data: {
   description?: string;
   systemPrompt?: string;
   source?: number;
-  vendorType?: string;
+  providerType?: string;
   modelProviderId?: string;
   modelName?: string;
   config?: string;
@@ -221,7 +221,7 @@ export async function getSessionEventsApi(
 // ===== Vendor Schema API =====
 
 export interface VendorSchema {
-  vendorType: string;
+  providerType: string;
   displayName: string;
   configSchema: {
     fields: Array<{

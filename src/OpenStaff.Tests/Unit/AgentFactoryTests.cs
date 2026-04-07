@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using OpenStaff.Agents;
-using OpenStaff.Agents.Tools;
+using Moq;
+using OpenStaff.Agent;
+using OpenStaff.Agent.Builtin;
+using OpenStaff.Agent.Tools;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using Xunit;
@@ -10,106 +12,92 @@ namespace OpenStaff.Tests.Unit;
 
 public class AgentFactoryTests
 {
-    private static AgentFactory CreateFactory()
+    private static AgentFactory CreateFactory(params IAgentProvider[] providers)
+    {
+        return new AgentFactory(providers);
+    }
+
+    private static BuiltinAgentProvider CreateBuiltinProvider()
     {
         var services = new ServiceCollection()
             .AddLogging()
             .BuildServiceProvider();
         var toolRegistry = new AgentToolRegistry();
-        var aiAgentFactory = new AIAgentFactory(new ChatClientFactory(services.GetRequiredService<ILoggerFactory>()), services.GetRequiredService<ILoggerFactory>());
-        return new AgentFactory(services, toolRegistry, aiAgentFactory, []);
-    }
-
-    private static RoleConfig CreateRoleConfig(string roleType) => new()
-    {
-        RoleType = roleType,
-        Name = roleType,
-        SystemPrompt = "You are a test agent.",
-        IsBuiltin = true
-    };
-
-    [Fact]
-    public void IsRegistered_ShouldReturnFalseWhenNothingRegistered()
-    {
-        var factory = CreateFactory();
-        Assert.False(factory.IsRegistered("secretary"));
+        var chatClientFactory = new ChatClientFactory(services.GetRequiredService<ILoggerFactory>());
+        var aiAgentFactory = new AIAgentFactory(chatClientFactory, services.GetRequiredService<ILoggerFactory>());
+        var promptLoader = new OpenStaff.Agent.Builtin.Prompts.EmbeddedPromptLoader();
+        return new BuiltinAgentProvider(services, toolRegistry, aiAgentFactory, promptLoader);
     }
 
     [Fact]
-    public void RegisterRole_ShouldMakeRoleRegistered()
+    public void HasProvider_ShouldReturnFalseWhenEmpty()
     {
         var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig("secretary"));
-
-        Assert.True(factory.IsRegistered("secretary"));
+        Assert.False(factory.HasProvider("builtin"));
     }
 
     [Fact]
-    public void IsRegistered_ShouldReturnFalseForUnknownRole()
+    public void HasProvider_ShouldReturnTrueWhenRegistered()
     {
-        var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig("producer"));
-
-        Assert.False(factory.IsRegistered("nonexistent_role"));
+        var factory = CreateFactory(CreateBuiltinProvider());
+        Assert.True(factory.HasProvider("builtin"));
     }
 
     [Fact]
-    public void RegisteredRoleTypes_ShouldListAllRegisteredRoles()
+    public void HasProvider_ShouldReturnFalseForUnknownProvider()
     {
-        var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig("secretary"));
-        factory.RegisterRole(CreateRoleConfig("producer"));
-        factory.RegisterRole(CreateRoleConfig("debugger"));
-
-        var roles = factory.RegisteredRoleTypes;
-        Assert.Equal(3, roles.Count);
-        Assert.Contains("secretary", roles);
-        Assert.Contains("producer", roles);
-        Assert.Contains("debugger", roles);
+        var factory = CreateFactory(CreateBuiltinProvider());
+        Assert.False(factory.HasProvider("nonexistent"));
     }
 
     [Fact]
-    public void RegisteredRoleTypes_EmptyByDefault()
+    public void Providers_ShouldListAllRegisteredProviders()
     {
-        var factory = CreateFactory();
-        Assert.Empty(factory.RegisteredRoleTypes);
+        var mockProvider = new Mock<IAgentProvider>();
+        mockProvider.Setup(p => p.ProviderType).Returns("anthropic");
+
+        var factory = CreateFactory(CreateBuiltinProvider(), mockProvider.Object);
+
+        Assert.Equal(2, factory.Providers.Count);
+        Assert.True(factory.HasProvider("builtin"));
+        Assert.True(factory.HasProvider("anthropic"));
     }
 
     [Fact]
-    public void CreateAgent_ShouldThrowForUnregisteredRole()
+    public void Providers_EmptyByDefault()
     {
         var factory = CreateFactory();
-        Assert.Throws<InvalidOperationException>(() => factory.CreateAgent("unknown_role"));
+        Assert.Empty(factory.Providers);
     }
 
     [Fact]
-    public void CreateAgent_ShouldReturnStandardAgentInstance()
+    public void CreateAgent_ShouldThrowForUnregisteredProvider()
     {
-        var factory = CreateFactory();
-        factory.RegisterRole(CreateRoleConfig("architect"));
+        var factory = CreateFactory(CreateBuiltinProvider());
+        var role = new AgentRole { RoleType = "test", ProviderType = "unknown" };
+        Assert.Throws<InvalidOperationException>(() => factory.CreateAgent(role));
+    }
 
-        var agent = factory.CreateAgent("architect");
+    [Fact]
+    public void CreateAgent_ShouldReturnStandardAgentForBuiltin()
+    {
+        var factory = CreateFactory(CreateBuiltinProvider());
+        var role = new AgentRole { RoleType = "secretary", Name = "Secretary" };
+
+        var agent = factory.CreateAgent(role);
         Assert.NotNull(agent);
         Assert.IsType<StandardAgent>(agent);
-        Assert.Equal("architect", agent.RoleType);
+        Assert.Equal("secretary", agent.RoleType);
     }
 
     [Fact]
-    public void GetRoleConfig_ShouldReturnConfigForRegisteredRole()
+    public void CreateAgent_DefaultsToBuiltinProvider()
     {
-        var factory = CreateFactory();
-        var config = CreateRoleConfig("secretary");
-        factory.RegisterRole(config);
+        var factory = CreateFactory(CreateBuiltinProvider());
+        // ProviderType is null → defaults to "builtin"
+        var role = new AgentRole { RoleType = "secretary", Name = "Secretary", ProviderType = null };
 
-        var result = factory.GetRoleConfig("secretary");
-        Assert.NotNull(result);
-        Assert.Equal("secretary", result!.RoleType);
-    }
-
-    [Fact]
-    public void GetRoleConfig_ShouldReturnNullForUnknownRole()
-    {
-        var factory = CreateFactory();
-        Assert.Null(factory.GetRoleConfig("unknown"));
+        var agent = factory.CreateAgent(role);
+        Assert.NotNull(agent);
     }
 }

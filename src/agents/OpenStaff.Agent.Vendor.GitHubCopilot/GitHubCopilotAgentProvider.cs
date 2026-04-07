@@ -9,28 +9,28 @@ using System.ClientModel.Primitives;
 using AgentResponse = OpenStaff.Core.Agents.AgentResponse;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
-namespace OpenStaff.Vendor.GitHubCopilot;
+namespace OpenStaff.Agent.Vendor.GitHubCopilot;
 
-public class GitHubCopilotVendorProvider : IVendorAgentProvider
+public class GitHubCopilotAgentProvider : IAgentProvider
 {
     private readonly ILoggerFactory _loggerFactory;
 
-    public GitHubCopilotVendorProvider(ILoggerFactory loggerFactory)
+    public GitHubCopilotAgentProvider(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory;
     }
 
-    public string VendorType => "github-copilot";
+    public string ProviderType => "github-copilot";
     public string DisplayName => "GitHub Copilot";
 
-    public VendorConfigSchema GetConfigSchema() => new()
+    public AgentConfigSchema GetConfigSchema() => new()
     {
-        VendorType = VendorType,
+        ProviderType = ProviderType,
         DisplayName = DisplayName,
         Description = "GitHub Copilot 智能体（需要 Copilot 订阅，Token 自动管理）",
         Fields =
         [
-            new VendorConfigField
+            new AgentConfigField
             {
                 Key = "token",
                 Label = "Copilot Token",
@@ -38,7 +38,7 @@ public class GitHubCopilotVendorProvider : IVendorAgentProvider
                 Required = true,
                 Placeholder = "自动获取或手动填入"
             },
-            new VendorConfigField
+            new AgentConfigField
             {
                 Key = "model",
                 Label = "模型",
@@ -56,8 +56,9 @@ public class GitHubCopilotVendorProvider : IVendorAgentProvider
         ]
     };
 
-    public IAgent CreateAgent(AgentRole role, VendorConfig config)
+    public IAgent CreateAgent(AgentRole role)
     {
+        var config = AgentConfig.FromJson(role.Config);
         var token = config.GetRequired("token");
         var model = config.Get("model") ?? "gpt-4o";
 
@@ -70,9 +71,9 @@ public class GitHubCopilotVendorProvider : IVendorAgentProvider
         IChatClient chatClient = client.GetChatClient(model).AsIChatClient();
 
         var systemPrompt = role.SystemPrompt ?? "";
-        var logger = _loggerFactory.CreateLogger<GitHubCopilotVendorAgent>();
+        var logger = _loggerFactory.CreateLogger<GitHubCopilotAgent>();
 
-        return new GitHubCopilotVendorAgent(role.RoleType, chatClient, systemPrompt, role.Name, _loggerFactory, logger);
+        return new GitHubCopilotAgent(role.RoleType, chatClient, systemPrompt, role.Name, _loggerFactory, logger);
     }
 
     private sealed class CopilotHeaderPolicy : PipelinePolicy
@@ -99,7 +100,7 @@ public class GitHubCopilotVendorProvider : IVendorAgentProvider
     }
 }
 
-public class GitHubCopilotVendorAgent : VendorAgentBase
+public class GitHubCopilotAgent : AgentBase
 {
     private readonly string _roleType;
     private readonly IChatClient _chatClient;
@@ -107,13 +108,13 @@ public class GitHubCopilotVendorAgent : VendorAgentBase
     private readonly string _agentName;
     private readonly ILoggerFactory _loggerFactory;
 
-    public GitHubCopilotVendorAgent(
+    public GitHubCopilotAgent(
         string roleType,
         IChatClient chatClient,
         string systemPrompt,
         string agentName,
         ILoggerFactory loggerFactory,
-        ILogger<GitHubCopilotVendorAgent> logger) : base(logger)
+        ILogger<GitHubCopilotAgent> logger) : base(logger)
     {
         _roleType = roleType;
         _chatClient = chatClient;
@@ -151,7 +152,7 @@ public class GitHubCopilotVendorAgent : VendorAgentBase
                 Data = new Dictionary<string, object>
                 {
                     ["roleType"] = RoleType,
-                    ["vendor"] = "github-copilot"
+                    ["provider"] = "github-copilot"
                 }
             };
         }

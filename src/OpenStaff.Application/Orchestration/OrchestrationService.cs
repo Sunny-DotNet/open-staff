@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using OpenStaff.Agents;
+using OpenStaff.Agent;
+using OpenStaff.Agent.Builtin;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
 using OpenStaff.Core.Notifications;
@@ -43,10 +44,10 @@ public class OrchestrationService : IOrchestrator
         _logger.LogInformation("Handling user input for project {ProjectId}", projectId);
 
         // 使用 secretary 角色作为默认入口
-        var routingAgent = await GetOrCreateAgentAsync(projectId, "secretary");
+        var secretaryRole = new AgentRole { RoleType = BuiltinRoleTypes.Secretary, Name = "Secretary" };
+        var routingAgent = await GetOrCreateAgentAsync(projectId, secretaryRole);
         if (routingAgent == null)
         {
-            // 无 secretary 角色，无法处理
             return await RouteToAgentAsync(projectId, BuiltinRoleTypes.Secretary,
                 new AgentMessage { Content = input, FromRole = "user", Timestamp = DateTime.UtcNow }, cancellationToken);
         }
@@ -77,7 +78,8 @@ public class OrchestrationService : IOrchestrator
     public async Task<AgentResponse> RouteToAgentAsync(Guid projectId, string targetRole,
         AgentMessage message, CancellationToken cancellationToken = default)
     {
-        var agent = await GetOrCreateAgentAsync(projectId, targetRole);
+        var role = new AgentRole { RoleType = targetRole, Name = targetRole };
+        var agent = await GetOrCreateAgentAsync(projectId, role);
         if (agent == null)
         {
             return new AgentResponse
@@ -98,10 +100,15 @@ public class OrchestrationService : IOrchestrator
 
         var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (IAgent, DateTime)>());
 
-        foreach (var roleType in _agentFactory.RegisteredRoleTypes)
+        // 初始化内置角色（secretary 按需创建）
+        if (_agentFactory.Providers.TryGetValue("builtin", out var builtinProvider) && builtinProvider is BuiltinAgentProvider builtin)
         {
-            if (roleType == BuiltinRoleTypes.Secretary) continue; // secretary 按需创建
-            await GetOrCreateAgentAsync(projectId, roleType);
+            foreach (var roleType in builtin.RoleConfigs.Keys)
+            {
+                if (roleType == BuiltinRoleTypes.Secretary) continue;
+                var role = new AgentRole { RoleType = roleType, Name = roleType };
+                await GetOrCreateAgentAsync(projectId, role);
+            }
         }
 
         await _notification.NotifyAsync(Channels.Project(projectId), EventTypes.SystemNotice, new
@@ -121,11 +128,10 @@ public class OrchestrationService : IOrchestrator
         {
             foreach (var (roleType, agentData) in agents)
             {
-                var config = _agentFactory.GetRoleConfig(roleType);
                 result.Add(new AgentStatusInfo
                 {
                     RoleType = roleType,
-                    RoleName = config?.Name ?? roleType,
+                    RoleName = roleType,
                     Status = agentData.agent.Status,
                     LastUsed = agentData.lastUsed
                 });
@@ -135,71 +141,47 @@ public class OrchestrationService : IOrchestrator
         return Task.FromResult<IReadOnlyList<AgentStatusInfo>>(result);
     }
 
-    private async Task<IAgent?> GetOrCreateAgentAsync(Guid projectId, string roleType)
+    private async Task<IAgent?> GetOrCreateAgentAsync(Guid projectId, AgentRole role)
     {
-        if (!_agentFactory.IsRegistered(roleType))
-        {
-            _logger.LogWarning("Role type {RoleType} is not registered", roleType);
-            return null;
-        }
+        var roleType = role.RoleType;
 
         var agents = _projectAgents.GetOrAdd(projectId, _ => new ConcurrentDictionary<string, (IAgent, DateTime)>());
 
         if (agents.TryGetValue(roleType, out var existingData))
         {
-            // 更新最后使用时间
             agents.TryUpdate(roleType, existingData, (existingData.agent, DateTime.UtcNow));
             return existingData.agent;
         }
 
-        var agent = _agentFactory.CreateAgent(roleType);
-        if (agent == null)
-        {
-            _logger.LogError("Failed to create agent for role type {RoleType}", roleType);
-            return null;
-        }
-
-        var config = _agentFactory.GetRoleConfig(roleType);
-        if (config == null)
-        {
-            _logger.LogWarning("Configuration not found for role type {RoleType}", roleType);
-        }
-
-        // 解析供应商和 API Key
-        ProviderAccount? account = null;
-        string? apiKey = null;
-        string? endpointOverride = null;
-        var roleDb = _agentFactory.GetDbRole(roleType);
-        if (roleDb?.ModelProviderId != null)
-        {
-            var resolved = await _providerResolver.ResolveAsync(roleDb.ModelProviderId.Value);
-            if (resolved != null)
-            {
-                account = resolved.Account;
-                apiKey = resolved.ApiKey;
-                endpointOverride = resolved.EndpointOverride;
-            }
-        }
-
-        var context = new AgentContext
-        {
-            ProjectId = projectId,
-            AgentInstanceId = Guid.NewGuid(),
-            Role = new AgentRole
-            {
-                RoleType = roleType,
-                Name = config?.Name ?? roleType,
-                ModelName = config?.ModelName
-            },
-            Project = new Project { Id = projectId },
-            Account = account,
-            ApiKey = apiKey,
-            NotificationService = _notification,
-            Language = "zh-CN"
-        };
-
         try
         {
+            var agent = _agentFactory.CreateAgent(role);
+
+            // 解析供应商和 API Key
+            ProviderAccount? account = null;
+            string? apiKey = null;
+            if (role.ModelProviderId != null)
+            {
+                var resolved = await _providerResolver.ResolveAsync(role.ModelProviderId.Value);
+                if (resolved != null)
+                {
+                    account = resolved.Account;
+                    apiKey = resolved.ApiKey;
+                }
+            }
+
+            var context = new AgentContext
+            {
+                ProjectId = projectId,
+                AgentInstanceId = Guid.NewGuid(),
+                Role = role,
+                Project = new Project { Id = projectId },
+                Account = account,
+                ApiKey = apiKey,
+                NotificationService = _notification,
+                Language = "zh-CN"
+            };
+
             await agent.InitializeAsync(context);
             agents.TryAdd(roleType, (agent, DateTime.UtcNow));
             _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", roleType, projectId);
@@ -207,7 +189,7 @@ public class OrchestrationService : IOrchestrator
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize agent {RoleType} for project {ProjectId}", roleType, projectId);
+            _logger.LogError(ex, "Failed to create agent {RoleType} for project {ProjectId}", roleType, projectId);
             return null;
         }
     }
@@ -218,7 +200,6 @@ public class OrchestrationService : IOrchestrator
 
         try
         {
-            // Try to extract JSON from response
             var jsonStart = content.IndexOf('{');
             var jsonEnd = content.LastIndexOf('}');
             if (jsonStart >= 0 && jsonEnd > jsonStart)
@@ -233,45 +214,31 @@ public class OrchestrationService : IOrchestrator
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to parse routing response, defaulting to communicator");
+            _logger.LogWarning(ex, "Failed to parse routing response, defaulting to secretary");
         }
 
         return null;
     }
 
-    /// <summary>
-    /// 清理不活跃的智能体实例
-    /// </summary>
     private async Task CleanupInactiveAgentsAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var now = DateTime.UtcNow;
-            var cutoffTime = now - _cleanupInterval;
+            var cutoffTime = DateTime.UtcNow - _cleanupInterval;
 
             foreach (var (projectId, agents) in _projectAgents)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
+                if (cancellationToken.IsCancellationRequested) break;
 
-                var toRemove = new List<string>();
-
-                foreach (var (roleType, agentData) in agents)
-                {
-                    if (agentData.lastUsed < cutoffTime)
-                    {
-                        toRemove.Add(roleType);
-                        _logger.LogDebug("Cleaning up inactive agent {RoleType} for project {ProjectId}", roleType, projectId);
-                    }
-                }
+                var toRemove = agents
+                    .Where(kv => kv.Value.lastUsed < cutoffTime)
+                    .Select(kv => kv.Key)
+                    .ToList();
 
                 foreach (var roleType in toRemove)
                 {
-                    if (agents.TryRemove(roleType, out var removedAgent))
-                    {
-                        // 这里可以添加智能体的清理逻辑
+                    if (agents.TryRemove(roleType, out _))
                         _logger.LogInformation("Removed inactive agent {RoleType} for project {ProjectId}", roleType, projectId);
-                    }
                 }
             }
         }

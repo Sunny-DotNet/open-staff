@@ -14,6 +14,7 @@ public class AgentRoleConfiguration : IEntityTypeConfiguration<AgentRole>
         builder.Property(x => x.RoleType).IsRequired().HasMaxLength(50);
         builder.Property(x => x.ModelName).HasMaxLength(200);
         builder.Property(x => x.Config).HasColumnType("TEXT");
+        builder.Property(x => x.ProviderType).HasColumnName("VendorType").HasMaxLength(50);
 
         builder.OwnsOne(x => x.Soul, soul =>
         {

@@ -2,10 +2,10 @@ using System.Reflection;
 using System.Text.Json;
 using OpenStaff.Core.Agents;
 
-namespace OpenStaff.Agents.Roles;
+namespace OpenStaff.Agent.Builtin.Roles;
 
 /// <summary>
-/// 从嵌入资源加载角色配置 / Load role configs from embedded resources
+/// 从嵌入资源加载角色配置
 /// </summary>
 public static class RoleConfigLoader
 {
@@ -32,7 +32,7 @@ public static class RoleConfigLoader
         return configs;
     }
 
-    /// <summary>加载所有嵌入的角色配置（包括旧模板，仅供参考）</summary>
+    /// <summary>加载所有嵌入的角色配置（包括旧模板）</summary>
     public static IReadOnlyList<RoleConfig> LoadAll()
     {
         var assembly = typeof(RoleConfigLoader).Assembly;

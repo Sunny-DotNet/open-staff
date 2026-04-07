@@ -1,12 +1,12 @@
-namespace OpenStaff.Vendor;
+namespace OpenStaff.Agent;
 
 /// <summary>
-/// Vendor 配置 Schema — 描述该 Vendor 需要哪些配置字段
+/// 智能体配置 Schema — 描述该供应商需要哪些配置字段（前端据此渲染动态表单）
 /// </summary>
-public class VendorConfigSchema
+public class AgentConfigSchema
 {
-    /// <summary>Vendor 标识</summary>
-    public string VendorType { get; set; } = string.Empty;
+    /// <summary>供应商标识</summary>
+    public string ProviderType { get; set; } = string.Empty;
 
     /// <summary>显示名称</summary>
     public string DisplayName { get; set; } = string.Empty;
@@ -15,13 +15,13 @@ public class VendorConfigSchema
     public string? Description { get; set; }
 
     /// <summary>配置字段列表</summary>
-    public List<VendorConfigField> Fields { get; set; } = [];
+    public List<AgentConfigField> Fields { get; set; } = [];
 }
 
 /// <summary>
 /// 单个配置字段定义
 /// </summary>
-public class VendorConfigField
+public class AgentConfigField
 {
     /// <summary>字段键名（如 "apiKey", "model"）</summary>
     public string Key { get; set; } = string.Empty;
@@ -42,13 +42,13 @@ public class VendorConfigField
     public string? Placeholder { get; set; }
 
     /// <summary>select 类型的可选项</summary>
-    public List<VendorConfigOption>? Options { get; set; }
+    public List<AgentConfigOption>? Options { get; set; }
 }
 
 /// <summary>
 /// 下拉选项
 /// </summary>
-public class VendorConfigOption
+public class AgentConfigOption
 {
     public string Label { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using OpenStaff.Agents;
+using OpenStaff.Agent;
+using OpenStaff.Agent.Builtin;
 using OpenStaff.Application.Agents;
 using OpenStaff.Application.AgentRoles;
 using OpenStaff.Application.Auth;
@@ -32,7 +33,6 @@ using OpenStaff.Core.Orchestration;
 using OpenStaff.Infrastructure;
 using OpenStaff.Plugins.ModelDataSource;
 using OpenStaff.Provider;
-using OpenStaff.Vendor;
 
 using OpenStaff.Marketplace;
 using OpenStaff.Marketplace.Internal;
@@ -47,7 +47,8 @@ namespace OpenStaff.Application;
     typeof(OpenStaffProviderGoogleModule),
     typeof(OpenStaffProviderNewApiModule),
     typeof(OpenStaffProviderGitHubCopilotModule),
-    typeof(OpenStaffAgentsModule),
+    typeof(OpenStaffAgentAbstractionsModule),
+    typeof(OpenStaffAgentBuiltinModule),
     typeof(OpenStaffInfrastructureModule), 
     typeof(ModelDataSourceModule),
     typeof(MarketplaceAbstractionsModule),
@@ -60,9 +61,9 @@ public class OpenStaffApplicationModule : OpenStaffModule
         var services = context.Services;
 
         // Vendor 智能体供应商
-        services.AddSingleton<IVendorAgentProvider, OpenStaff.Vendor.Anthropic.AnthropicVendorProvider>();
-        services.AddSingleton<IVendorAgentProvider, OpenStaff.Vendor.Google.GoogleVendorProvider>();
-        services.AddSingleton<IVendorAgentProvider, OpenStaff.Vendor.GitHubCopilot.GitHubCopilotVendorProvider>();
+        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.Anthropic.AnthropicAgentProvider>();
+        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.Google.GoogleAgentProvider>();
+        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.GitHubCopilot.GitHubCopilotAgentProvider>();
 
         // 编排服务 — 依赖 AgentFactory + IProviderResolver + INotificationService
         services.AddSingleton<OrchestrationService>(sp =>

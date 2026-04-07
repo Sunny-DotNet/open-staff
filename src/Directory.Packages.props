@@ -12,6 +12,7 @@
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.0.0" />
     <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0" />
     <PackageVersion Include="Microsoft.Agents.AI.Anthropic" Version="1.0.0-rc6" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.4.0" />
     <PackageVersion Include="Google.GenAI" Version="1.6.1" />
     <!-- Entity Framework Core -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.4" />

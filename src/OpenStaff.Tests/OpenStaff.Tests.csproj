@@ -22,7 +22,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenStaff.Core\OpenStaff.Core.csproj" />
-    <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Builtin\OpenStaff.Agent.Builtin.csproj" />
     <ProjectReference Include="..\OpenStaff.Application\OpenStaff.Application.csproj" />
     <ProjectReference Include="..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
     <ProjectReference Include="..\OpenStaff.Api\OpenStaff.Api.csproj" />

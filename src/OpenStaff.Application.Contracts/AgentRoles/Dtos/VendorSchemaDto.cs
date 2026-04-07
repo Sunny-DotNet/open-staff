@@ -2,7 +2,7 @@ namespace OpenStaff.Application.Contracts.AgentRoles.Dtos;
 
 public class VendorSchemaDto
 {
-    public string VendorType { get; set; } = string.Empty;
+    public string ProviderType { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public List<VendorFieldDto> Fields { get; set; } = [];
 }

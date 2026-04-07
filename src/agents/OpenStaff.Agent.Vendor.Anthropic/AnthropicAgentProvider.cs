@@ -7,28 +7,28 @@ using OpenStaff.Core.Models;
 using AgentResponse = OpenStaff.Core.Agents.AgentResponse;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
-namespace OpenStaff.Vendor.Anthropic;
+namespace OpenStaff.Agent.Vendor.Anthropic;
 
-public class AnthropicVendorProvider : IVendorAgentProvider
+public class AnthropicAgentProvider : IAgentProvider
 {
     private readonly ILoggerFactory _loggerFactory;
 
-    public AnthropicVendorProvider(ILoggerFactory loggerFactory)
+    public AnthropicAgentProvider(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory;
     }
 
-    public string VendorType => "anthropic";
+    public string ProviderType => "anthropic";
     public string DisplayName => "Anthropic Claude";
 
-    public VendorConfigSchema GetConfigSchema() => new()
+    public AgentConfigSchema GetConfigSchema() => new()
     {
-        VendorType = VendorType,
+        ProviderType = ProviderType,
         DisplayName = DisplayName,
         Description = "Anthropic Claude 系列模型（Claude Sonnet、Opus、Haiku 等）",
         Fields =
         [
-            new VendorConfigField
+            new AgentConfigField
             {
                 Key = "apiKey",
                 Label = "API Key",
@@ -36,7 +36,7 @@ public class AnthropicVendorProvider : IVendorAgentProvider
                 Required = true,
                 Placeholder = "sk-ant-..."
             },
-            new VendorConfigField
+            new AgentConfigField
             {
                 Key = "model",
                 Label = "模型",
@@ -53,8 +53,9 @@ public class AnthropicVendorProvider : IVendorAgentProvider
         ]
     };
 
-    public IAgent CreateAgent(AgentRole role, VendorConfig config)
+    public IAgent CreateAgent(AgentRole role)
     {
+        var config = AgentConfig.FromJson(role.Config);
         var apiKey = config.GetRequired("apiKey");
         var model = config.Get("model") ?? "claude-sonnet-4-20250514";
 
@@ -62,13 +63,13 @@ public class AnthropicVendorProvider : IVendorAgentProvider
         IChatClient chatClient = client.AsIChatClient(model);
 
         var systemPrompt = role.SystemPrompt ?? "";
-        var logger = _loggerFactory.CreateLogger<AnthropicVendorAgent>();
+        var logger = _loggerFactory.CreateLogger<AnthropicAgent>();
 
-        return new AnthropicVendorAgent(role.RoleType, chatClient, systemPrompt, role.Name, _loggerFactory, logger);
+        return new AnthropicAgent(role.RoleType, chatClient, systemPrompt, role.Name, _loggerFactory, logger);
     }
 }
 
-public class AnthropicVendorAgent : VendorAgentBase
+public class AnthropicAgent : AgentBase
 {
     private readonly string _roleType;
     private readonly IChatClient _chatClient;
@@ -76,13 +77,13 @@ public class AnthropicVendorAgent : VendorAgentBase
     private readonly string _agentName;
     private readonly ILoggerFactory _loggerFactory;
 
-    public AnthropicVendorAgent(
+    public AnthropicAgent(
         string roleType,
         IChatClient chatClient,
         string systemPrompt,
         string agentName,
         ILoggerFactory loggerFactory,
-        ILogger<AnthropicVendorAgent> logger) : base(logger)
+        ILogger<AnthropicAgent> logger) : base(logger)
     {
         _roleType = roleType;
         _chatClient = chatClient;
@@ -120,7 +121,7 @@ public class AnthropicVendorAgent : VendorAgentBase
                 Data = new Dictionary<string, object>
                 {
                     ["roleType"] = RoleType,
-                    ["vendor"] = "anthropic"
+                    ["provider"] = "anthropic"
                 }
             };
         }

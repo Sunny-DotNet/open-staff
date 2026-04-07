@@ -7,12 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OpenStaff.Vendor.Abstractions\OpenStaff.Vendor.Abstractions.csproj" />
+    <ProjectReference Include="..\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Agents.AI" />
-    <PackageReference Include="Google.GenAI" />
+    <PackageReference Include="Microsoft.Agents.AI.Anthropic" />
   </ItemGroup>
 
 </Project>

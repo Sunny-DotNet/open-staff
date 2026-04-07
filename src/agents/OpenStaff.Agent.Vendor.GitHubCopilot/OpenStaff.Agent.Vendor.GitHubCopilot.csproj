@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OpenStaff.Vendor.Abstractions\OpenStaff.Vendor.Abstractions.csproj" />
+    <ProjectReference Include="..\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using OpenStaff.Agents;
+using OpenStaff.Agent.Builtin;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Notifications;
 using OpenStaff.Core.Models;

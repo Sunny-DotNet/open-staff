@@ -1,10 +1,10 @@
 using System.Reflection;
 using OpenStaff.Core.Agents;
 
-namespace OpenStaff.Agents.Prompts;
+namespace OpenStaff.Agent.Builtin.Prompts;
 
 /// <summary>
-/// 从嵌入资源加载提示词 / Load prompts from embedded resources
+/// 从嵌入资源加载提示词
 /// </summary>
 public class EmbeddedPromptLoader : IPromptLoader
 {
@@ -18,16 +18,14 @@ public class EmbeddedPromptLoader : IPromptLoader
 
     public string Load(string promptName, string language)
     {
-        // Normalize language: "zh-CN" → "zh-Hans", "en-US" → "en"
         var lang = NormalizeLanguage(language);
         var cacheKey = $"{promptName}.{lang}";
 
         if (_cache.TryGetValue(cacheKey, out var cached))
             return cached;
 
-        // Try exact match first, then fallback
         var content = LoadResource($"{promptName}.{lang}.txt")
-            ?? LoadResource($"{promptName}.zh-Hans.txt")  // fallback to zh-Hans
+            ?? LoadResource($"{promptName}.zh-Hans.txt")
             ?? $"[Prompt not found: {promptName}.{lang}]";
 
         _cache[cacheKey] = content;
@@ -36,7 +34,6 @@ public class EmbeddedPromptLoader : IPromptLoader
 
     private string? LoadResource(string fileName)
     {
-        // Embedded resource name: OpenStaff.Agents.Prompts.{fileName}
         var resourceName = _assembly.GetManifestResourceNames()
             .FirstOrDefault(n => n.EndsWith($".Prompts.{fileName}", StringComparison.OrdinalIgnoreCase));
 

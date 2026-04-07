@@ -1,5 +1,5 @@
 using Moq;
-using OpenStaff.Agents.Tools;
+using OpenStaff.Agent.Tools;
 using OpenStaff.Core.Agents;
 using Xunit;
 

@@ -2,7 +2,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using OpenStaff.Agents;
+using OpenStaff.Agent;
+using OpenStaff.Agent.Builtin;
 using OpenStaff.Application.Contracts.AgentRoles;
 using OpenStaff.Application.Contracts.AgentRoles.Dtos;
 using OpenStaff.Application.Providers;
@@ -80,7 +81,7 @@ public class AgentRoleAppService : IAgentRoleAppService
             Description = input.Description,
             SystemPrompt = input.SystemPrompt,
             Source = input.Source,
-            VendorType = input.VendorType,
+            ProviderType = input.ProviderType,
             ModelProviderId = string.IsNullOrEmpty(input.ModelProviderId) ? null : Guid.Parse(input.ModelProviderId),
             ModelName = input.ModelName,
             Config = input.Config,
@@ -131,8 +132,6 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         role.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-
-        _agentFactory.RegisterDbRole(role);
 
         if (role.ModelProviderId.HasValue)
             role.ProviderAccount = await _accountService.GetByIdAsync(role.ModelProviderId.Value);
@@ -191,7 +190,8 @@ public class AgentRoleAppService : IAgentRoleAppService
         }
 
         // 解析角色配置（支持 Override 覆盖）
-        var roleConfig = _agentFactory.GetRoleConfig(role.RoleType);
+        var builtinProvider = _agentFactory.Providers.GetValueOrDefault("builtin") as BuiltinAgentProvider;
+        var roleConfig = builtinProvider?.GetRoleConfig(role.RoleType);
 
         // 如果 Override 带了 Soul/Name/Description，用 BuildSystemPrompt 生成覆盖的 systemPrompt
         string systemPrompt;
@@ -434,12 +434,14 @@ public class AgentRoleAppService : IAgentRoleAppService
 
     public List<VendorSchemaDto> GetVendorSchemas()
     {
-        return _agentFactory.VendorProviders.Values.Select(p =>
+        return _agentFactory.Providers.Values
+            .Where(p => p.ProviderType != "builtin")
+            .Select(p =>
         {
             var schema = p.GetConfigSchema();
             return new VendorSchemaDto
             {
-                VendorType = p.VendorType,
+                ProviderType = p.ProviderType,
                 DisplayName = p.DisplayName,
                 Fields = schema.Fields.Select(f => new VendorFieldDto
                 {
@@ -471,7 +473,7 @@ public class AgentRoleAppService : IAgentRoleAppService
         ModelName = role.ModelName,
         IsBuiltin = role.IsBuiltin,
         Source = role.Source,
-        VendorType = role.VendorType,
+        ProviderType = role.ProviderType,
         Config = role.Config,
         Soul = role.Soul != null ? new AgentSoulDto
         {

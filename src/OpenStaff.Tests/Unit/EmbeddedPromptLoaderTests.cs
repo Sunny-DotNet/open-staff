@@ -1,4 +1,4 @@
-using OpenStaff.Agents.Prompts;
+using OpenStaff.Agent.Builtin.Prompts;
 using Xunit;
 
 namespace OpenStaff.Tests.Unit;

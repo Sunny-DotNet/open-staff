@@ -1,4 +1,4 @@
-using OpenStaff.Agents.Roles;
+using OpenStaff.Agent.Builtin.Roles;
 using OpenStaff.Core.Models;
 using Xunit;
 

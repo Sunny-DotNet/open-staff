@@ -9,10 +9,13 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
-    <ProjectReference Include="..\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
     <ProjectReference Include="..\OpenStaff.Core\OpenStaff.Core.csproj" />
     <ProjectReference Include="..\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
-    <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Builtin\OpenStaff.Agent.Builtin.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Vendor.Anthropic\OpenStaff.Agent.Vendor.Anthropic.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Vendor.Google\OpenStaff.Agent.Vendor.Google.csproj" />
+    <ProjectReference Include="..\agents\OpenStaff.Agent.Vendor.GitHubCopilot\OpenStaff.Agent.Vendor.GitHubCopilot.csproj" />
     <ProjectReference Include="..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
     <ProjectReference Include="..\providers\OpenStaff.Provider.Anthropic\OpenStaff.Provider.Anthropic.csproj" />
@@ -23,10 +26,6 @@
     <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Abstractions\OpenStaff.Marketplace.Abstractions.csproj" />
     <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Internal\OpenStaff.Marketplace.Internal.csproj" />
     <ProjectReference Include="..\marketplace\OpenStaff.Marketplace.Registry\OpenStaff.Marketplace.Registry.csproj" />
-    <ProjectReference Include="..\vendors\OpenStaff.Vendor.Abstractions\OpenStaff.Vendor.Abstractions.csproj" />
-    <ProjectReference Include="..\vendors\OpenStaff.Vendor.Anthropic\OpenStaff.Vendor.Anthropic.csproj" />
-    <ProjectReference Include="..\vendors\OpenStaff.Vendor.Google\OpenStaff.Vendor.Google.csproj" />
-    <ProjectReference Include="..\vendors\OpenStaff.Vendor.GitHubCopilot\OpenStaff.Vendor.GitHubCopilot.csproj" />
   </ItemGroup>
 
   <ItemGroup>

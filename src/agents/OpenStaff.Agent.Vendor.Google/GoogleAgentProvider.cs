@@ -7,28 +7,28 @@ using OpenStaff.Core.Models;
 using AgentResponse = OpenStaff.Core.Agents.AgentResponse;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
-namespace OpenStaff.Vendor.Google;
+namespace OpenStaff.Agent.Vendor.Google;
 
-public class GoogleVendorProvider : IVendorAgentProvider
+public class GoogleAgentProvider : IAgentProvider
 {
     private readonly ILoggerFactory _loggerFactory;
 
-    public GoogleVendorProvider(ILoggerFactory loggerFactory)
+    public GoogleAgentProvider(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory;
     }
 
-    public string VendorType => "google";
+    public string ProviderType => "google";
     public string DisplayName => "Google Gemini";
 
-    public VendorConfigSchema GetConfigSchema() => new()
+    public AgentConfigSchema GetConfigSchema() => new()
     {
-        VendorType = VendorType,
+        ProviderType = ProviderType,
         DisplayName = DisplayName,
         Description = "Google Gemini 系列模型",
         Fields =
         [
-            new VendorConfigField
+            new AgentConfigField
             {
                 Key = "apiKey",
                 Label = "API Key",
@@ -36,7 +36,7 @@ public class GoogleVendorProvider : IVendorAgentProvider
                 Required = true,
                 Placeholder = "AIza..."
             },
-            new VendorConfigField
+            new AgentConfigField
             {
                 Key = "model",
                 Label = "模型",
@@ -53,8 +53,9 @@ public class GoogleVendorProvider : IVendorAgentProvider
         ]
     };
 
-    public IAgent CreateAgent(AgentRole role, VendorConfig config)
+    public IAgent CreateAgent(AgentRole role)
     {
+        var config = AgentConfig.FromJson(role.Config);
         var apiKey = config.GetRequired("apiKey");
         var model = config.Get("model") ?? "gemini-2.5-flash";
 
@@ -62,13 +63,13 @@ public class GoogleVendorProvider : IVendorAgentProvider
         IChatClient chatClient = client.AsIChatClient(model);
 
         var systemPrompt = role.SystemPrompt ?? "";
-        var logger = _loggerFactory.CreateLogger<GoogleVendorAgent>();
+        var logger = _loggerFactory.CreateLogger<GoogleAgent>();
 
-        return new GoogleVendorAgent(role.RoleType, chatClient, systemPrompt, role.Name, _loggerFactory, logger);
+        return new GoogleAgent(role.RoleType, chatClient, systemPrompt, role.Name, _loggerFactory, logger);
     }
 }
 
-public class GoogleVendorAgent : VendorAgentBase
+public class GoogleAgent : AgentBase
 {
     private readonly string _roleType;
     private readonly IChatClient _chatClient;
@@ -76,13 +77,13 @@ public class GoogleVendorAgent : VendorAgentBase
     private readonly string _agentName;
     private readonly ILoggerFactory _loggerFactory;
 
-    public GoogleVendorAgent(
+    public GoogleAgent(
         string roleType,
         IChatClient chatClient,
         string systemPrompt,
         string agentName,
         ILoggerFactory loggerFactory,
-        ILogger<GoogleVendorAgent> logger) : base(logger)
+        ILogger<GoogleAgent> logger) : base(logger)
     {
         _roleType = roleType;
         _chatClient = chatClient;
@@ -120,7 +121,7 @@ public class GoogleVendorAgent : VendorAgentBase
                 Data = new Dictionary<string, object>
                 {
                     ["roleType"] = RoleType,
-                    ["vendor"] = "google"
+                    ["provider"] = "google"
                 }
             };
         }

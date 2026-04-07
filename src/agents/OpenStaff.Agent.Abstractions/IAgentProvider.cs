@@ -1,0 +1,22 @@
+using OpenStaff.Core.Agents;
+using OpenStaff.Core.Models;
+
+namespace OpenStaff.Agent;
+
+/// <summary>
+/// 统一的智能体供应商接口 — 所有 Agent 项目（Builtin / Vendor）实现此接口
+/// </summary>
+public interface IAgentProvider
+{
+    /// <summary>供应商标识（如 "builtin", "anthropic", "google", "github-copilot"）</summary>
+    string ProviderType { get; }
+
+    /// <summary>显示名称（如 "内置标准", "Anthropic Claude"）</summary>
+    string DisplayName { get; }
+
+    /// <summary>获取该供应商的配置 Schema（前端据此渲染动态表单）</summary>
+    AgentConfigSchema GetConfigSchema();
+
+    /// <summary>根据数据库角色配置创建智能体实例</summary>
+    IAgent CreateAgent(AgentRole role);
+}
