@@ -74,6 +74,7 @@ const DEFAULT_FORM: EditFormState = {
   soul: { traits: [], style: '', attitudes: [], custom: '' },
 };
 
+const avatarInput = ref<HTMLInputElement>();
 const editForm = ref<EditFormState>({ ...DEFAULT_FORM, soul: { ...DEFAULT_FORM.soul } });
 
 const selectedProviderId = computed(() => editForm.value.modelProviderId);
@@ -257,7 +258,7 @@ async function removeMcpBinding(configId: string) {
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
       <div
         style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
-        @click="($refs.avatarInput as HTMLInputElement)?.click()"
+        @click="avatarInput?.click()"
       >
         <img
           v-if="editForm.avatar"
@@ -268,7 +269,7 @@ async function removeMcpBinding(configId: string) {
         <span v-else style="font-size: 24px; color: var(--ant-color-text-quaternary)">📷</span>
       </div>
       <div style="flex: 1">
-        <Button size="small" @click="($refs.avatarInput as HTMLInputElement)?.click()">上传头像</Button>
+        <Button size="small" @click="avatarInput?.click()">上传头像</Button>
         <Button
           v-if="editForm.avatar"
           size="small"

@@ -22,9 +22,7 @@ public class GitHubCopilotAgentProvider : IAgentProvider
     public string ProviderType => "github-copilot";
     public string DisplayName => "GitHub Copilot";
 
-    public string? AvatarDataUri => "data:image/svg+xml;base64,"
-        + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
-            """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="24" fill="#24292F"/><text x="64" y="82" text-anchor="middle" font-size="56" font-family="sans-serif" fill="white">CP</text></svg>"""));
+    public string? AvatarDataUri => "https://unpkg.com/@lobehub/icons-static-png@latest/light/githubcopilot.png";
 
     public AgentConfigSchema GetConfigSchema() => new()
     {
