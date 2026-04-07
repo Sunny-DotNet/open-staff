@@ -14,7 +14,7 @@ internal class GoogleProtocol(IServiceProvider serviceProvider) : VendorProtocol
 }
 public class GoogleProtocolEnv: ProtocolEnvBase
 {
-    public string BaseUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta2";
+    public override string BaseUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta2";
     public bool FromEnv { get; set; } = true;
     public string ApiKey { get; set; } = string.Empty;
     public string EnvName { get; set; } = string.Empty;

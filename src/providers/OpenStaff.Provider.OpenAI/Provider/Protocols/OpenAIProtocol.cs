@@ -17,7 +17,7 @@ internal class OpenAIProtocol(IServiceProvider serviceProvider) : VendorProtocol
 }
 public class OpenAIProtocolEnv: ProtocolEnvBase
 {
-    public string BaseUrl { get; set; } = "https://api.openai.com/v1";
+    public override string BaseUrl { get; set; } = "https://api.openai.com/v1";
     public bool FromEnv { get; set; } = true;
     public string ApiKey { get; set; } = string.Empty;
     public string EnvName { get; set; } = string.Empty;

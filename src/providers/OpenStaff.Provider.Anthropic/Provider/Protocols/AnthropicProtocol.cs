@@ -15,7 +15,7 @@ internal class AnthropicProtocol(IServiceProvider serviceProvider) : VendorProto
 
 public class AnthropicProtocolEnv:ProtocolEnvBase
 {
-    public string BaseUrl { get; set; } = "https://api.anthropic.com";
+    public override string BaseUrl { get; set; } = "https://api.anthropic.com";
     public bool FromEnv { get; set; } = true;
     public string ApiKey { get; set; } = string.Empty;
     public string EnvName { get; set; } = string.Empty;

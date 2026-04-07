@@ -21,6 +21,6 @@ public class ResolvedProvider
     /// <summary>可直接使用的 API Key</summary>
     public string ApiKey { get; set; } = string.Empty;
 
-    /// <summary>API 基地址（可能由 token 交换动态覆盖）</summary>
-    public string? EndpointOverride { get; set; }
+    /// <summary>API 基地址（从 Env.BaseUrl 解密获得）</summary>
+    public string? BaseUrl { get; set; }
 }

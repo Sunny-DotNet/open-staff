@@ -88,5 +88,6 @@ internal class GitHubCopilotProtocol(
 
 public class GitHubCopilotProtocolEnv : ProtocolEnvBase
 {
+    public override string BaseUrl { get; set; } = "https://api.individual.githubcopilot.com";
     public string OAuthToken { get; set; } = string.Empty;
 }

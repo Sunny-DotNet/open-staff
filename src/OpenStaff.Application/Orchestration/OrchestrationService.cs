@@ -175,7 +175,7 @@ public class OrchestrationService : IOrchestrator
                 {
                     role.ProviderAccount = resolved.Account;
                     role.ApiKey = resolved.ApiKey;
-                    role.EndpointOverride = resolved.EndpointOverride;
+                    role.BaseUrl = resolved.BaseUrl;
                 }
             }
 

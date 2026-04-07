@@ -68,4 +68,7 @@ public abstract class VendorProtocolBase<TProtocolEnv>(IServiceProvider serviceP
         );
     }
 }
-public abstract class ProtocolEnvBase { }
+public abstract class ProtocolEnvBase {
+
+    public abstract string BaseUrl { get; set; }
+}

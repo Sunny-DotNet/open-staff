@@ -28,7 +28,7 @@ public class ProviderResolver : IProviderResolver
         {
             Account = account,
             ApiKey = resolved.ApiKey,
-            EndpointOverride = resolved.EndpointOverride ?? resolved.BaseUrl
+            BaseUrl = resolved.EndpointOverride ?? resolved.BaseUrl
         };
     }
 }

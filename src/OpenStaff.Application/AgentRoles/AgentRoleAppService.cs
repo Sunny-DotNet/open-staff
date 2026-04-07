@@ -166,7 +166,7 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         ProviderAccount? account = null;
         string? apiKey = null;
-        string? endpointOverride = null;
+        string? baseUrl = null;
 
         if (providerId.HasValue)
         {
@@ -175,7 +175,7 @@ public class AgentRoleAppService : IAgentRoleAppService
             {
                 account = resolved.Account;
                 apiKey = resolved.ApiKey;
-                endpointOverride = resolved.EndpointOverride;
+                baseUrl = resolved.BaseUrl;
             }
         }
 
@@ -200,7 +200,7 @@ public class AgentRoleAppService : IAgentRoleAppService
 
         role.ProviderAccount = account;
         role.ApiKey = apiKey;
-        role.EndpointOverride = endpointOverride;
+        role.BaseUrl = baseUrl;
 
         // 通过 AgentFactory/BuiltinAgentProvider 创建组件
         var builtinProvider = _agentFactory.Providers.GetValueOrDefault("builtin") as BuiltinAgentProvider;

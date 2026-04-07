@@ -199,7 +199,7 @@ public class NewApiProtocol(IServiceProvider serviceProvider) : ProtocolBase<New
 
 public class NewApiProtocolEnv : ProtocolEnvBase
 {
-    public string BaseUrl { get; set; } = string.Empty;
+    public override string BaseUrl { get; set; } = string.Empty;
     public bool FromEnv { get; set; } = true;
     public string ApiKey { get; set; } = string.Empty;
     public string EnvName { get; set; } = string.Empty;
