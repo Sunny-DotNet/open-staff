@@ -29,6 +29,7 @@ import {
   Tag,
   Tooltip,
   Typography,
+  Upload,
 } from 'ant-design-vue';
 
 import {
@@ -452,9 +453,7 @@ async function saveConfig() {
   }
 }
 
-function handleAvatarUpload(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
+function handleAvatarUpload(file: File) {
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();
@@ -469,7 +468,7 @@ function handleAvatarUpload(e: Event) {
     img.src = reader.result as string;
   };
   reader.readAsDataURL(file);
-  (e.target as HTMLInputElement).value = '';
+  return false; // prevent default upload
 }
 
 onUnmounted(() => {
@@ -518,10 +517,8 @@ onUnmounted(() => {
 
         <!-- 头像上传 -->
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px">
-          <label
-            for="chat-avatar-input"
-            class="avatar-upload"
-            style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
+          <div
+            style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 2px dashed var(--ant-color-border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--ant-color-bg-container-disabled)"
           >
             <img
               v-if="configForm.avatar"
@@ -530,11 +527,15 @@ onUnmounted(() => {
               style="width: 100%; height: 100%; object-fit: cover"
             />
             <span v-else style="font-size: 24px; color: var(--ant-color-text-quaternary)">📷</span>
-          </label>
+          </div>
           <div style="flex: 1">
-            <label for="chat-avatar-input">
-              <Button size="small" style="pointer-events: none">上传头像</Button>
-            </label>
+            <Upload
+              :before-upload="handleAvatarUpload"
+              :show-upload-list="false"
+              accept="image/png,image/jpeg,image/svg+xml"
+            >
+              <Button size="small">上传头像</Button>
+            </Upload>
             <Button
               v-if="configForm.avatar"
               size="small"
@@ -549,13 +550,6 @@ onUnmounted(() => {
               128×128，支持 PNG/JPG
             </div>
           </div>
-          <input
-            id="chat-avatar-input"
-            type="file"
-            accept="image/png,image/jpeg,image/svg+xml"
-            style="display: none"
-            @change="handleAvatarUpload"
-          />
         </div>
 
         <Form :label-col="{ span: 6 }" size="small">
