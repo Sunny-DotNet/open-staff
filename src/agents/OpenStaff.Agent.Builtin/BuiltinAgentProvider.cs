@@ -50,15 +50,16 @@ public class BuiltinAgentProvider : IAgentProvider
         Fields = []
     };
 
-    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
+    public Task<AIAgent> CreateAgentAsync(AgentRole role, AgentContext context, ResolvedProvider provider)
     {
         var components = PrepareAgent(role, provider);
-        return new ChatClientAgent(
+        AIAgent agent = new ChatClientAgent(
             components.ChatClient,
             name: components.Name,
             instructions: components.Instructions,
             tools: components.Tools,
             loggerFactory: _loggerFactory);
+        return Task.FromResult(agent);
     }
 
     /// <summary>

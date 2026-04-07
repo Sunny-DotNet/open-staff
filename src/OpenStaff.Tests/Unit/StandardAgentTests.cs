@@ -66,29 +66,31 @@ public class BuiltinAgentProviderTests
     }
 
     [Fact]
-    public void CreateAgent_ReturnsAIAgent()
+    public async Task CreateAgent_ReturnsAIAgent()
     {
         var provider = CreateProvider();
         var role = CreateRole();
         var resolved = CreateResolvedProvider();
+        var context = new AgentContext { Role = role };
 
-        var agent = provider.CreateAgent(role, resolved);
+        var agent = await provider.CreateAgentAsync(role, context, resolved);
         Assert.NotNull(agent);
         Assert.IsAssignableFrom<AIAgent>(agent);
     }
 
     [Fact]
-    public void CreateAgent_ThrowsWithoutProviderAccount()
+    public async Task CreateAgent_ThrowsWithoutProviderAccount()
     {
         var provider = CreateProvider();
         var role = new AgentRole { RoleType = "secretary", Name = "Secretary" };
         var resolved = new ResolvedProvider { ApiKey = "k" };
+        var context = new AgentContext { Role = role };
 
-        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role, resolved));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => provider.CreateAgentAsync(role, context, resolved));
     }
 
     [Fact]
-    public void CreateAgent_ThrowsWithoutApiKey()
+    public async Task CreateAgent_ThrowsWithoutApiKey()
     {
         var provider = CreateProvider();
         var role = new AgentRole
@@ -100,12 +102,13 @@ public class BuiltinAgentProviderTests
         {
             Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" }
         };
+        var context = new AgentContext { Role = role };
 
-        Assert.Throws<InvalidOperationException>(() => provider.CreateAgent(role, resolved));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => provider.CreateAgentAsync(role, context, resolved));
     }
 
     [Fact]
-    public void CreateAgent_UsesDbRoleConfigForCustomRole()
+    public async Task CreateAgent_UsesDbRoleConfigForCustomRole()
     {
         var provider = CreateProvider();
         var role = new AgentRole
@@ -116,8 +119,9 @@ public class BuiltinAgentProviderTests
             ModelName = "gpt-4o",
         };
         var resolved = CreateResolvedProvider();
+        var context = new AgentContext { Role = role };
 
-        var agent = provider.CreateAgent(role, resolved);
+        var agent = await provider.CreateAgentAsync(role, context, resolved);
         Assert.NotNull(agent);
         Assert.IsAssignableFrom<AIAgent>(agent);
     }

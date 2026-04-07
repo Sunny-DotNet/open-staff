@@ -4,17 +4,31 @@ using Microsoft.Extensions.Logging;
 using OpenAI;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
+using OpenStaff.Plugins.ModelDataSource;
 using System.ClientModel;
 
 namespace OpenStaff.Agent.Vendor.OpenAI;
 
-public class OpenAIAgentProvider : IAgentProvider
+public class OpenAIAgentProvider : IVendorAgentProvider
 {
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IModelDataSource? _modelDataSource;
 
-    public OpenAIAgentProvider(ILoggerFactory loggerFactory)
+    private const string VendorId = "openai";
+
+    private static readonly VendorModel[] FallbackModels =
+    [
+        new("gpt-4o", "GPT-4o", "GPT-4o"),
+        new("gpt-4o-mini", "GPT-4o Mini", "GPT-4o"),
+        new("gpt-4.1", "GPT-4.1", "GPT-4.1"),
+        new("gpt-4.1-mini", "GPT-4.1 Mini", "GPT-4.1"),
+        new("o3-mini", "o3-mini", "o3")
+    ];
+
+    public OpenAIAgentProvider(ILoggerFactory loggerFactory, IModelDataSource? modelDataSource = null)
     {
         _loggerFactory = loggerFactory;
+        _modelDataSource = modelDataSource;
     }
 
     public string ProviderType => "openai";
@@ -36,19 +50,22 @@ public class OpenAIAgentProvider : IAgentProvider
                 FieldType = "select",
                 Required = true,
                 DefaultValue = "gpt-4o",
-                Options =
-                [
-                    new() { Label = "GPT-4o", Value = "gpt-4o" },
-                    new() { Label = "GPT-4o Mini", Value = "gpt-4o-mini" },
-                    new() { Label = "GPT-4.1", Value = "gpt-4.1" },
-                    new() { Label = "GPT-4.1 Mini", Value = "gpt-4.1-mini" },
-                    new() { Label = "o3-mini", Value = "o3-mini" }
-                ]
             }
         ]
     };
 
-    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
+    public async Task<IReadOnlyList<VendorModel>> GetModelsAsync(CancellationToken ct = default)
+    {
+        if (_modelDataSource is { IsReady: true })
+        {
+            var models = await _modelDataSource.GetModelsByVendorAsync(VendorId, ct);
+            if (models.Count > 0)
+                return models.Select(m => new VendorModel(m.Id, m.Name, m.Family)).ToList();
+        }
+        return FallbackModels;
+    }
+
+    public Task<AIAgent> CreateAgentAsync(AgentRole role, AgentContext context, ResolvedProvider provider)
     {
         var apiKey = provider.ApiKey
             ?? throw new InvalidOperationException("请先在供应商管理中配置 OpenAI API Key");
@@ -65,10 +82,11 @@ public class OpenAIAgentProvider : IAgentProvider
         var client = new OpenAIClient(credential, options);
         IChatClient chatClient = client.GetChatClient(model).AsIChatClient();
 
-        return new ChatClientAgent(
+        AIAgent agent = new ChatClientAgent(
             chatClient,
             name: role.Name,
             instructions: systemPrompt,
             loggerFactory: _loggerFactory);
+        return Task.FromResult(agent);
     }
 }

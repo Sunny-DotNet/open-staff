@@ -4,16 +4,28 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using OpenStaff.Core.Agents;
 using OpenStaff.Core.Models;
+using OpenStaff.Plugins.ModelDataSource;
 
 namespace OpenStaff.Agent.Vendor.Google;
 
-public class GoogleAgentProvider : IAgentProvider
+public class GoogleAgentProvider : IVendorAgentProvider
 {
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IModelDataSource? _modelDataSource;
 
-    public GoogleAgentProvider(ILoggerFactory loggerFactory)
+    private const string VendorId = "google";
+
+    private static readonly VendorModel[] FallbackModels =
+    [
+        new("gemini-2.5-flash", "Gemini 2.5 Flash", "Gemini 2.5"),
+        new("gemini-2.5-pro", "Gemini 2.5 Pro", "Gemini 2.5"),
+        new("gemini-2.0-flash", "Gemini 2.0 Flash", "Gemini 2.0")
+    ];
+
+    public GoogleAgentProvider(ILoggerFactory loggerFactory, IModelDataSource? modelDataSource = null)
     {
         _loggerFactory = loggerFactory;
+        _modelDataSource = modelDataSource;
     }
 
     public string ProviderType => "google";
@@ -35,17 +47,22 @@ public class GoogleAgentProvider : IAgentProvider
                 FieldType = "select",
                 Required = true,
                 DefaultValue = "gemini-2.5-flash",
-                Options =
-                [
-                    new() { Label = "Gemini 2.5 Flash", Value = "gemini-2.5-flash" },
-                    new() { Label = "Gemini 2.5 Pro", Value = "gemini-2.5-pro" },
-                    new() { Label = "Gemini 2.0 Flash", Value = "gemini-2.0-flash" }
-                ]
             }
         ]
     };
 
-    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
+    public async Task<IReadOnlyList<VendorModel>> GetModelsAsync(CancellationToken ct = default)
+    {
+        if (_modelDataSource is { IsReady: true })
+        {
+            var models = await _modelDataSource.GetModelsByVendorAsync(VendorId, ct);
+            if (models.Count > 0)
+                return models.Select(m => new VendorModel(m.Id, m.Name, m.Family)).ToList();
+        }
+        return FallbackModels;
+    }
+
+    public Task<AIAgent> CreateAgentAsync(AgentRole role, AgentContext context, ResolvedProvider provider)
     {
         var config = AgentConfig.FromJson(role.Config);
         var apiKey = provider.ApiKey
@@ -56,10 +73,11 @@ public class GoogleAgentProvider : IAgentProvider
         var client = new Client(vertexAI: false, apiKey: apiKey);
         IChatClient chatClient = client.AsIChatClient(model);
 
-        return new ChatClientAgent(
+        AIAgent agent = new ChatClientAgent(
             chatClient,
             name: role.Name,
             instructions: systemPrompt,
             loggerFactory: _loggerFactory);
+        return Task.FromResult(agent);
     }
 }

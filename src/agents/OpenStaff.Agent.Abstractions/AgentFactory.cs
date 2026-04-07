@@ -18,13 +18,13 @@ public class AgentFactory
     }
 
     /// <summary>根据数据库角色创建 AIAgent</summary>
-    public AIAgent CreateAgent(AgentRole role, ResolvedProvider provider)
+    public async Task<AIAgent> CreateAgentAsync(AgentRole role, AgentContext context, ResolvedProvider provider)
     {
         var providerType = role.ProviderType ?? "builtin";
         if (!_providers.TryGetValue(providerType, out var agentProvider))
             throw new InvalidOperationException($"Agent provider '{providerType}' is not registered");
 
-        return agentProvider.CreateAgent(role, provider);
+        return await agentProvider.CreateAgentAsync(role, context, provider);
     }
 
     /// <summary>获取所有已注册的 Provider</summary>

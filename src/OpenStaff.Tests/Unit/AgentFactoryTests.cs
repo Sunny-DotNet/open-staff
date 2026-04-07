@@ -71,16 +71,17 @@ public class AgentFactoryTests
     }
 
     [Fact]
-    public void CreateAgent_ShouldThrowForUnregisteredProvider()
+    public async Task CreateAgent_ShouldThrowForUnregisteredProvider()
     {
         var factory = CreateFactory(CreateBuiltinProvider());
         var role = new AgentRole { RoleType = "test", ProviderType = "unknown" };
         var resolved = new ResolvedProvider { Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" }, ApiKey = "k" };
-        Assert.Throws<InvalidOperationException>(() => factory.CreateAgent(role, resolved));
+        var context = new AgentContext { Role = role };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => factory.CreateAgentAsync(role, context, resolved));
     }
 
     [Fact]
-    public void CreateAgent_ShouldReturnAIAgentForBuiltin()
+    public async Task CreateAgent_ShouldReturnAIAgentForBuiltin()
     {
         var provider = CreateBuiltinProvider();
         var factory = CreateFactory(provider);
@@ -94,14 +95,15 @@ public class AgentFactoryTests
             Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
             ApiKey = "test-key"
         };
+        var context = new AgentContext { Role = role };
 
-        var agent = factory.CreateAgent(role, resolved);
+        var agent = await factory.CreateAgentAsync(role, context, resolved);
         Assert.NotNull(agent);
         Assert.IsAssignableFrom<AIAgent>(agent);
     }
 
     [Fact]
-    public void CreateAgent_DefaultsToBuiltinProvider()
+    public async Task CreateAgent_DefaultsToBuiltinProvider()
     {
         var factory = CreateFactory(CreateBuiltinProvider());
         var role = new AgentRole
@@ -115,8 +117,9 @@ public class AgentFactoryTests
             Account = new ProviderAccount { ProtocolType = "openai", Name = "Test" },
             ApiKey = "test-key"
         };
+        var context = new AgentContext { Role = role };
 
-        var agent = factory.CreateAgent(role, resolved);
+        var agent = await factory.CreateAgentAsync(role, context, resolved);
         Assert.NotNull(agent);
     }
 }

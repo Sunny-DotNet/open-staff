@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
   </ItemGroup>
 
   <ItemGroup>

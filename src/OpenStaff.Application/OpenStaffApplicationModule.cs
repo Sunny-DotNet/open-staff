@@ -62,11 +62,22 @@ public class OpenStaffApplicationModule : OpenStaffModule
     {
         var services = context.Services;
 
-        // Vendor 智能体供应商
-        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.Anthropic.AnthropicAgentProvider>();
-        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.Google.GoogleAgentProvider>();
-        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.GitHubCopilot.GitHubCopilotAgentProvider>();
-        services.AddSingleton<IAgentProvider, OpenStaff.Agent.Vendor.OpenAI.OpenAIAgentProvider>();
+        // Vendor 智能体供应商（同时注册为 IAgentProvider 和 IVendorAgentProvider）
+        services.AddSingleton<OpenStaff.Agent.Vendor.Anthropic.AnthropicAgentProvider>();
+        services.AddSingleton<IAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.Anthropic.AnthropicAgentProvider>());
+        services.AddSingleton<IVendorAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.Anthropic.AnthropicAgentProvider>());
+
+        services.AddSingleton<OpenStaff.Agent.Vendor.Google.GoogleAgentProvider>();
+        services.AddSingleton<IAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.Google.GoogleAgentProvider>());
+        services.AddSingleton<IVendorAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.Google.GoogleAgentProvider>());
+
+        services.AddSingleton<OpenStaff.Agent.Vendor.GitHubCopilot.GitHubCopilotAgentProvider>();
+        services.AddSingleton<IAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.GitHubCopilot.GitHubCopilotAgentProvider>());
+        services.AddSingleton<IVendorAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.GitHubCopilot.GitHubCopilotAgentProvider>());
+
+        services.AddSingleton<OpenStaff.Agent.Vendor.OpenAI.OpenAIAgentProvider>();
+        services.AddSingleton<IAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.OpenAI.OpenAIAgentProvider>());
+        services.AddSingleton<IVendorAgentProvider>(sp => sp.GetRequiredService<OpenStaff.Agent.Vendor.OpenAI.OpenAIAgentProvider>());
 
         // 编排服务 — 依赖 AgentFactory + IProviderResolver + INotificationService
         services.AddSingleton<OrchestrationService>(sp =>
@@ -151,7 +162,6 @@ public class OpenStaffApplicationModule : OpenStaffModule
                 var sessionConfig = new SessionConfig
                 {
                     Streaming = true,
-
                     // 权限回调（必填）：工具执行前由此决定放行或拒绝
                     OnPermissionRequest = (request, _) =>
                     {
@@ -162,7 +172,7 @@ public class OpenStaffApplicationModule : OpenStaffModule
                             Kind = PermissionRequestResultKind.Approved
                         });
                     },
-
+                   
                     // 用户输入回调（可选）：启用 ask_user 工具后 Agent 可向用户提问
                     OnUserInputRequest = (request, _) =>
                     {
@@ -184,14 +194,24 @@ public class OpenStaffApplicationModule : OpenStaffModule
                 const string prompt = "List all files in the current directory";
                 logger.LogInformation("[CopilotTest] User: {Prompt}", prompt);
 
-                // ── 5. 流式接收响应 ──
-                await foreach (var update in agent.RunStreamingAsync(prompt))
-                {
-                    // update.ToString() 输出增量文本片段
-                    Console.Write(update);
-                }
-                Console.WriteLine();
+                var list = new List<AgentResponseUpdate>();
 
+                try
+                {
+
+                    // ── 5. 流式接收响应 ──
+                    await foreach (var update in agent.RunStreamingAsync(prompt))
+                    {
+                        // update.ToString() 输出增量文本片段
+                        Console.Write(update);
+                        list.Add(update);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine();
+                }    
+                Console.WriteLine();
                 logger.LogInformation("[CopilotTest] 测试对话完成");
             }
             catch (Exception ex)

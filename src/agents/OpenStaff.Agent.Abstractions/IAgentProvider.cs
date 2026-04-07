@@ -22,5 +22,5 @@ public interface IAgentProvider
     AgentConfigSchema GetConfigSchema();
 
     /// <summary>根据数据库角色配置创建 AIAgent 实例</summary>
-    AIAgent CreateAgent(AgentRole role, ResolvedProvider provider);
+    Task<AIAgent> CreateAgentAsync(AgentRole role, AgentContext context, ResolvedProvider provider);
 }

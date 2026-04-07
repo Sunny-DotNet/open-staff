@@ -1,6 +1,12 @@
-1\.前端的axios全局默认超时改成30秒
+1.IAgentProvider的CreateAgent要改成Task<AIAgent> CreateAgentAsync(AgentRole role,AgentContext context, ResolvedProvider provider);
 
-2.MCP模块的页面合到一起,用3个tab(配置,已安装(内置),MCP市场)
+创建AIAgent的时候需要一些额外的参数，比如工作目录，会话ID，这些都在AgentContext进行传输
 
-3.前端页面的Layout可以优化一下,根据对项目的了解,你设计个logo换上
+2.GitHubCopilot的Agent允许配置的只有模型，其他参数都要在配置界面忽略掉，
+
+3\.理论上这些Vendor的智能体支持的模型都是有限的，是不是可以考虑加一个IVendorAgentProvider=>IAgentProvider，然后追加一个签名GetModelsAsync供前端选择
+
+4\.如何做好这个架构以便兼容各大厂的官方Agent
+
+
 

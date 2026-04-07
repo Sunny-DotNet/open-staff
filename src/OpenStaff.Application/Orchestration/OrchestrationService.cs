@@ -177,7 +177,13 @@ public class OrchestrationService : IOrchestrator
             if (resolved == null)
                 throw new InvalidOperationException($"Cannot resolve provider for role '{roleType}'");
 
-            var agent = _agentFactory.CreateAgent(role, resolved);
+            var agentContext = new AgentContext
+            {
+                ProjectId = projectId,
+                Role = role,
+            };
+
+            var agent = await _agentFactory.CreateAgentAsync(role, agentContext, resolved);
 
             agents.TryAdd(roleType, (agent, DateTime.UtcNow));
             _logger.LogDebug("Created agent {RoleType} for project {ProjectId}", roleType, projectId);
