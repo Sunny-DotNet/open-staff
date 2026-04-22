@@ -1,68 +1,68 @@
 <Solution>
   <Folder Name="/foundation/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/foundation/OpenStaff.Core/OpenStaff.Core.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/foundation/OpenStaff.Domain/OpenStaff.Domain.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/foundation/OpenStaff.Events/OpenStaff.Events.csproj" />
+    <Project Path="foundation/OpenStaff.Core/OpenStaff.Core.csproj" />
+    <Project Path="foundation/OpenStaff.Domain/OpenStaff.Domain.csproj" />
+    <Project Path="foundation/OpenStaff.Events/OpenStaff.Events.csproj" />
   </Folder>
   <Folder Name="/application/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/application/OpenStaff.Application.Contracts/OpenStaff.Application.Contracts.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/application/OpenStaff.Application/OpenStaff.Application.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/application/OpenStaff.HttpApi/OpenStaff.HttpApi.csproj" />
+    <Project Path="application/OpenStaff.Application.Contracts/OpenStaff.Application.Contracts.csproj" />
+    <Project Path="application/OpenStaff.Application/OpenStaff.Application.csproj" />
+    <Project Path="application/OpenStaff.HttpApi/OpenStaff.HttpApi.csproj" />
   </Folder>
   <Folder Name="/infrastructure/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/infrastructure/OpenStaff.EntityFrameworkCore/OpenStaff.EntityFrameworkCore.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/infrastructure/OpenStaff.Infrastructure/OpenStaff.Infrastructure.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/infrastructure/OpenStaff.Security/OpenStaff.Security.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/infrastructure/OpenStaff.Workspace/OpenStaff.Workspace.csproj" />
+    <Project Path="infrastructure/OpenStaff.EntityFrameworkCore/OpenStaff.EntityFrameworkCore.csproj" />
+    <Project Path="infrastructure/OpenStaff.Infrastructure/OpenStaff.Infrastructure.csproj" />
+    <Project Path="infrastructure/OpenStaff.Security/OpenStaff.Security.csproj" />
+    <Project Path="infrastructure/OpenStaff.Workspace/OpenStaff.Workspace.csproj" />
   </Folder>
   <Folder Name="/platform/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.AgentSouls/OpenStaff.AgentSouls.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.AgentConstruction/OpenStaff.AgentConstruction.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.Agents/OpenStaff.Agents.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.Mcp/OpenStaff.Mcp.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.Mcp.BuiltinShell/OpenStaff.Mcp.BuiltinShell.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.Plugins/OpenStaff.Plugins.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.Providers/OpenStaff.Providers.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.Skills/OpenStaff.Skills.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/platform/OpenStaff.TalentMarket/OpenStaff.TalentMarket.csproj" />
+    <Project Path="platform/OpenStaff.AgentSouls/OpenStaff.AgentSouls.csproj" />
+    <Project Path="platform/OpenStaff.AgentConstruction/OpenStaff.AgentConstruction.csproj" />
+    <Project Path="platform/OpenStaff.Agents/OpenStaff.Agents.csproj" />
+    <Project Path="platform/OpenStaff.Mcp/OpenStaff.Mcp.csproj" />
+    <Project Path="platform/OpenStaff.Mcp.BuiltinShell/OpenStaff.Mcp.BuiltinShell.csproj" />
+    <Project Path="platform/OpenStaff.Plugins/OpenStaff.Plugins.csproj" />
+    <Project Path="platform/OpenStaff.Providers/OpenStaff.Providers.csproj" />
+    <Project Path="platform/OpenStaff.Skills/OpenStaff.Skills.csproj" />
+    <Project Path="platform/OpenStaff.TalentMarket/OpenStaff.TalentMarket.csproj" />
   </Folder>
   <Folder Name="/hosts/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/hosts/OpenStaff.ApiHost/OpenStaff.ApiHost.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/hosts/OpenStaff.AppHost/OpenStaff.AppHost.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/hosts/OpenStaff.HttpApi.Host/OpenStaff.HttpApi.Host.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/hosts/OpenStaff.ServiceDefaults/OpenStaff.ServiceDefaults.csproj" />
+    <Project Path="hosts/OpenStaff.ApiHost/OpenStaff.ApiHost.csproj" />
+    <Project Path="hosts/OpenStaff.AppHost/OpenStaff.AppHost.csproj" />
+    <Project Path="hosts/OpenStaff.HttpApi.Host/OpenStaff.HttpApi.Host.csproj" />
+    <Project Path="hosts/OpenStaff.ServiceDefaults/OpenStaff.ServiceDefaults.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/tests/OpenStaff.Tests/OpenStaff.Tests.csproj" />
+    <Project Path="tests/OpenStaff.Tests/OpenStaff.Tests.csproj" />
   </Folder>
   <Folder Name="/plugins/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/plugins/OpenStaff.Plugin.Anthropic/OpenStaff.Plugin.Anthropic.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/plugins/OpenStaff.Plugin.GitHubCopilot/OpenStaff.Plugin.GitHubCopilot.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/plugins/OpenStaff.Plugin.Google/OpenStaff.Plugin.Google.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/plugins/OpenStaff.Plugin.NewApi/OpenStaff.Plugin.NewApi.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/plugins/OpenStaff.Plugin.OpenAI/OpenStaff.Plugin.OpenAI.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/plugins/OpenStaff.Plugins.ModelDataSource/OpenStaff.Plugins.ModelDataSource.csproj" />
+    <Project Path="plugins/OpenStaff.Plugin.Anthropic/OpenStaff.Plugin.Anthropic.csproj" />
+    <Project Path="plugins/OpenStaff.Plugin.GitHubCopilot/OpenStaff.Plugin.GitHubCopilot.csproj" />
+    <Project Path="plugins/OpenStaff.Plugin.Google/OpenStaff.Plugin.Google.csproj" />
+    <Project Path="plugins/OpenStaff.Plugin.NewApi/OpenStaff.Plugin.NewApi.csproj" />
+    <Project Path="plugins/OpenStaff.Plugin.OpenAI/OpenStaff.Plugin.OpenAI.csproj" />
+    <Project Path="plugins/OpenStaff.Plugins.ModelDataSource/OpenStaff.Plugins.ModelDataSource.csproj" />
   </Folder>
   <Folder Name="/providers/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/providers/OpenStaff.Provider.Abstractions/OpenStaff.Provider.Abstractions.csproj" Id="eb24c83e-2f89-4136-ba2e-b311494a8cc8" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/providers/OpenStaff.Provider.Tests/OpenStaff.Provider.Tests.csproj" />
+    <Project Path="providers/OpenStaff.Provider.Abstractions/OpenStaff.Provider.Abstractions.csproj" Id="eb24c83e-2f89-4136-ba2e-b311494a8cc8" />
+    <Project Path="providers/OpenStaff.Provider.Tests/OpenStaff.Provider.Tests.csproj" />
   </Folder>
   <Folder Name="/marketplace/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/marketplace/OpenStaff.Marketplace.Abstractions/OpenStaff.Marketplace.Abstractions.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/marketplace/OpenStaff.Marketplace.Internal/OpenStaff.Marketplace.Internal.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/marketplace/OpenStaff.Marketplace.Registry/OpenStaff.Marketplace.Registry.csproj" />
+    <Project Path="marketplace/OpenStaff.Marketplace.Abstractions/OpenStaff.Marketplace.Abstractions.csproj" />
+    <Project Path="marketplace/OpenStaff.Marketplace.Internal/OpenStaff.Marketplace.Internal.csproj" />
+    <Project Path="marketplace/OpenStaff.Marketplace.Registry/OpenStaff.Marketplace.Registry.csproj" />
   </Folder>
   <Folder Name="/agents/">
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/agents/OpenStaff.Agent.Abstractions/OpenStaff.Agent.Abstractions.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/agents/OpenStaff.Agent.Builtin/OpenStaff.Agent.Builtin.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/agents/OpenStaff.Agent.Services.Adapters/OpenStaff.Agent.Services.Adapters.csproj" />
-    <Project Path="A:/Git/Github/m67186636/open-staff/src/agents/OpenStaff.Agent.Services/OpenStaff.Agent.Services.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Abstractions/OpenStaff.Agent.Abstractions.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Builtin/OpenStaff.Agent.Builtin.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Services.Adapters/OpenStaff.Agent.Services.Adapters.csproj" />
+    <Project Path="agents/OpenStaff.Agent.Services/OpenStaff.Agent.Services.csproj" />
   </Folder>
   <Folder Name="/解决方案项/">
     <File Path="Directory.Packages.props" />
   </Folder>
   <Folder Name="/external/">
-    <Project Path="A:/Git/Github/m67186636/anthropic-sdk-csharp/src/Anthropic/Anthropic.csproj" />
-    <Project Path="A:/Git/Github/m67186636/dotnet-genai/Google.GenAI/Google.GenAI.csproj" />
+    <Project Path="../../anthropic-sdk-csharp/src/Anthropic/Anthropic.csproj" />
+    <Project Path="../../dotnet-genai/Google.GenAI/Google.GenAI.csproj" />
   </Folder>
 </Solution>
