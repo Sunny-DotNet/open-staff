@@ -1,183 +1,216 @@
-# OpenStaff — 多智能体软件开发平台 / Multi-Agent Software Development Platform
+# OpenStaff
 
-OpenStaff 是一个基于 [microsoft/agent-framework](https://github.com/microsoft/agents) 的多智能体协作平台，专注于软件开发场景。多个专业化 AI 智能体角色协同工作，在中央调度器的编排下完成从需求收集到代码交付的全流程。
+OpenStaff is a multi-agent software delivery platform for turning a project idea into coordinated execution.
 
-OpenStaff is a multi-agent collaboration platform built on microsoft/agent-framework, focusing on software development. Multiple specialized AI agent roles work together, orchestrated by a central orchestrator, to complete the entire process from requirements gathering to code delivery.
+OpenStaff 是一个面向软件研发协作的多智能体平台，重点不是“单助手聊天”，而是把**项目、角色、能力、工作区和执行过程**组织成一个可持续推进的系统。
 
-## ✨ 核心特性 / Key Features
+## What OpenStaff does
 
-- 🤖 **7 种内置智能体角色** — 对话者、决策者、架构者、生产者、调试者、图片/视频创造者
-- 🎯 **中央调度器** — 自动路由用户需求到合适的智能体
-- 💬 **群聊式协作界面** — 实时观看智能体间的对话和思考过程
-- 📋 **任务看板** — 自动分解需求为可执行的子任务
-- 🔄 **双重存储点** — Git commit + 数据库记录，随时回溯
-- 🔌 **插件系统** — 支持自定义角色和工具扩展
-- 🌐 **多语言** — 中文/英文双语界面
-- 🐳 **Docker 一键部署** — 开箱即用
+OpenStaff is built around a few core ideas:
 
-## 🏗️ 技术栈 / Tech Stack
+- **Project-first workflow**: requirements, members, files, tasks, and conversations belong to a project
+- **Role-based collaboration**: agents are defined as reusable roles, then assigned into projects
+- **Controllable capabilities**: models, MCP servers, skills, and permission requests are explicit and governable
+- **Observable runtime**: sessions, frames, messages, and project-group execution are streamed and traceable
+- **Extensible platform**: provider accounts, MCP, skills, plugins, and remote role sources are modular
 
-| 层级 | 技术 |
-|------|------|
-| 智能体框架 | microsoft/agent-framework (.NET 1.0.0) |
-| 后端 | C# / .NET 8, ASP.NET Core Web API |
-| 实时通信 | SignalR (WebSocket) |
-| 数据库 | PostgreSQL 16 + EF Core |
-| 前端 | Vue 3 + TypeScript + Vite + Pinia |
-| 容器化 | Docker + Docker Compose |
+## What is implemented today
 
-## 📁 项目结构 / Project Structure
+The current repository is already centered on a usable product surface, not just a prototype runtime.
 
-```
-open-staff/
-├── src/                            # 后端源码 / Backend source
-│   ├── OpenStaff.Core/             # 核心领域模型与接口
-│   │   ├── Agents/                 # IAgent 接口、AgentContext、AgentMessage
-│   │   ├── Models/                 # 领域模型（Project、AgentRole 等）
-│   │   ├── Orchestration/          # 任务图调度（TaskGraph）
-│   │   └── Services/               # 服务接口
-│   ├── OpenStaff.Agents/           # 智能体实现（AgentFactory + 各角色）
-│   ├── OpenStaff.Infrastructure/   # 基础设施（数据库、LLM、Git、加密）
-│   ├── OpenStaff.Api/              # Web API 入口 + SignalR Hubs
-│   │   ├── Controllers/            # REST API 控制器
-│   │   └── Hubs/                   # AgentHub、ProjectHub
-│   ├── OpenStaff.Tests/            # 测试项目（xUnit）
-│   │   ├── Unit/                   # 单元测试
-│   │   ├── Integration/            # 集成测试
-│   │   └── E2E/                    # 端到端测试
-│   └── OpenStaff.slnx              # 解决方案文件
-├── web/                            # Vue 3 前端
-│   ├── src/                        # 前端源码
-│   ├── vite.config.ts              # Vite 配置
-│   └── package.json                # 前端依赖
-├── docker-compose.yml              # Docker 部署编排
-├── .env.example                    # 环境变量模板
-└── docs/                           # 项目文档
-```
+### 1. Projects
 
-## 🚀 快速开始 / Quick Start
+- Create, edit, delete, import, and export projects
+- Initialize project workspaces
+- Start a project into execution mode
+- Persist project-level settings such as provider/model defaults
+- Surface projects directly on the home page and workspace entry
 
-### 前置条件 / Prerequisites
+### 2. Project Brainstorm
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Node.js 18+](https://nodejs.org/)
-- [Docker & Docker Compose](https://docs.docker.com/get-docker/)
-- PostgreSQL 16+（或使用 Docker）
+- Run a project-scoped brainstorm conversation
+- Keep the evolving requirements document in `.staff/project-brainstorm.md`
+- Let the secretary role guide the user from rough idea to start-ready requirements
 
-### 方式一：Docker Compose（推荐 / Recommended）
+### 3. Project Group execution
 
-```bash
-# 1. 克隆仓库 / Clone repo
-git clone https://github.com/m67186636/open-staff.git
-cd open-staff
+- Keep a long-lived project group chat for execution
+- Route direct `@agent` mentions to the targeted member
+- Fall back to the secretary when the user does not explicitly target a member
+- Support structured dispatch and capability-request flows during execution
 
-# 2. 复制并编辑环境变量 / Copy and edit env
-cp .env.example .env
-# 编辑 .env 设置数据库密码 / Edit .env to set DB_PASSWORD
+### 4. Agent Roles and Role Workspace
 
-# 3. 启动所有服务 / Start all services
-docker compose up -d
+- Manage local roles from the **Agent Roles** page
+- Edit name, avatar, job title, description, model settings, soul config, MCP bindings, and skill bindings
+- Run **Test Chat** against a role with temporary overrides
+- Use normalized job-title keys with localized display
+- Configure job titles from a shared dropdown source in the role workspace
 
-# 4. 访问 / Visit
-# 前端 / Frontend: http://localhost:3000
-# API:              http://localhost:5000
-```
+### 5. Talent Market
 
-### 方式二：本地开发 / Local Development
+- Browse remote role templates from **Sunny-DotNet/agents**
+- Search remote roles in the **Talent Market**
+- Preview a hire before importing
+- Import remote role JSON into local `AgentRole` records
+- Show remote avatar, model, role summary, and local overwrite state
 
-```bash
-# 后端 / Backend
-cd src
-dotnet restore
-dotnet build OpenStaff.slnx
-dotnet run --project OpenStaff.Api
+### 6. Provider Accounts
 
-# 前端 / Frontend（另一个终端 / separate terminal）
-cd web
-npm install
-npm run dev
-```
+- Manage model-provider accounts from the UI
+- Load provider configuration and model lists
+- Support provider-driven role runtimes and vendor-backed role flows
 
-### 运行测试 / Running Tests
+### 7. MCP and Skills
 
-```bash
-cd src
-dotnet test OpenStaff.slnx
-```
+- Manage MCP catalog sources, installed MCP definitions, configs, and role bindings
+- Search and install MCP entries from the marketplace
+- Manage installed skills and bind them to roles
+- Keep MCP and skills as explicit runtime capabilities rather than hidden implicit behavior
 
-## 🤖 智能体角色 / Agent Roles
+### 8. Real-time runtime and notifications
 
-| 角色 | 类型标识 | 职责 |
-|------|---------|------|
-| 🗣️ **对话者** (Communicator) | `communicator` | 理解用户需求，交互式需求澄清 |
-| 🧠 **决策者** (DecisionMaker) | `decision_maker` | 技术方案评估，选择最优路径 |
-| 📐 **架构者** (Architect) | `architect` | 任务分解，依赖分析，分配策略 |
-| 💻 **生产者** (Producer) | `producer` | 代码生成，文件操作，Git 管理 |
-| 🔧 **调试者** (Debugger) | `debugger` | 测试编写/执行，问题诊断 |
-| 🎨 **图片创造者** (ImageCreator) | `image_creator` | 图片资源生成（通过外部 API） |
-| 🎬 **视频创造者** (VideoCreator) | `video_creator` | 视频资源生成（通过外部 API） |
+- Stream runtime events through a single SignalR notification hub
+- Track session, message, frame, and task execution state
+- Keep project-scoped execution visible to the frontend in real time
 
-智能体由 `AgentFactory` 按角色类型动态创建，通过 `IAgent` 接口统一管理。调度器 (`orchestrator`) 负责将用户消息路由到合适的角色。
+## Current web console modules
 
-## ⚙️ 配置 / Configuration
+These modules are currently the main usable surfaces in `web/apps/web-antd`:
 
-### 环境变量
+| Module | Status | Purpose |
+| --- | --- | --- |
+| Projects | Live | Project lifecycle, initialization, import/export, execution entry |
+| Agent Roles | Live | Role list, role editing, role workspace, test chat |
+| Talent Market | Live | Remote role search, preview hire, import into local roles |
+| Provider Accounts | Live | Provider credentials, config, and model list management |
+| Skills | Live | Catalog, installation, and role skill binding |
+| MCP | Live | Catalog, installation, server definitions, configs, and bindings |
+| Settings | Live | System and app settings |
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `DB_PASSWORD` | PostgreSQL 密码 | *(必填)* |
-| `ConnectionStrings__DefaultConnection` | 数据库连接串 | 见 docker-compose.yml |
-| `ASPNETCORE_URLS` | API 监听地址 | `http://+:5000` |
-| `ASPNETCORE_ENVIRONMENT` | 运行环境 | `Production` |
+Some modules still exist only as scaffolds or partial surfaces, such as sessions, tasks, monitor, permission requests, and marketplace.
 
-### 模型供应商配置
+## Architecture overview
 
-通过 Web UI 的设置页面配置 LLM 模型供应商：
-- OpenAI / Azure OpenAI
-- 通义千问 / 文心一言等 OpenAI 兼容接口
+OpenStaff is a modular monorepo.
 
-## 📄 API 文档 / API Reference
+| Path | Responsibility |
+| --- | --- |
+| `src/foundation` | Core domain types, orchestration abstractions, notifications, modularity |
+| `src/application/OpenStaff.Application.Contracts` | DTOs and app-service contracts |
+| `src/application/OpenStaff.Application` | Application orchestration, sessions, projects, roles, settings, MCP/skills wiring |
+| `src/application/OpenStaff.HttpApi` | REST controllers |
+| `src/infrastructure` | EF Core persistence, git/file services, workspace/import-export, security |
+| `src/agents` | Agent abstractions, builtin role runtime, adapters, prompt generation |
+| `src/platform/OpenStaff.AgentSouls` | Soul catalogs and alias resolution |
+| `src/platform/OpenStaff.Mcp*` | MCP runtime, builtin shell integration, related plumbing |
+| `src/platform/OpenStaff.Skills` | Skill catalog and installation support |
+| `src/platform/OpenStaff.TalentMarket` | Remote talent-market source integration and caching |
+| `src/hosts` | API host, Aspire app host, shared service defaults |
+| `src/tests` | xUnit tests |
+| `web` | pnpm workspace frontend monorepo |
 
-### REST API
+### Runtime model
 
-```
-POST   /api/projects                                  # 创建工程
-GET    /api/projects                                  # 工程列表
-POST   /api/projects/:id/initialize                   # 初始化工程
-POST   /api/projects/:id/agents/:agentId/message      # 发消息给智能体
+The most important runtime concepts are:
 
-GET    /api/projects/:id/tasks                        # 任务列表
-GET    /api/projects/:id/files                        # 文件浏览
+- **AgentRole**: reusable role definition
+- **ProjectAgentRole**: a role assigned into a project
+- **ChatSession**: a long-lived conversation container
+- **ChatFrame**: stack-based execution frame for nested routing/execution
+- **ChatMessage**: persisted conversation or system message
+- **TaskItem**: tracked work unit during project execution
 
-GET    /api/settings                                  # 全局设置
-GET    /api/model-providers                           # 模型供应商
-GET    /api/agent-roles                               # 角色定义
-GET    /api/monitor                                   # 系统监控
+## Tech stack
+
+- **Backend**: .NET 10, ASP.NET Core, SignalR, EF Core
+- **Frontend**: Vue 3, TypeScript, Ant Design Vue, Vite, vue-vben-admin
+- **Storage**: SQLite by default for local development
+- **Orchestration**: modular application/runtime layering with Aspire support
+- **Package managers**: `dotnet` + `pnpm`
+
+## Quick start
+
+### Prerequisites
+
+- .NET SDK 10+
+- Node.js 20.19+, 22.18+, or 24+
+- pnpm 10+
+- Git
+
+### Install dependencies
+
+```powershell
+dotnet restore src\OpenStaff.slnx
+dotnet build src\OpenStaff.slnx
+
+Set-Location web
+pnpm install
+Set-Location ..
 ```
 
-### SignalR Hubs
+### Run with AppHost
 
-| Hub | 路径 | 用途 |
-|-----|------|------|
-| AgentHub | `/hubs/agent` | 智能体实时消息、思考过程推送 |
-| ProjectHub | `/hubs/project` | 工程进度、任务状态更新 |
+This is the best local full-stack entry when you want backend + frontend together.
 
-## 🧪 测试 / Testing
-
-项目使用 xUnit 测试框架，测试位于 `src/OpenStaff.Tests/`：
-
-- **Unit/** — 单元测试（TaskGraph、AgentFactory、EncryptionService 等）
-- **Integration/** — 集成测试
-- **E2E/** — 端到端测试
-
-```bash
-# 运行所有测试
-cd src && dotnet test OpenStaff.slnx
-
-# 仅运行单元测试
-cd src && dotnet test OpenStaff.slnx --filter "FullyQualifiedName~OpenStaff.Tests.Unit"
+```powershell
+dotnet run --project src\hosts\OpenStaff.AppHost
 ```
 
-## 📝 License
+### Run API and frontend separately
 
-MIT
+Backend:
+
+```powershell
+dotnet run --project src\hosts\OpenStaff.Api
+```
+
+Frontend:
+
+```powershell
+Set-Location web
+pnpm dev:antd
+```
+
+## Common development commands
+
+### Backend
+
+```powershell
+dotnet build src\OpenStaff.slnx
+dotnet test src\OpenStaff.slnx
+dotnet run --project src\hosts\OpenStaff.Api
+```
+
+### Frontend
+
+```powershell
+Set-Location web
+pnpm install
+pnpm dev:antd
+pnpm build:antd
+```
+
+## Notes about the current product shape
+
+- The repository is **project-first**, not chat-first.
+- The secretary role is still the main coordination entry in execution flows.
+- Role data is persisted in the database; remote talent-market roles are imported into local role records.
+- Job titles are stored as normalized keys and localized in the frontend.
+- The current product surface is strongest around:
+  - projects
+  - role management
+  - talent market
+  - provider accounts
+  - MCP / skills
+  - project brainstorm + project group execution
+
+## Documentation
+
+- `docs/README.md`
+- `docs/PRD.md`
+- `docs/agent-runtime-lifecycle.md`
+
+## Repository
+
+GitHub: `https://github.com/Sunny-DotNet/open-staff`
