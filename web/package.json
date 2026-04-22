@@ -20,6 +20,7 @@
     "dev:antd": "pnpm -F @vben/web-antd run dev",
     "format": "vsh lint --format",
     "lint": "vsh lint",
+    "openapi:generate": "node ./scripts/openapi-generate.mjs",
     "postinstall": "pnpm -r run stub --if-present",
     "preinstall": "npx only-allow pnpm",
     "prepare": "is-ci || pnpm exec lefthook install",
@@ -32,6 +33,7 @@
     "catalog": "pnpx codemod pnpm/catalog"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "0.96.0",
     "@playwright/test": "catalog:",
     "@tsdown/css": "catalog:",
     "@types/node": "catalog:",

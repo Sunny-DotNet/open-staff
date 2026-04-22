@@ -1,31 +1,92 @@
-import { initPreferences } from '@vben/preferences';
-import { unmountGlobalLoading } from '@vben/utils';
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
+import { configureOpenStaffClient } from '@openstaff/api';
+import Antd, { message } from 'ant-design-vue';
+import { initPreferences, preferences, updatePreferences } from '@vben/preferences';
+import { initStores } from '@vben/stores';
+import '@vben/styles';
+import '@vben/styles/antd';
+import 'dayjs/locale/zh-cn';
+import { createApp } from 'vue';
 
-import { overridesPreferences } from './preferences';
+import App from './App.vue';
+import { setupAppI18n, t } from './i18n';
+import { router, setupAccessRoutes } from './router';
+import './styles.css';
 
-/**
- * 应用初始化完成之后再进行页面加载渲染
- */
-async function initApplication() {
-  // name用于指定项目唯一标识
-  // 用于区分不同项目的偏好设置以及存储数据的key前缀以及其他一些需要隔离的数据
-  const env = import.meta.env.PROD ? 'prod' : 'dev';
-  const appVersion = import.meta.env.VITE_APP_VERSION;
-  const namespace = `${import.meta.env.VITE_APP_NAMESPACE}-${appVersion}-${env}`;
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 30_000,
+    },
+  },
+});
 
-  // app偏好设置初始化
+async function bootstrap() {
+  const app = createApp(App);
+  const logoSource = new URL('../../../open-staff.png', import.meta.url)
+    .href;
+  const preferenceOverrides: Parameters<typeof updatePreferences>[0] = {
+    app: {
+      defaultHomePath: '/overview',
+      enableCheckUpdates: false,
+      enableCopyPreferences: false,
+      layout: 'sidebar-nav',
+      name: 'OpenStaff',
+    },
+    copyright: {
+      enable: false,
+    },
+    logo: {
+      enable: true,
+      fit: 'contain' as const,
+      source: logoSource,
+      sourceDark: logoSource,
+    },
+    sidebar: {
+      width: 248,
+    },
+    theme: {
+      mode: 'light' as const,
+    },
+    widget: {
+      fullscreen: false,
+      lockScreen: false,
+      notification: false,
+      timezone: false,
+    },
+  };
+
+  app.use(Antd);
+
+  await initStores(app, { namespace: 'openstaff' });
   await initPreferences({
-    namespace,
-    overrides: overridesPreferences,
+    namespace: 'openstaff',
+    overrides: preferenceOverrides,
+  });
+  updatePreferences(preferenceOverrides);
+
+  await setupAppI18n(app);
+  await setupAccessRoutes();
+
+  configureOpenStaffClient({
+    baseUrl: import.meta.env.DEV
+      ? ''
+      : (import.meta.env.VITE_OPENSTAFF_BASE_URL ?? window.location.origin),
+    getLanguage: () => preferences.app.locale,
+    onError: ({ message: errorMessage, status }) => {
+      message.error(
+        errorMessage ?? t('common.requestFailed', { status: status ?? 'unknown' }),
+      );
+    },
   });
 
-  // 启动应用并挂载
-  // vue应用主要逻辑及视图
-  const { bootstrap } = await import('./bootstrap');
-  await bootstrap(namespace);
+  app.use(router);
+  app.use(VueQueryPlugin, { queryClient });
 
-  // 移除并销毁loading
-  unmountGlobalLoading();
+  await router.isReady();
+  app.mount('#app');
 }
 
-initApplication();
+void bootstrap();

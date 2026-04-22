@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
-		<RootNamespace>OpenStaff.Marketplace</RootNamespace>
-	</PropertyGroup>
-	<ItemGroup>
-		<ProjectReference Include="..\..\OpenStaff.Core\OpenStaff.Core.csproj" />
-	</ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>OpenStaff.Marketplace</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+  </ItemGroup>
 </Project>

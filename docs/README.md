@@ -4,6 +4,16 @@
 
 ## 📄 文档列表
 
+### **[agent-runtime-lifecycle.md](./agent-runtime-lifecycle.md)** - 智能体创建 / 执行链路
+
+面向调试的技术链路文档，包含：
+
+- 🧭 **三条主线总览**: 角色保存、测试对话、正式会话
+- 🔀 **共同汇合点**: `IAgentService`、`ApplicationAgentRunFactory`、`AgentFactory`
+- 🧠 **逻辑导图**: Mermaid 总览图，快速定位入口与回流路径
+- 🧪 **调试断点地图**: 常见问题对应的关键方法、对象和值
+- 📌 **概念区分**: `AgentRole`、effective role、`ProjectAgent`、`MessageHandler`、`ChatFrame`
+
 ### **[PRD.md](./PRD.md)** - 产品需求文档 (Product Requirements Document)
 
 完整的产品需求规格说明，包含：

@@ -23,10 +23,10 @@ dotnet test src/OpenStaff.slnx
 dotnet test src/OpenStaff.slnx --filter "FullyQualifiedName~OpenStaff.Tests.Unit"
 
 # Run the API server (auto-migrates database on startup)
-dotnet run --project src/OpenStaff.Api
+dotnet run --project src/hosts/OpenStaff.Api
 
 # Run specific test
-dotnet test src/OpenStaff.Tests --filter "FullyQualifiedName~ClassName.TestName"
+dotnet test src/tests/OpenStaff.Tests --filter "FullyQualifiedName~ClassName.TestName"
 ```
 
 ### Frontend (Vue 3)
@@ -156,17 +156,16 @@ src/
 
 - **Unit Tests**: Test business logic in isolation (TaskGraph, AgentFactory, EncryptionService)
 - **No External Dependencies**: Unit tests should not hit database, network, or file system
-- **Test Location**: `src/OpenStaff.Tests/Unit/` matches source structure
+- **Test Location**: `src/tests/OpenStaff.Tests/Unit/` matches source structure
 - **Example**: `TaskGraphTests.cs` demonstrates cycle detection, priority ordering, dependency blocking
 - **Available test files**:
   - `TaskGraphTests.cs` - Dependency graph scheduling
-  - `AgentFactoryTests.cs` - Agent creation and role loading
-  - `StandardAgentTests.cs` - Single agent behavior
-  - `OrchestrationServiceTests.cs` - Message routing and orchestration
-  - `EmbeddedPromptLoaderTests.cs` - Prompt resource loading
-  - `RoleConfigLoaderTests.cs` - Role configuration parsing
-  - `AgentToolRegistryTests.cs` - Tool discovery and registration
-  - `EncryptionServiceTests.cs` - Security/encryption utilities
+- `AgentFactoryTests.cs` - Agent creation and role loading
+- `StandardAgentTests.cs` - Single agent behavior
+- `OrchestrationServiceTests.cs` - Message routing and orchestration
+- `EmbeddedPromptLoaderTests.cs` - Prompt resource loading
+- `AgentToolRegistryTests.cs` - Tool discovery and registration
+- `EncryptionServiceTests.cs` - Security/encryption utilities
 
 ## .NET Aspire Integration
 
@@ -177,7 +176,7 @@ This project uses .NET Aspire for service orchestration and health monitoring:
 - **Health Checks**: Available at `/health` endpoints (mapped via `MapDefaultEndpoints()`)
 - **Service Discovery**: Aspire handles service-to-service communication in distributed scenarios
 
-**Note**: For local development, you can typically run `dotnet run --project src/OpenStaff.Api` directly. The AppHost is primarily for orchestrated microservices scenarios.
+**Note**: For local development, you can typically run `dotnet run --project src/hosts/OpenStaff.Api` directly. The AppHost is primarily for orchestrated microservices scenarios.
 
 ## Important Implementation Notes
 
@@ -204,10 +203,10 @@ This project uses .NET Aspire for service orchestration and health monitoring:
 
 ### Adding a New Agent Role
 
-1. Create JSON config in `src/OpenStaff.Agents/Roles/your-role.json`
-2. Add system prompt as embedded resource (e.g., "your-role.system")
-3. Register tools in `AgentToolRegistry` if needed
-4. Role will be auto-loaded by `RoleConfigLoader.LoadAll()` on startup
+1. Create or import the persisted `AgentRole` record used by the application runtime
+2. Bind the role to the desired provider account and model
+3. Register any additional tools or capabilities needed by the role
+4. Verify the role can be resolved through the database-backed runtime path
 
 ### Modifying Agent Routing
 
@@ -219,7 +218,7 @@ Agent routing is controlled by JSON config `routing.markers`:
 ### Database Schema Changes
 
 1. Modify entities in `OpenStaff.Core/Models/`
-2. Run `dotnet ef migrations add MigrationName --project src/OpenStaff.Infrastructure`
+2. Run `dotnet ef migrations add MigrationName --project src/infrastructure/OpenStaff.Infrastructure`
 3. Migration runs automatically on API startup
 4. For local development with SQLite: DB is at `~/.staff/openstaff.db`
 
@@ -252,7 +251,7 @@ The `web/` directory is a **monorepo** using pnpm workspaces (based on vben-admi
 - **`.env.example`**: Template for environment variables (primarily `DB_PASSWORD` for Docker)
 - **`docker-compose.yml`**: Full-stack deployment (PostgreSQL + API + Vue frontend)
 - **`src/OpenStaff.slnx`**: .NET solution file (new XML format) - note the `src/` path
-- **Role Configs**: `src/OpenStaff.Agents/Roles/*.json` — defines agent behavior, routing, and tools
+- **Role Configs**: `src/platform/OpenStaff.Agents/Roles/*.json` — defines agent behavior, routing, and tools
 
 ## Dependency Injection Patterns
 

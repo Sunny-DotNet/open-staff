@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\..\application\OpenStaff.HttpApi\OpenStaff.HttpApi.csproj" />
+    <ProjectReference Include="..\..\infrastructure\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugin.Anthropic\OpenStaff.Plugin.Anthropic.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugin.GitHubCopilot\OpenStaff.Plugin.GitHubCopilot.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugin.Google\OpenStaff.Plugin.Google.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugin.NewApi\OpenStaff.Plugin.NewApi.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugin.OpenAI\OpenStaff.Plugin.OpenAI.csproj" />
+    <ProjectReference Include="..\OpenStaff.ServiceDefaults\OpenStaff.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\application\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Domain\OpenStaff.Domain.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Events\OpenStaff.Events.csproj" />
+    <ProjectReference Include="..\..\providers\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="OpenHub.Agents.Abstractions" />
+    <PackageReference Include="OpenHub.Agents.AIAgent" />
+    <PackageReference Include="System.Reactive" />
+  </ItemGroup>
+</Project>

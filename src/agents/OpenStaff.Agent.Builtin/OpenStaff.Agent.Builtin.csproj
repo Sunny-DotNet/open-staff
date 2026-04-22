@@ -8,17 +8,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\providers\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Agents.AI" />
     <PackageReference Include="Microsoft.Agents.AI.OpenAI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
 	  <PackageReference Include="Google.GenAI" />
   </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Roles\*.json" />
-    <EmbeddedResource Include="Prompts\*.txt" WithCulture="false" />
-  </ItemGroup>
-
 </Project>

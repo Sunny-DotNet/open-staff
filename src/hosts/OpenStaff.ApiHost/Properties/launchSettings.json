@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "OpenStaff.ApiHost": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:50164;http://localhost:50165"
+    }
+  }
+}

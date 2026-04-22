@@ -20,6 +20,7 @@ web/.turbo
 web/.cache
 
 # IDE
+.vs/
 .idea/
 .vscode/
 *.swp
@@ -72,6 +73,34 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# Root-level local audit / review artifacts
+/agent-role-*.png
+/agent-roles-*.png
+/monica-*.png
+/mcp-*.png
+/overview-dark-*.png
+/project-group-chat-*.png
+/project-groupchat-*.png
+/projects-*.png
+/provider-account-*.png
+/provider-accounts-*.png
+/settings-*.png
+/*-network.txt
+/*-console.txt
+/*requests.txt
+/mention-test-before.txt
+/workspace-project-*.md
+/workspace-verify-*.md
+/logo-debug.png
+/logo-fixed.png
+
+# Source-tree code snapshot residue
+/src/agents/OpenStaff.Agent.Vendor.GitHubCopilot/**/*.txt
+/src/plugins/OpenStaff.Plugin.*/Agent/*.txt
+/src/plugins/OpenStaff.Plugin.*/Provider/*.txt
+/src/providers/OpenStaff.Provider.GitHubCopilot/Provider/**/*.txt
+!/src/agents/OpenStaff.Agent.Builtin/Prompts/*.txt
 
 # NOTE: src/plugins/ contains important plugin implementations and should NOT be ignored
 # NOTE: Only ignore runtime/ generated plugin directories, not source code

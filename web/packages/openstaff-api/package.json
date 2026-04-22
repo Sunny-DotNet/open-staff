@@ -1,0 +1,22 @@
+{
+  "name": "@openstaff/api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./dtos": {
+      "types": "./src/dtos/index.ts",
+      "default": "./src/dtos/index.ts"
+    },
+    "./services": {
+      "types": "./src/services/index.ts",
+      "default": "./src/services/index.ts"
+    },
+    "./package.json": "./package.json"
+  }
+}

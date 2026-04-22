@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Domain\OpenStaff.Domain.csproj" />
+    <ProjectReference Include="..\..\providers\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
+  </ItemGroup>
+</Project>

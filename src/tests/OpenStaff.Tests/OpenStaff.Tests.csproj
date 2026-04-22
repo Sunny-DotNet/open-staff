@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\platform\OpenStaff.Skills\OpenStaff.Skills.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Mcp\OpenStaff.Mcp.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Domain\OpenStaff.Domain.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Events\OpenStaff.Events.csproj" />
+    <ProjectReference Include="..\..\agents\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\agents\OpenStaff.Agent.Builtin\OpenStaff.Agent.Builtin.csproj" />
+    <ProjectReference Include="..\..\application\OpenStaff.Application\OpenStaff.Application.csproj" />
+    <ProjectReference Include="..\..\infrastructure\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\hosts\OpenStaff.HttpApi.Host\OpenStaff.HttpApi.Host.csproj" />
+  </ItemGroup>
+</Project>

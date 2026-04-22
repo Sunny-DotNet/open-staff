@@ -1,0 +1,658 @@
+{
+  "schema": "openstaff.role-sync.mcp-portable-profile.v1",
+  "purpose": "Demonstrates complete portable MCP binding parameters for role export/import across clients.",
+  "notes": [
+    "This file is a design demo for discussion, not a file the current importer can fully consume yet.",
+    "Each binding includes both capability identity and a portable profile so client B can restore the environment when client A exports a role with custom MCP settings.",
+    "Secrets export structure but not secret values."
+  ],
+  "mcpBindingDemos": [
+    {
+      "caseId": "remote-github",
+      "title": "GitHub Remote Hosted MCP",
+      "summary": "Preferred when the host supports remote MCP. Best for cross-device portability.",
+      "capability": {
+        "key": "github",
+        "displayName": "GitHub",
+        "category": "dev-tools",
+        "required": true,
+        "preferredProfile": "remote",
+        "matchHints": {
+          "name": "GitHub",
+          "npmPackage": null,
+          "pypiPackage": null
+        }
+      },
+      "portableProfile": {
+        "profileId": "github-remote-default",
+        "profileType": "remote",
+        "transportType": "http",
+        "runnerKind": "remote",
+        "runner": null,
+        "ecosystem": null,
+        "packageName": null,
+        "packageVersion": null,
+        "image": null,
+        "imageTag": null,
+        "command": null,
+        "argsTemplate": [],
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headersTemplate": {
+          "Authorization": "Bearer ${secret:GITHUB_PERSONAL_ACCESS_TOKEN}",
+          "X-MCP-Readonly": "${param:readonlyHeader}"
+        },
+        "envTemplate": {},
+        "workingDirectoryTemplate": null,
+        "notes": "Use GitHub hosted MCP when the client supports remote MCP."
+      },
+      "bindingOptions": {
+        "enabled": true,
+        "readonly": false,
+        "toolFilter": null,
+        "toolsets": [
+          "repos",
+          "issues",
+          "pull_requests",
+          "actions"
+        ],
+        "runtimeParameters": {
+          "readonlyHeader": "false"
+        }
+      },
+      "parameterSchema": [
+        {
+          "key": "readonlyHeader",
+          "label": "Read-only header",
+          "type": "string",
+          "required": true,
+          "secret": false,
+          "defaultValue": "false",
+          "description": "Maps to X-MCP-Readonly. Use true when you want read-only mode."
+        }
+      ],
+      "parameterValues": {
+        "readonlyHeader": "false"
+      },
+      "secrets": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": {
+          "required": true,
+          "exported": false,
+          "description": "GitHub PAT used for remote MCP authorization."
+        }
+      },
+      "restorePolicy": {
+        "reuseExistingBy": [
+          "capabilityKey",
+          "name"
+        ],
+        "createIfMissing": true,
+        "allowProfileFallback": true,
+        "fallbackProfileOrder": [
+          "container",
+          "binary",
+          "package"
+        ],
+        "manualStepRequired": false
+      },
+      "legacyCompatibility": {
+        "mcps": [
+          {
+            "name": "GitHub"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "package-npm-playwright",
+      "title": "Playwright via npx",
+      "summary": "Local stdio MCP launched through npm tooling.",
+      "capability": {
+        "key": "playwright",
+        "displayName": "Playwright",
+        "category": "browser",
+        "required": false,
+        "preferredProfile": "package",
+        "matchHints": {
+          "name": "Playwright",
+          "npmPackage": "@playwright/mcp",
+          "pypiPackage": null
+        }
+      },
+      "portableProfile": {
+        "profileId": "playwright-package-npm",
+        "profileType": "package",
+        "transportType": "stdio",
+        "runnerKind": "package",
+        "runner": "npx",
+        "ecosystem": "npm",
+        "packageName": "@playwright/mcp",
+        "packageVersion": "latest",
+        "image": null,
+        "imageTag": null,
+        "command": "npx",
+        "argsTemplate": [
+          "-y",
+          "@playwright/mcp@latest",
+          "--browser",
+          "${param:browser}"
+        ],
+        "url": null,
+        "headersTemplate": {},
+        "envTemplate": {
+          "PLAYWRIGHT_BROWSERS_PATH": "${param:browsersPath}"
+        },
+        "workingDirectoryTemplate": "${param:workingDirectory}",
+        "notes": "npx and uvx should be treated as package runtimes instead of separate product concepts."
+      },
+      "bindingOptions": {
+        "enabled": true,
+        "readonly": false,
+        "toolFilter": null,
+        "toolsets": [],
+        "runtimeParameters": {
+          "browser": "chromium",
+          "browsersPath": "",
+          "workingDirectory": "${project.workspace}"
+        }
+      },
+      "parameterSchema": [
+        {
+          "key": "browser",
+          "label": "Browser",
+          "type": "string",
+          "required": true,
+          "secret": false,
+          "defaultValue": "chromium",
+          "description": "Browser engine passed to Playwright MCP."
+        },
+        {
+          "key": "browsersPath",
+          "label": "Playwright browsers path",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "",
+          "description": "Optional custom browser cache path."
+        },
+        {
+          "key": "workingDirectory",
+          "label": "Working directory",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "${project.workspace}",
+          "description": "Working directory used when launching the local package runtime."
+        }
+      ],
+      "parameterValues": {
+        "browser": "chromium",
+        "browsersPath": "",
+        "workingDirectory": "${project.workspace}"
+      },
+      "secrets": {},
+      "restorePolicy": {
+        "reuseExistingBy": [
+          "capabilityKey",
+          "npmPackage",
+          "name"
+        ],
+        "createIfMissing": true,
+        "allowProfileFallback": true,
+        "fallbackProfileOrder": [
+          "container",
+          "binary"
+        ],
+        "manualStepRequired": false
+      },
+      "legacyCompatibility": {
+        "mcps": [
+          {
+            "name": "Playwright",
+            "npmPackage": "@playwright/mcp"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "package-python-fetch",
+      "title": "Fetch via uvx",
+      "summary": "Local stdio MCP launched through a Python package runner.",
+      "capability": {
+        "key": "fetch",
+        "displayName": "Fetch",
+        "category": "search",
+        "required": false,
+        "preferredProfile": "package",
+        "matchHints": {
+          "name": "Fetch",
+          "npmPackage": null,
+          "pypiPackage": "mcp-server-fetch"
+        }
+      },
+      "portableProfile": {
+        "profileId": "fetch-package-python",
+        "profileType": "package",
+        "transportType": "stdio",
+        "runnerKind": "package",
+        "runner": "uvx",
+        "ecosystem": "python",
+        "packageName": "mcp-server-fetch",
+        "packageVersion": "latest",
+        "image": null,
+        "imageTag": null,
+        "command": "uvx",
+        "argsTemplate": [
+          "mcp-server-fetch",
+          "--user-agent",
+          "${param:userAgent}"
+        ],
+        "url": null,
+        "headersTemplate": {},
+        "envTemplate": {
+          "HTTPS_PROXY": "${param:httpsProxy}"
+        },
+        "workingDirectoryTemplate": null,
+        "notes": "Python package runtime; should restore cleanly on another client even when the server was user-defined on client A."
+      },
+      "bindingOptions": {
+        "enabled": true,
+        "readonly": false,
+        "toolFilter": null,
+        "toolsets": [],
+        "runtimeParameters": {
+          "userAgent": "OpenStaff-Agent",
+          "httpsProxy": ""
+        }
+      },
+      "parameterSchema": [
+        {
+          "key": "userAgent",
+          "label": "User-Agent",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "OpenStaff-Agent",
+          "description": "HTTP User-Agent used by the fetch MCP."
+        },
+        {
+          "key": "httpsProxy",
+          "label": "HTTPS proxy",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "",
+          "description": "Optional proxy for environments behind a gateway."
+        }
+      ],
+      "parameterValues": {
+        "userAgent": "OpenStaff-Agent",
+        "httpsProxy": ""
+      },
+      "secrets": {},
+      "restorePolicy": {
+        "reuseExistingBy": [
+          "capabilityKey",
+          "pypiPackage",
+          "name"
+        ],
+        "createIfMissing": true,
+        "allowProfileFallback": true,
+        "fallbackProfileOrder": [
+          "binary",
+          "manual"
+        ],
+        "manualStepRequired": false
+      },
+      "legacyCompatibility": {
+        "mcps": [
+          {
+            "name": "Fetch",
+            "pypiPackage": "mcp-server-fetch"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "container-github-local",
+      "title": "GitHub via Docker container",
+      "summary": "Local container runtime for hosts that do not support remote MCP but do support Docker.",
+      "capability": {
+        "key": "github",
+        "displayName": "GitHub",
+        "category": "dev-tools",
+        "required": true,
+        "preferredProfile": "container",
+        "matchHints": {
+          "name": "GitHub",
+          "npmPackage": null,
+          "pypiPackage": null
+        }
+      },
+      "portableProfile": {
+        "profileId": "github-container-docker",
+        "profileType": "container",
+        "transportType": "stdio",
+        "runnerKind": "container",
+        "runner": "docker",
+        "ecosystem": null,
+        "packageName": null,
+        "packageVersion": null,
+        "image": "ghcr.io/github/github-mcp-server",
+        "imageTag": "latest",
+        "command": "docker",
+        "argsTemplate": [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "-e",
+          "GITHUB_HOST",
+          "ghcr.io/github/github-mcp-server:latest"
+        ],
+        "url": null,
+        "headersTemplate": {},
+        "envTemplate": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "${secret:GITHUB_PERSONAL_ACCESS_TOKEN}",
+          "GITHUB_HOST": "${param:githubHost}"
+        },
+        "workingDirectoryTemplate": null,
+        "notes": "Preferred fallback when remote MCP is unavailable but Docker is present."
+      },
+      "bindingOptions": {
+        "enabled": true,
+        "readonly": false,
+        "toolFilter": null,
+        "toolsets": [
+          "repos",
+          "issues",
+          "pull_requests"
+        ],
+        "runtimeParameters": {
+          "githubHost": ""
+        }
+      },
+      "parameterSchema": [
+        {
+          "key": "githubHost",
+          "label": "GitHub host",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "",
+          "description": "Optional GHES or ghe.com host, for example https://octocorp.ghe.com."
+        }
+      ],
+      "parameterValues": {
+        "githubHost": ""
+      },
+      "secrets": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": {
+          "required": true,
+          "exported": false,
+          "description": "GitHub PAT injected into the Docker container."
+        }
+      },
+      "restorePolicy": {
+        "reuseExistingBy": [
+          "capabilityKey",
+          "name"
+        ],
+        "createIfMissing": true,
+        "allowProfileFallback": true,
+        "fallbackProfileOrder": [
+          "binary",
+          "package"
+        ],
+        "manualStepRequired": false
+      },
+      "legacyCompatibility": {
+        "mcps": [
+          {
+            "name": "GitHub"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "binary-filesystem",
+      "title": "Filesystem via local binary",
+      "summary": "A downloaded executable with explicit workspace path parameter.",
+      "capability": {
+        "key": "filesystem",
+        "displayName": "Filesystem",
+        "category": "filesystem",
+        "required": true,
+        "preferredProfile": "binary",
+        "matchHints": {
+          "name": "Filesystem",
+          "npmPackage": "@modelcontextprotocol/server-filesystem",
+          "pypiPackage": null
+        }
+      },
+      "portableProfile": {
+        "profileId": "filesystem-binary-local",
+        "profileType": "binary",
+        "transportType": "stdio",
+        "runnerKind": "binary",
+        "runner": "binary",
+        "ecosystem": null,
+        "packageName": null,
+        "packageVersion": null,
+        "image": null,
+        "imageTag": null,
+        "command": "${param:binaryPath}",
+        "argsTemplate": [
+          "${param:workspacePath}"
+        ],
+        "url": null,
+        "headersTemplate": {},
+        "envTemplate": {},
+        "workingDirectoryTemplate": "${param:workingDirectory}",
+        "notes": "Useful when the target client already manages its own MCP binary inventory."
+      },
+      "bindingOptions": {
+        "enabled": true,
+        "readonly": false,
+        "toolFilter": null,
+        "toolsets": [],
+        "runtimeParameters": {
+          "binaryPath": "C:\\\\Tools\\\\mcp\\\\filesystem-server.exe",
+          "workspacePath": "${project.workspace}",
+          "workingDirectory": "${project.workspace}"
+        }
+      },
+      "parameterSchema": [
+        {
+          "key": "binaryPath",
+          "label": "Binary path",
+          "type": "string",
+          "required": true,
+          "secret": false,
+          "defaultValue": "C:\\\\Tools\\\\mcp\\\\filesystem-server.exe",
+          "description": "Absolute path to the local MCP executable."
+        },
+        {
+          "key": "workspacePath",
+          "label": "Workspace path",
+          "type": "string",
+          "required": true,
+          "secret": false,
+          "defaultValue": "${project.workspace}",
+          "description": "Project workspace exposed to the Filesystem MCP."
+        },
+        {
+          "key": "workingDirectory",
+          "label": "Working directory",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "${project.workspace}",
+          "description": "Process working directory for the binary launch."
+        }
+      ],
+      "parameterValues": {
+        "binaryPath": "C:\\\\Tools\\\\mcp\\\\filesystem-server.exe",
+        "workspacePath": "${project.workspace}",
+        "workingDirectory": "${project.workspace}"
+      },
+      "secrets": {},
+      "restorePolicy": {
+        "reuseExistingBy": [
+          "capabilityKey",
+          "npmPackage",
+          "name"
+        ],
+        "createIfMissing": false,
+        "allowProfileFallback": true,
+        "fallbackProfileOrder": [
+          "package",
+          "manual"
+        ],
+        "manualStepRequired": true
+      },
+      "legacyCompatibility": {
+        "mcps": [
+          {
+            "name": "Filesystem",
+            "npmPackage": "@modelcontextprotocol/server-filesystem"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "advanced-manual-bridge",
+      "title": "Advanced manual compatibility case",
+      "summary": "For internal bridges, scripts, or unsupported hosts. Should live in the advanced area only.",
+      "capability": {
+        "key": "custom-bridge",
+        "displayName": "Custom Internal Bridge",
+        "category": "general",
+        "required": false,
+        "preferredProfile": "manual",
+        "matchHints": {
+          "name": "Custom Internal Bridge",
+          "npmPackage": null,
+          "pypiPackage": null
+        }
+      },
+      "portableProfile": {
+        "profileId": "custom-bridge-manual",
+        "profileType": "manual",
+        "transportType": "stdio",
+        "runnerKind": "manual",
+        "runner": "custom",
+        "ecosystem": null,
+        "packageName": null,
+        "packageVersion": null,
+        "image": null,
+        "imageTag": null,
+        "command": "${param:command}",
+        "argsTemplate": [
+          "--endpoint",
+          "${param:endpoint}",
+          "--mode",
+          "${param:mode}"
+        ],
+        "url": null,
+        "headersTemplate": {},
+        "envTemplate": {
+          "BRIDGE_TOKEN": "${secret:BRIDGE_TOKEN}",
+          "BRIDGE_REGION": "${param:region}"
+        },
+        "workingDirectoryTemplate": "${param:workingDirectory}",
+        "notes": "Kept only for advanced compatibility; should not pollute the main MCP creation flow."
+      },
+      "bindingOptions": {
+        "enabled": true,
+        "readonly": false,
+        "toolFilter": null,
+        "toolsets": [],
+        "runtimeParameters": {
+          "command": "C:\\\\Tools\\\\bridge\\\\internal-mcp.exe",
+          "endpoint": "https://bridge.example.internal/mcp",
+          "mode": "agent",
+          "region": "cn-north-1",
+          "workingDirectory": "C:\\\\Tools\\\\bridge"
+        }
+      },
+      "parameterSchema": [
+        {
+          "key": "command",
+          "label": "Command",
+          "type": "string",
+          "required": true,
+          "secret": false,
+          "defaultValue": "C:\\\\Tools\\\\bridge\\\\internal-mcp.exe",
+          "description": "Executable or script path for the internal bridge."
+        },
+        {
+          "key": "endpoint",
+          "label": "Endpoint",
+          "type": "string",
+          "required": true,
+          "secret": false,
+          "defaultValue": "https://bridge.example.internal/mcp",
+          "description": "Remote endpoint consumed by the bridge process."
+        },
+        {
+          "key": "mode",
+          "label": "Mode",
+          "type": "string",
+          "required": true,
+          "secret": false,
+          "defaultValue": "agent",
+          "description": "Custom execution mode supported by the bridge."
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "cn-north-1",
+          "description": "Optional region hint."
+        },
+        {
+          "key": "workingDirectory",
+          "label": "Working directory",
+          "type": "string",
+          "required": false,
+          "secret": false,
+          "defaultValue": "C:\\\\Tools\\\\bridge",
+          "description": "Working directory for the custom bridge."
+        }
+      ],
+      "parameterValues": {
+        "command": "C:\\\\Tools\\\\bridge\\\\internal-mcp.exe",
+        "endpoint": "https://bridge.example.internal/mcp",
+        "mode": "agent",
+        "region": "cn-north-1",
+        "workingDirectory": "C:\\\\Tools\\\\bridge"
+      },
+      "secrets": {
+        "BRIDGE_TOKEN": {
+          "required": true,
+          "exported": false,
+          "description": "Secret token used by the internal bridge."
+        }
+      },
+      "restorePolicy": {
+        "reuseExistingBy": [
+          "name"
+        ],
+        "createIfMissing": true,
+        "allowProfileFallback": false,
+        "fallbackProfileOrder": [],
+        "manualStepRequired": true
+      },
+      "legacyCompatibility": {
+        "mcps": [
+          {
+            "name": "Custom Internal Bridge"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenStaff.Mcp\OpenStaff.Mcp.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Domain\OpenStaff.Domain.csproj" />
+    <ProjectReference Include="..\..\agents\OpenStaff.Agent.Services\OpenStaff.Agent.Services.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,6 @@
+@OpenStaffHttpApiHost_HostAddress = http://localhost:5010
+
+GET {{OpenStaffHttpApiHost_HostAddress}}/scalar/v1/
+Accept: application/json
+
+###

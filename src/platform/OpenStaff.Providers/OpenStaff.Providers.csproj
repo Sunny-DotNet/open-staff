@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\OpenStaff.AgentConstruction\OpenStaff.AgentConstruction.csproj" />
+    <ProjectReference Include="..\..\infrastructure\OpenStaff.EntityFrameworkCore\OpenStaff.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+</Project>

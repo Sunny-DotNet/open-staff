@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\application\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
+    <ProjectReference Include="..\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\OpenStaff.Mcp\OpenStaff.Mcp.csproj" />
+    <ProjectReference Include="..\OpenStaff.Skills\OpenStaff.Skills.csproj" />
+  </ItemGroup>
+</Project>

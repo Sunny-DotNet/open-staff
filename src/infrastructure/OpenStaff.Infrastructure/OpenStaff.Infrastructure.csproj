@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.AgentConstruction\OpenStaff.AgentConstruction.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Domain\OpenStaff.Domain.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Events\OpenStaff.Events.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Mcp\OpenStaff.Mcp.csproj" />
+    <ProjectReference Include="..\OpenStaff.EntityFrameworkCore\OpenStaff.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Plugins\OpenStaff.Plugins.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Providers\OpenStaff.Providers.csproj" />
+    <ProjectReference Include="..\OpenStaff.Security\OpenStaff.Security.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Skills\OpenStaff.Skills.csproj" />
+    <ProjectReference Include="..\OpenStaff.Workspace\OpenStaff.Workspace.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+</Project>

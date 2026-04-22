@@ -1,10 +1,8 @@
-import { type Ref, onUnmounted, ref, shallowRef } from 'vue';
+import type { SessionEventDto } from '@openstaff/api';
+import type { Ref } from 'vue';
 
+import { onUnmounted, ref, shallowRef } from 'vue';
 import * as signalR from '@microsoft/signalr';
-
-import type { AgentApi } from '#/api/openstaff/agent';
-
-// ===== 通知消息类型 =====
 
 export interface NotificationMessage {
   channel: string;
@@ -14,133 +12,124 @@ export interface NotificationMessage {
   timestamp: string;
 }
 
-export type NotifyHandler = (msg: NotificationMessage) => void;
-export type SessionEventHandler = (evt: AgentApi.SessionEvent) => void;
+export type NotifyHandler = (message: NotificationMessage) => void;
+export type SessionEventHandler = (event: SessionEventDto) => void;
 
-// ===== 单例连接管理 =====
+let sharedConnection: null | signalR.HubConnection = null;
+let sharedConnectionPromise: null | Promise<void> = null;
+const sharedConnected = ref(false);
+const sharedHandlers = new Map<string, Set<NotifyHandler>>();
 
-let _connection: signalR.HubConnection | null = null;
-let _connectionPromise: Promise<void> | null = null;
-const _connected = ref(false);
-const _handlers = new Map<string, Set<NotifyHandler>>();
+function getOrCreateConnection(hubUrl: string) {
+  if (sharedConnection) {
+    return sharedConnection;
+  }
 
-function getOrCreateConnection(hubUrl: string): signalR.HubConnection {
-  if (_connection) return _connection;
-
-  _connection = new signalR.HubConnectionBuilder()
+  sharedConnection = new signalR.HubConnectionBuilder()
     .withUrl(hubUrl)
     .withAutomaticReconnect()
     .configureLogging(signalR.LogLevel.Information)
     .build();
 
-  _connection.onclose(() => {
-    _connected.value = false;
+  sharedConnection.onclose(() => {
+    sharedConnected.value = false;
   });
 
-  _connection.onreconnected(() => {
-    _connected.value = true;
+  sharedConnection.onreconnected(() => {
+    sharedConnected.value = true;
   });
 
-  _connection.onreconnecting(() => {
-    _connected.value = false;
+  sharedConnection.onreconnecting(() => {
+    sharedConnected.value = false;
   });
 
-  // 统一 Notify 分发
-  _connection.on('Notify', (msg: NotificationMessage) => {
-    // 按 channel 分发
-    const channelHandlers = _handlers.get(msg.channel);
+  sharedConnection.on('Notify', (message: NotificationMessage) => {
+    const channelHandlers = sharedHandlers.get(message.channel);
     if (channelHandlers) {
       for (const handler of channelHandlers) {
         try {
-          handler(msg);
+          handler(message);
         } catch {
-          // ignore handler errors
+          // Ignore individual handler failures.
         }
       }
     }
 
-    // 按 eventType 分发（全局监听）
-    const typeHandlers = _handlers.get(`@type:${msg.eventType}`);
+    const typeHandlers = sharedHandlers.get(`@type:${message.eventType}`);
     if (typeHandlers) {
       for (const handler of typeHandlers) {
         try {
-          handler(msg);
+          handler(message);
         } catch {
-          // ignore handler errors
+          // Ignore individual handler failures.
         }
       }
     }
 
-    // 全局通配符
-    const globalHandlers = _handlers.get('*');
+    const globalHandlers = sharedHandlers.get('*');
     if (globalHandlers) {
       for (const handler of globalHandlers) {
         try {
-          handler(msg);
+          handler(message);
         } catch {
-          // ignore handler errors
+          // Ignore individual handler failures.
         }
       }
     }
   });
 
-  return _connection;
+  return sharedConnection;
 }
 
-async function ensureConnected(hubUrl: string): Promise<signalR.HubConnection> {
-  const conn = getOrCreateConnection(hubUrl);
+async function ensureConnected(hubUrl: string) {
+  const connection = getOrCreateConnection(hubUrl);
 
-  if (conn.state === signalR.HubConnectionState.Connected) {
-    return conn;
+  if (connection.state === signalR.HubConnectionState.Connected) {
+    return connection;
   }
 
-  if (!_connectionPromise) {
-    _connectionPromise = conn
+  if (!sharedConnectionPromise) {
+    sharedConnectionPromise = connection
       .start()
       .then(() => {
-        _connected.value = true;
-        _connectionPromise = null;
+        sharedConnected.value = true;
+        sharedConnectionPromise = null;
       })
-      .catch((err) => {
-        console.error('NotificationHub 连接失败:', err);
-        _connected.value = false;
-        _connectionPromise = null;
-        throw err;
+      .catch((error) => {
+        sharedConnected.value = false;
+        sharedConnectionPromise = null;
+        throw error;
       });
   }
 
-  await _connectionPromise;
-  return conn;
+  await sharedConnectionPromise;
+  return connection;
 }
 
-// ===== Composable =====
-
 export interface UseNotificationOptions {
-  /** Hub URL，默认自动从 baseURL 推导 */
   hubUrl?: string;
 }
 
 export interface UseNotificationReturn {
-  /** 连接状态 */
   connected: Ref<boolean>;
-  /** 连接实例（调试用） */
-  connection: Ref<signalR.HubConnection | null>;
-  /** 加入频道 */
+  connection: Ref<null | signalR.HubConnection>;
   joinChannel: (channel: string) => Promise<void>;
-  /** 离开频道 */
   leaveChannel: (channel: string) => Promise<void>;
-  /** 监听指定频道的通知 */
   onChannel: (channel: string, handler: NotifyHandler) => () => void;
-  /** 监听指定事件类型（跨频道） */
   onEventType: (eventType: string, handler: NotifyHandler) => () => void;
-  /** 启动会话流（SignalR Streaming） — 返回 Promise<ISubscription> */
   streamSession: (
     sessionId: string,
     onEvent: SessionEventHandler,
     onComplete?: () => void,
-    onError?: (err: Error) => void,
-  ) => Promise<signalR.ISubscription<AgentApi.SessionEvent>>;
-  /** 停止连接 */
+    onError?: (error: Error) => void,
+    afterSequenceNo?: number,
+  ) => Promise<signalR.ISubscription<SessionEventDto>>;
+  streamTask: (
+    taskId: string,
+    onEvent: SessionEventHandler,
+    onComplete?: () => void,
+    onError?: (error: Error) => void,
+  ) => Promise<signalR.ISubscription<SessionEventDto>>;
   stop: () => Promise<void>;
 }
 
@@ -148,45 +137,45 @@ export function useNotification(
   options: UseNotificationOptions = {},
 ): UseNotificationReturn {
   const hubUrl = options.hubUrl ?? '/hubs/notification';
-  const connection = shallowRef<signalR.HubConnection | null>(null);
+  const connection = shallowRef<null | signalR.HubConnection>(null);
   const localCleanups: Array<() => void> = [];
 
-  // 自动连接
   ensureConnected(hubUrl)
-    .then((conn) => {
-      connection.value = conn;
+    .then((currentConnection) => {
+      connection.value = currentConnection;
     })
     .catch(() => {
-      // 已在 ensureConnected 中 log
+      // Error is surfaced when a caller actually tries to use the connection.
     });
 
-  async function joinChannel(channel: string): Promise<void> {
-    const conn = await ensureConnected(hubUrl);
-    await conn.invoke('JoinChannel', channel);
+  async function joinChannel(channel: string) {
+    const currentConnection = await ensureConnected(hubUrl);
+    await currentConnection.invoke('JoinChannel', channel);
   }
 
-  async function leaveChannel(channel: string): Promise<void> {
-    const conn = await ensureConnected(hubUrl);
-    await conn.invoke('LeaveChannel', channel);
+  async function leaveChannel(channel: string) {
+    const currentConnection = await ensureConnected(hubUrl);
+    await currentConnection.invoke('LeaveChannel', channel);
   }
 
-  function onChannel(channel: string, handler: NotifyHandler): () => void {
-    if (!_handlers.has(channel)) {
-      _handlers.set(channel, new Set());
+  function onChannel(channel: string, handler: NotifyHandler) {
+    if (!sharedHandlers.has(channel)) {
+      sharedHandlers.set(channel, new Set());
     }
-    _handlers.get(channel)!.add(handler);
+    sharedHandlers.get(channel)!.add(handler);
 
     const cleanup = () => {
-      _handlers.get(channel)?.delete(handler);
-      if (_handlers.get(channel)?.size === 0) {
-        _handlers.delete(channel);
+      sharedHandlers.get(channel)?.delete(handler);
+      if (sharedHandlers.get(channel)?.size === 0) {
+        sharedHandlers.delete(channel);
       }
     };
+
     localCleanups.push(cleanup);
     return cleanup;
   }
 
-  function onEventType(eventType: string, handler: NotifyHandler): () => void {
+  function onEventType(eventType: string, handler: NotifyHandler) {
     return onChannel(`@type:${eventType}`, handler);
   }
 
@@ -194,42 +183,68 @@ export function useNotification(
     sessionId: string,
     onEvent: SessionEventHandler,
     onComplete?: () => void,
-    onError?: (err: Error) => void,
-  ): Promise<signalR.ISubscription<AgentApi.SessionEvent>> {
-    const conn = await ensureConnected(hubUrl);
-
-    const stream = conn.stream<AgentApi.SessionEvent>(
+    onError?: (error: Error) => void,
+    afterSequenceNo = 0,
+  ) {
+    const currentConnection = await ensureConnected(hubUrl);
+    const stream = currentConnection.stream<SessionEventDto>(
       'StreamSession',
       sessionId,
+      afterSequenceNo,
     );
 
-    const subscription = stream.subscribe({
-      next: (evt) => {
+    return stream.subscribe({
+      next: (event) => {
         try {
-          onEvent(evt);
+          onEvent(event);
         } catch {
-          // ignore
+          // Ignore downstream reducer failures to keep the stream alive.
         }
       },
       complete: () => {
         onComplete?.();
       },
-      error: (err) => {
-        onError?.(err instanceof Error ? err : new Error(String(err)));
+      error: (error) => {
+        onError?.(error instanceof Error ? error : new Error(String(error)));
       },
     });
-
-    return subscription;
   }
 
-  async function stop(): Promise<void> {
-    if (_connection) {
-      await _connection.stop();
-      _connected.value = false;
+  async function streamTask(
+    taskId: string,
+    onEvent: SessionEventHandler,
+    onComplete?: () => void,
+    onError?: (error: Error) => void,
+  ) {
+    const currentConnection = await ensureConnected(hubUrl);
+    const stream = currentConnection.stream<SessionEventDto>('StreamTask', taskId);
+
+    return stream.subscribe({
+      next: (event) => {
+        try {
+          onEvent(event);
+        } catch {
+          // Ignore downstream reducer failures to keep the stream alive.
+        }
+      },
+      complete: () => {
+        onComplete?.();
+      },
+      error: (error) => {
+        onError?.(error instanceof Error ? error : new Error(String(error)));
+      },
+    });
+  }
+
+  async function stop() {
+    if (!sharedConnection) {
+      return;
     }
+
+    await sharedConnection.stop();
+    sharedConnected.value = false;
   }
 
-  // 组件卸载时清理本组件注册的 handlers
   onUnmounted(() => {
     for (const cleanup of localCleanups) {
       cleanup();
@@ -238,13 +253,14 @@ export function useNotification(
   });
 
   return {
-    connected: _connected,
+    connected: sharedConnected,
     connection,
     joinChannel,
     leaveChannel,
     onChannel,
     onEventType,
     streamSession,
+    streamTask,
     stop,
   };
 }

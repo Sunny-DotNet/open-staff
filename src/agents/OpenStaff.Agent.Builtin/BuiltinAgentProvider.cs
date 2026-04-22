@@ -2,126 +2,146 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using OpenStaff.Agent.Builtin.Prompts;
-using OpenStaff.Agent.Builtin.Roles;
-using OpenStaff.Agent.Tools;
+using OpenStaff.Agents;
 using OpenStaff.Core.Agents;
-using OpenStaff.Core.Models;
+using OpenStaff.Entities;
 
 namespace OpenStaff.Agent.Builtin;
 
 /// <summary>
-/// 内置智能体供应商 — Builtin/Custom 类型角色统一走此 Provider
+/// zh-CN: 为内置角色和自定义 OpenAI 兼容角色创建运行时智能体。
+/// en: Creates runtime agents for builtin roles and custom OpenAI-compatible roles.
 /// </summary>
 public class BuiltinAgentProvider : IAgentProvider
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAgentToolRegistry _toolRegistry;
     private readonly ChatClientFactory _chatClientFactory;
-    private readonly IPromptLoader _promptLoader;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly Dictionary<string, RoleConfig> _roleConfigs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IAgentPromptGenerator _agentPromptGenerator;
 
+    /// <summary>
+    /// zh-CN: 使用工具上下文和聊天客户端依赖初始化内置提供程序。
+    /// en: Initializes the builtin provider with tool-context and chat-client dependencies.
+    /// </summary>
     public BuiltinAgentProvider(
         IServiceProvider serviceProvider,
-        IAgentToolRegistry toolRegistry,
         ChatClientFactory chatClientFactory,
-        IPromptLoader promptLoader,
+        IAgentPromptGenerator agentPromptGenerator,
         ILoggerFactory loggerFactory)
     {
         _serviceProvider = serviceProvider;
-        _toolRegistry = toolRegistry;
         _chatClientFactory = chatClientFactory;
-        _promptLoader = promptLoader;
+        _agentPromptGenerator = agentPromptGenerator;
         _loggerFactory = loggerFactory;
-
-        foreach (var config in RoleConfigLoader.LoadAll())
-            _roleConfigs[config.RoleType] = config;
-    }
-
-    public string ProviderType => "builtin";
-    public string DisplayName => "内置标准";
-
-    public AgentConfigSchema GetConfigSchema() => new()
-    {
-        ProviderType = ProviderType,
-        DisplayName = DisplayName,
-        Description = "内置/自定义智能体，使用 OpenAI 兼容协议",
-        Fields = []
-    };
-
-    public Task<AIAgent> CreateAgentAsync(AgentRole role, AgentContext context, ResolvedProvider provider)
-    {
-        var components = PrepareAgent(role, provider);
-        AIAgent agent = new ChatClientAgent(
-            components.ChatClient,
-            name: components.Name,
-            instructions: components.Instructions,
-            tools: components.Tools,
-            loggerFactory: _loggerFactory);
-        return Task.FromResult(agent);
     }
 
     /// <summary>
-    /// 准备智能体所需的组件（ChatClient、指令、工具），供流式调用等场景复用
+    /// zh-CN: 获取内置提供程序标识。
+    /// en: Gets the builtin provider identifier.
     /// </summary>
-    public AgentComponents PrepareAgent(AgentRole role, ResolvedProvider provider)
+    public string ProviderType => "builtin";
+
+    /// <summary>
+    /// zh-CN: 获取内置提供程序显示名称。
+    /// en: Gets the builtin provider display name.
+    /// </summary>
+    public string DisplayName => "内置标准";
+
+    /// <summary>
+    /// zh-CN: 创建内置 Staff 智能体实例。
+    /// en: Creates a builtin staff-agent instance.
+    /// </summary>
+    public async Task<IStaffAgent> CreateAgentAsync(AgentRole role, AgentContext context)
     {
-        RoleConfig config;
-
-        if (_roleConfigs.TryGetValue(role.RoleType, out var existingConfig))
-        {
-            config = existingConfig.Clone();
-            if (!string.IsNullOrEmpty(role.ModelName))
-                config.ModelName = role.ModelName;
-            if (!string.IsNullOrEmpty(role.SystemPrompt))
-                config.SystemPrompt = role.SystemPrompt;
-        }
-        else
-        {
-            config = BuildRoleConfigFromDb(role);
-        }
-
-        var account = provider.Account
-            ?? throw new InvalidOperationException("ProviderAccount is required for builtin agent");
-        if (string.IsNullOrEmpty(provider.ApiKey))
-            throw new InvalidOperationException("ApiKey is required for builtin agent");
-        var apiKey = provider.ApiKey;
-
-        var modelName = config.ModelName ?? role.ModelName ?? "gpt-4o";
-        var chatClient = _chatClientFactory.Create(account.ProtocolType, apiKey, modelName, baseUrl: provider.BaseUrl);
-
-        IList<AITool>? aiTools = null;
-        if (config.Tools.Count > 0)
-        {
-            var toolContext = new AgentContext { Role = role };
-            var agentTools = _toolRegistry.GetTools(config.Tools);
-            if (agentTools.Count > 0)
-                aiTools = AgentToolBridge.ToAITools(agentTools, toolContext);
-        }
-
-        return new AgentComponents(chatClient, config.Name, config.SystemPrompt, aiTools);
+        var components = await PrepareAgentAsync(role, context);
+        return components.Agent.AsStaffAgent(_serviceProvider);
     }
 
-    /// <summary>获取内置角色配置</summary>
-    public RoleConfig? GetRoleConfig(string roleType) =>
-        _roleConfigs.GetValueOrDefault(roleType);
+    /// <summary>
+    /// zh-CN: 创建带附加工具的内置智能体实例。
+    /// en: Creates a builtin agent instance with additional runtime tools.
+    /// </summary>
+    public async Task<IStaffAgent> CreateAgentAsync(
+        AgentRole role,
+        AgentContext context,
+        IList<AITool>? additionalTools)
+    {
+        var components = await PrepareAgentAsync(role, context, additionalTools);
+        return components.Agent.AsStaffAgent(_serviceProvider);
+    }
 
-    /// <summary>获取所有内置角色配置</summary>
-    public IReadOnlyDictionary<string, RoleConfig> RoleConfigs => _roleConfigs;
+    /// <summary>
+    /// zh-CN: 准备智能体、指令和工具等可复用组件。
+    /// en: Prepares the reusable agent, instructions, and tools required for execution.
+    /// </summary>
+    public async Task<AgentComponents> PrepareAgentAsync(
+        AgentRole role,
+        AgentContext context,
+        IList<AITool>? additionalTools = null)
+    {
+        // zh-CN: 运行时角色画像完全来自数据库实体；这里仅重建执行当前模型所需的轻量配置。
+        // en: The runtime execution profile comes entirely from the persisted role entity; this only reconstructs the lightweight config needed for execution.
+        var config = BuildRoleConfigFromDb(role);
+        var systemPrompt = await _agentPromptGenerator.PromptBuildAsync(role, context, CancellationToken.None);
 
-    /// <summary>获取提示词加载器</summary>
-    public IPromptLoader PromptLoader => _promptLoader;
+        var modelName = config.ModelName ?? role.ModelName ?? "gpt-4o";
+        if (!role.ModelProviderId.HasValue)
+            throw new InvalidOperationException($"Role '{role.Name}' must bind a provider account.");
 
+        var chatClient = await _chatClientFactory.CreateAsync(role.ModelProviderId.Value, modelName, CancellationToken.None);
+
+        List<AITool>? aiTools = null;
+        if (additionalTools is { Count: > 0 })
+        {
+            aiTools ??= [];
+            foreach (var tool in additionalTools)
+            {
+                // 这里的 additionalTools 主要就是运行时加载出来的 MCP 工具。
+                // 它们直接挂进 ChatOptions.Tools，因此后续可能出现在 toolCalls 里。
+                if (aiTools.Any(existing => string.Equals(existing.Name, tool.Name, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                aiTools.Add(tool);
+            }
+        }
+
+        // Skill 不会进 aiTools，而是走 AIContextProviders。
+        var contextProviders = AgentSkillContextProviderFactory.CreateProviders(context, _serviceProvider, _loggerFactory);
+        var options = new ChatClientAgentOptions
+        {
+            Name = config.Name,
+            Description = config.Description,
+            AIContextProviders = contextProviders.Count > 0 ? contextProviders : null
+        };
+
+        if (!string.IsNullOrWhiteSpace(systemPrompt))
+        {
+            options.ChatOptions ??= new();
+            options.ChatOptions.Instructions = systemPrompt;
+        }
+
+        if (aiTools is { Count: > 0 })
+        {
+            options.ChatOptions ??= new();
+            options.ChatOptions.Tools = aiTools;
+        }
+
+        AIAgent agent = chatClient.AsAIAgent(options, _loggerFactory, _serviceProvider);
+
+        return new AgentComponents(agent, config.Name, systemPrompt, aiTools);
+    }
+
+    /// <summary>
+    /// zh-CN: 从数据库角色实体重建一份轻量运行时配置，并在可选 JSON 配置失效时保留核心身份信息继续执行。
+    /// en: Reconstructs a lightweight runtime config from the persisted role entity and keeps the core identity usable even when optional JSON config can no longer be parsed.
+    /// </summary>
     private static RoleConfig BuildRoleConfigFromDb(AgentRole dbRole)
     {
         var config = new RoleConfig
         {
-            RoleType = dbRole.RoleType,
             Name = dbRole.Name,
             Description = dbRole.Description,
             IsBuiltin = false,
-            SystemPrompt = dbRole.SystemPrompt ?? string.Empty,
             ModelName = dbRole.ModelName,
         };
 
@@ -143,15 +163,12 @@ public class BuiltinAgentProvider : IAgentProvider
                     };
                 }
 
-                if (root.TryGetProperty("tools", out var tools) && tools.ValueKind == System.Text.Json.JsonValueKind.Array)
-                {
-                    config.Tools = tools.EnumerateArray()
-                        .Where(e => e.ValueKind == System.Text.Json.JsonValueKind.String)
-                        .Select(e => e.GetString()!)
-                        .ToList();
-                }
             }
-            catch { /* ignore parse errors */ }
+            catch
+            {
+                // zh-CN: 自定义角色配置允许渐进演化，解析失败时保留核心角色信息而不是阻断整个运行时创建。
+                // en: Custom role config evolves over time, so keep the core role definition even if optional config JSON can no longer be parsed.
+            }
         }
 
         return config;

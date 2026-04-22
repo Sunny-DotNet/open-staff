@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
+    <ProjectReference Include="..\OpenStaff.Agent.Builtin\OpenStaff.Agent.Builtin.csproj" />
+    <ProjectReference Include="..\OpenStaff.Agent.Services\OpenStaff.Agent.Services.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\..\application\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Domain\OpenStaff.Domain.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Events\OpenStaff.Events.csproj" />
+    <ProjectReference Include="..\..\infrastructure\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugin.GitHubCopilot\OpenStaff.Plugin.GitHubCopilot.csproj" />
+  </ItemGroup>
+</Project>

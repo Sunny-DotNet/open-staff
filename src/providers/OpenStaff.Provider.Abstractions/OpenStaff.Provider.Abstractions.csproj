@@ -1,12 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
-		<RootNamespace>OpenStaff.Provider</RootNamespace>
-	</PropertyGroup>
-	<ItemGroup>
-	  <ProjectReference Include="..\..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
-	</ItemGroup>
-
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Anthropic" />
+    <PackageReference Include="Google.GenAI" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="OpenAI" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\infrastructure\OpenStaff.Security\OpenStaff.Security.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
+  </ItemGroup>
 </Project>
