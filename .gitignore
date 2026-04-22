@@ -45,6 +45,10 @@ docker-compose.override.yml
 # Runtime generated directories (should be ignored)
 workspaces/
 runtime/
+!/src/agents/OpenStaff.Agent.Services/Agent/Runtime/
+!/src/agents/OpenStaff.Agent.Services/Agent/Runtime/**
+!/src/platform/OpenStaff.Agents/Runtime/
+!/src/platform/OpenStaff.Agents/Runtime/**
 
 # Logs
 *.log
