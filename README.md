@@ -1,8 +1,8 @@
 # OpenStaff
 
-OpenStaff is a multi-agent software delivery platform for turning a project idea into coordinated execution.
+**Language:** English | [简体中文](README.zh-CN.md)
 
-OpenStaff 是一个面向软件研发协作的多智能体平台，重点不是“单助手聊天”，而是把**项目、角色、能力、工作区和执行过程**组织成一个可持续推进的系统。
+OpenStaff is a multi-agent software delivery platform for turning a project idea into coordinated execution.
 
 ## What OpenStaff does
 
