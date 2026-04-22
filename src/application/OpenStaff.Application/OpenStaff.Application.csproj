@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Agents\OpenStaff.Agents.csproj" />
+    <ProjectReference Include="..\OpenStaff.Application.Contracts\OpenStaff.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Core\OpenStaff.Core.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Domain\OpenStaff.Domain.csproj" />
+    <ProjectReference Include="..\..\foundation\OpenStaff.Events\OpenStaff.Events.csproj" />
+    <ProjectReference Include="..\..\infrastructure\OpenStaff.Infrastructure\OpenStaff.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Mcp\OpenStaff.Mcp.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Mcp.BuiltinShell\OpenStaff.Mcp.BuiltinShell.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.Skills\OpenStaff.Skills.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.TalentMarket\OpenStaff.TalentMarket.csproj" />
+    <ProjectReference Include="..\..\agents\OpenStaff.Agent.Abstractions\OpenStaff.Agent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\agents\OpenStaff.Agent.Services\OpenStaff.Agent.Services.csproj" />
+    <ProjectReference Include="..\..\agents\OpenStaff.Agent.Services.Adapters\OpenStaff.Agent.Services.Adapters.csproj" />
+    <ProjectReference Include="..\..\agents\OpenStaff.Agent.Builtin\OpenStaff.Agent.Builtin.csproj" />
+    <ProjectReference Include="..\..\plugins\OpenStaff.Plugins.ModelDataSource\OpenStaff.Plugins.ModelDataSource.csproj" />
+    <ProjectReference Include="..\..\providers\OpenStaff.Provider.Abstractions\OpenStaff.Provider.Abstractions.csproj" />
+    <ProjectReference Include="..\..\marketplace\OpenStaff.Marketplace.Abstractions\OpenStaff.Marketplace.Abstractions.csproj" />
+    <ProjectReference Include="..\..\marketplace\OpenStaff.Marketplace.Internal\OpenStaff.Marketplace.Internal.csproj" />
+    <ProjectReference Include="..\..\marketplace\OpenStaff.Marketplace.Registry\OpenStaff.Marketplace.Registry.csproj" />
+    <ProjectReference Include="..\..\platform\OpenStaff.AgentSouls\OpenStaff.AgentSouls.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Riok.Mapperly" />
+    <PackageReference Include="System.Reactive" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\agents\monica.role.json">
+      <LogicalName>OpenStaff.Application.Seeding.Roles.monica.role.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>
