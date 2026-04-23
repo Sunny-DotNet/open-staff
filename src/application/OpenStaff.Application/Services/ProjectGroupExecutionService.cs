@@ -40,7 +40,7 @@ public sealed class ProjectGroupExecutionService
     /// 根据用户输入解析实际分发目标。
     /// Resolves the actual dispatch target from user input.
     /// </summary>
-    public async Task<ProjectGroupDispatchTarget> ResolveDispatchTargetAsync(
+    public Task<ProjectGroupDispatchTarget> ResolveDispatchTargetAsync(
         Guid projectId,
         string input,
         IReadOnlyList<ConversationMention>? mentions,
@@ -48,68 +48,16 @@ public sealed class ProjectGroupExecutionService
     {
         if (string.IsNullOrWhiteSpace(input))
         {
-            return BuildSecretaryTarget(input, input, false);
+            return Task.FromResult(BuildSecretaryTarget(input, input, false, dispatchSource: "project_group_user_input"));
         }
 
-        var projectAgents = mentions?.Count > 0
-            ? await GetProjectAgentsAsync(projectId, ct)
-            : null;
-        var structuredMention = mentions?.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.RawText));
-        if (structuredMention != null)
-        {
-            return ResolveStructuredMention(input, structuredMention, projectAgents ?? []);
-        }
-
-        var match = MentionRegex.Match(input);
-        if (!match.Success)
-        {
-            return BuildSecretaryTarget(input, input, false);
-        }
-
-        var mentionedTarget = match.Groups["target"].Value.Trim();
-        if (string.IsNullOrWhiteSpace(mentionedTarget))
-        {
-            return BuildSecretaryTarget(input, input, false);
-        }
-
-        if (string.Equals(mentionedTarget, "所有人", StringComparison.OrdinalIgnoreCase))
-        {
-            return BuildSecretaryTarget(input, input, true, mentionedTarget);
-        }
-
-        if (IsSecretaryMention(mentionedTarget))
-        {
-            return BuildSecretaryTarget(StripFirstMention(input, match), input, true, mentionedTarget);
-        }
-
-        // zh-CN: 显式 @ 某个成员时，只接受当前项目已经分配的智能体，避免把未加入成员的指令带入执行链路。
-        // en: Explicit mentions only resolve to agents already assigned to the project so execution never targets unavailable members.
-        projectAgents ??= await GetProjectAgentsAsync(projectId, ct);
-
-        var matchedAgent = projectAgents.FirstOrDefault(agent => MatchesAgent(agent, mentionedTarget));
-        if (matchedAgent == null)
-        {
-            return BuildSecretaryTarget(
-                input,
-                input,
-                true,
-                mentionedTarget,
-                $"当前项目未分配名为 {mentionedTarget} 的智能体，请先在项目设置中添加。");
-        }
-
-        var purpose = StripFirstMention(input, match);
-        if (string.IsNullOrWhiteSpace(purpose))
-        {
-            purpose = input;
-        }
-
-        return new ProjectGroupDispatchTarget(
-            GetTargetRole(matchedAgent.AgentRole!),
-            purpose,
+        var mentionedTarget = TryResolveMentionTarget(input, mentions);
+        return Task.FromResult(BuildSecretaryTarget(
             input,
-            true,
-            matchedAgent.Id,
-            mentionedTarget);
+            input,
+            !string.IsNullOrWhiteSpace(mentionedTarget),
+            mentionedTarget,
+            dispatchSource: "project_group_user_input"));
     }
 
     public Task<ProjectGroupDispatchTarget> ResolveDispatchTargetAsync(Guid projectId, string input, CancellationToken ct)
@@ -132,6 +80,17 @@ public sealed class ProjectGroupExecutionService
 
         dispatches = envelope.Dispatches;
         return true;
+    }
+
+    /// <summary>
+    /// 解析隐藏项目模型的统一结构化结果。
+    /// Extracts the unified structured result emitted by the hidden project orchestrator.
+    /// </summary>
+    public bool TryExtractOrchestratorResult(
+        string? content,
+        out ProjectGroupOrchestratorResult? result)
+    {
+        return ProjectGroupOrchestratorContract.TryParse(content, out result);
     }
 
     /// <summary>
@@ -329,6 +288,7 @@ public sealed class ProjectGroupExecutionService
                     Source = target.DispatchSource,
                     MentionedProjectAgentRoleId = target.ProjectAgentRoleId,
                     TargetProjectAgentRoleId = target.ProjectAgentRoleId,
+                    TargetRoleName = target.TargetRole,
                     LastStatus = TaskItemStatus.Pending
                 })
             };
@@ -668,100 +628,26 @@ public sealed class ProjectGroupExecutionService
             ? AgentJobTitleCatalog.NormalizeKey(role.JobTitle) ?? role.JobTitle
             : role.Name;
 
-    private static ProjectGroupDispatchTarget ResolveStructuredMention(
-        string input,
-        ConversationMention mention,
-        IReadOnlyList<ProjectAgentRole> projectAgents)
-    {
-        var mentionedTarget = mention.RawText.Trim().TrimStart('@').Trim();
-        if (string.IsNullOrWhiteSpace(mentionedTarget))
-        {
-            return BuildSecretaryTarget(input, input, false);
-        }
-
-        if (IsBroadcastTarget(mention.BuiltinRole) || IsBroadcastTarget(mentionedTarget))
-        {
-            return BuildSecretaryTarget(input, input, true, mentionedTarget);
-        }
-
-        if (IsSecretaryMentionValue(mention.BuiltinRole) || IsSecretaryMention(mentionedTarget))
-        {
-            return BuildSecretaryTarget(
-                StripStructuredMention(input, mention.RawText),
-                input,
-                true,
-                mentionedTarget);
-        }
-
-        ProjectAgentRole? matchedAgent = null;
-        if (mention.ProjectAgentRoleId.HasValue)
-        {
-            matchedAgent = projectAgents.FirstOrDefault(agent => agent.Id == mention.ProjectAgentRoleId.Value && agent.AgentRole != null);
-            if (matchedAgent == null)
-            {
-                return BuildSecretaryTarget(
-                    input,
-                    input,
-                    true,
-                    mentionedTarget,
-                    $"当前项目未分配名为 {mentionedTarget} 的智能体，请先在项目设置中添加。");
-            }
-        }
-        else
-        {
-            matchedAgent = projectAgents.FirstOrDefault(agent => MatchesAgent(agent, mentionedTarget));
-            if (matchedAgent == null)
-            {
-                return BuildSecretaryTarget(
-                    input,
-                    input,
-                    true,
-                    mentionedTarget,
-                    $"当前项目未分配名为 {mentionedTarget} 的智能体，请先在项目设置中添加。");
-            }
-        }
-
-        var purpose = StripStructuredMention(input, mention.RawText);
-        if (string.IsNullOrWhiteSpace(purpose))
-        {
-            purpose = input;
-        }
-
-        return new ProjectGroupDispatchTarget(
-            GetTargetRole(matchedAgent.AgentRole!),
-            purpose,
-            input,
-            true,
-            matchedAgent.Id,
-            mentionedTarget);
-    }
-
     private static ProjectGroupDispatchTarget BuildSecretaryTarget(
         string purpose,
         string userMessageContent,
         bool hasExplicitMention,
         string? mentionedTarget = null,
-        string? unresolvedMessage = null)
+        string? unresolvedMessage = null,
+        string dispatchSource = "project_group_mention")
         => new(
             BuiltinRoleTypes.Secretary,
             purpose,
             userMessageContent,
             hasExplicitMention,
             MentionedTarget: mentionedTarget,
-            UnresolvedMessage: unresolvedMessage);
+            UnresolvedMessage: unresolvedMessage,
+            DispatchSource: dispatchSource);
 
     /// <summary>
     /// 识别应回退到秘书路由的秘书别名提及。
     /// Recognizes secretary aliases that should route the message back through the secretary workflow.
     /// </summary>
-    private static bool IsSecretaryMention(string mentionedTarget) =>
-        string.Equals(mentionedTarget, BuiltinRoleTypes.Secretary, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(mentionedTarget, "secretary", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(mentionedTarget, "秘书", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsSecretaryMentionValue(string? mentionedTarget)
-        => !string.IsNullOrWhiteSpace(mentionedTarget) && IsSecretaryMention(mentionedTarget);
-
     /// <summary>
     /// 识别广播目标标记，以便分发逻辑进入面向全部项目成员的分支。
     /// Detects broadcast target markers so dispatch can fan out to every project agent.
@@ -770,18 +656,6 @@ public sealed class ProjectGroupExecutionService
         string.Equals(targetRole, "所有人", StringComparison.OrdinalIgnoreCase)
         || string.Equals(targetRole, "all", StringComparison.OrdinalIgnoreCase)
         || string.Equals(targetRole, "@all", StringComparison.OrdinalIgnoreCase);
-
-    private static string StripStructuredMention(string input, string rawText)
-    {
-        if (string.IsNullOrWhiteSpace(input) || string.IsNullOrWhiteSpace(rawText))
-            return input.Trim();
-
-        var index = input.IndexOf(rawText, StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
-            return input.Trim();
-
-        return string.Concat(input.AsSpan(0, index), input.AsSpan(index + rawText.Length)).Trim();
-    }
 
     private static string ToBroadcastDispatchSource(string dispatchSource)
     {
@@ -825,14 +699,25 @@ public sealed class ProjectGroupExecutionService
             services.GetRequiredService<IRepositoryContext>());
     }
 
-    /// <summary>
-    /// 移除首个 @ 提及并在剩余文本为空时回退到原始输入，避免执行目的被意外清空。
-    /// Removes the first @ mention and falls back to the original input when the remainder would be empty.
-    /// </summary>
-    private static string StripFirstMention(string input, Match match)
+    private static string? TryResolveMentionTarget(
+        string input,
+        IReadOnlyList<ConversationMention>? mentions)
     {
-        var cleaned = input.Remove(match.Index, match.Length).Trim();
-        return string.IsNullOrWhiteSpace(cleaned) ? input : cleaned;
+        var structuredMention = mentions?.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.RawText));
+        if (structuredMention != null)
+        {
+            var structuredTarget = structuredMention.RawText.Trim().TrimStart('@').Trim();
+            return string.IsNullOrWhiteSpace(structuredTarget) ? null : structuredTarget;
+        }
+
+        var match = MentionRegex.Match(input);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var mentionedTarget = match.Groups["target"].Value.Trim();
+        return string.IsNullOrWhiteSpace(mentionedTarget) ? null : mentionedTarget;
     }
 
     /// <summary>
@@ -1000,6 +885,7 @@ public sealed class ProjectGroupExecutionService
         ProjectAgentRole projectAgent,
         TaskItem task)
     {
+        var metadata = TaskItemRuntimeMetadata.TryParse(task.Metadata);
         return new ProjectGroupExecutionLease(
             projectId,
             sessionId,
@@ -1007,7 +893,8 @@ public sealed class ProjectGroupExecutionService
             task.Id,
             projectAgent.Id,
             GetTargetRole(projectAgent.AgentRole!),
-            task.Title);
+            task.Title,
+            metadata?.Source ?? "project_group_mention");
     }
 
     /// <summary>
@@ -1153,7 +1040,8 @@ public sealed record ProjectGroupExecutionLease(
     Guid TaskId,
     Guid ProjectAgentRoleId,
     string TargetRole,
-    string TaskTitle);
+    string TaskTitle,
+    string DispatchSource);
 
 /// <summary>
 /// 任务完成后的续执行决策。

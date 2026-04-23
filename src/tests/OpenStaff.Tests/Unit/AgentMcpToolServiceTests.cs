@@ -9,8 +9,8 @@ public sealed class AgentMcpToolServiceTests
     {
         var filter = AgentMcpToolService.ParseToolFilter("""["cmd","read_file"]""");
 
-        Assert.Contains("shell.exec", filter);
-        Assert.Contains("shell.system_info", filter);
+        Assert.Contains("shell_exec", filter);
+        Assert.Contains("shell_system_info", filter);
         Assert.Contains("read_file", filter);
         Assert.DoesNotContain("cmd", filter);
     }
@@ -20,7 +20,7 @@ public sealed class AgentMcpToolServiceTests
     {
         var filter = AgentMcpToolService.ParseToolFilter("""["shell.exec"]""");
 
-        Assert.Contains("shell.exec", filter);
-        Assert.Contains("shell.system_info", filter);
+        Assert.Contains("shell_exec", filter);
+        Assert.Contains("shell_system_info", filter);
     }
 }

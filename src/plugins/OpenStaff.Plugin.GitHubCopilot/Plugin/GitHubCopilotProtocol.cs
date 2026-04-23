@@ -117,7 +117,13 @@ internal class GitHubCopilotProtocol(
             }
 
             if (modelProtocols > ModelProtocolType.None)
-                models.Add(new ModelInfo(id, vendor ?? "github-copilot", modelProtocols));
+            {
+                models.Add(new ModelInfo(
+                    id,
+                    vendor ?? "github-copilot",
+                    modelProtocols,
+                    item.Capabilities.Supports?.StructuredOutputs));
+            }
         }
 
         Logger.LogInformation("获取到 {Count} 个 Copilot 模型", models.Count);

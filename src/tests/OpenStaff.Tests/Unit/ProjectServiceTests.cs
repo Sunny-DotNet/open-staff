@@ -19,6 +19,72 @@ namespace OpenStaff.Tests.Unit;
 public class ProjectServiceTests
 {
     /// <summary>
+    /// zh-CN: 验证创建项目时如果选择了默认 Provider 但没选模型，会被后端直接拒绝，避免无效默认模型配置写入数据库。
+    /// en: Verifies that project creation is rejected server-side when a default provider is selected without a model, preventing invalid default model settings from being persisted.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_ThrowsWhenProviderIsSelectedWithoutModel()
+    {
+        using var context = new TestContext();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            context.Service.CreateAsync(new CreateProjectRequest
+            {
+                Name = "Missing Model",
+                Language = "zh-CN",
+                DefaultProviderId = Guid.NewGuid()
+            }, CancellationToken.None));
+
+        Assert.Contains("必须同时选择默认模型", ex.Message);
+    }
+
+    /// <summary>
+    /// zh-CN: 验证更新项目时可以显式清空默认 Provider / Model，确保项目设置页保存“取消默认模型”后数据会真正落库。
+    /// en: Verifies that project updates can explicitly clear the default provider/model so removing the defaults in project settings is persisted.
+    /// </summary>
+    [Fact]
+    public async Task UpdateAsync_ClearsDefaultProviderAndModelWhenExplicitlyNull()
+    {
+        using var context = new TestContext();
+        var project = await context.AddProjectAsync("Clear Defaults", ProjectPhases.Brainstorming);
+        project.DefaultProviderId = Guid.NewGuid();
+        project.DefaultModelName = "gpt-4.1";
+        await context.Db.SaveChangesAsync();
+
+        var updated = await context.Service.UpdateAsync(project.Id, new UpdateProjectRequest
+        {
+            DefaultProviderId = null,
+            DefaultModelName = null
+        }, CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Null(updated!.DefaultProviderId);
+        Assert.Null(updated.DefaultModelName);
+    }
+
+    /// <summary>
+    /// zh-CN: 验证更新项目时如果选了默认 Provider 却没有模型，会返回明确异常，防止绕过前端校验写入不完整配置。
+    /// en: Verifies that project updates fail with a clear error when a default provider is supplied without a model, so incomplete settings cannot bypass frontend validation.
+    /// </summary>
+    [Fact]
+    public async Task UpdateAsync_ThrowsWhenProviderIsSelectedWithoutModel()
+    {
+        using var context = new TestContext();
+        var project = await context.AddProjectAsync("Update Missing Model", ProjectPhases.Brainstorming);
+        project.Language = "en-US";
+        await context.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            context.Service.UpdateAsync(project.Id, new UpdateProjectRequest
+            {
+                DefaultProviderId = Guid.NewGuid(),
+                DefaultModelName = null
+            }, CancellationToken.None));
+
+        Assert.Contains("default model is required", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// zh-CN: 验证头脑风暴状态应用会同时更新展示文案、README 内容和项目阶段，覆盖结构化响应的核心落库路径。
     /// en: Verifies that applying brainstorm state updates the display text, README content, and project phase together, covering the main persistence path for structured responses.
     /// </summary>
@@ -59,6 +125,14 @@ public class ProjectServiceTests
         using var context = new TestContext();
         var project = await context.AddProjectAsync("Brainstorm Init", ProjectPhases.Brainstorming);
         project.Status = ProjectStatus.Initializing;
+        context.Db.AgentRoles.Add(new AgentRole
+        {
+            Name = "Monica",
+            JobTitle = BuiltinRoleTypes.Secretary,
+            Source = AgentSource.Builtin,
+            IsBuiltin = true,
+            IsActive = true
+        });
         await context.Db.SaveChangesAsync();
 
         await context.Service.InitializeAsync(project.Id, CancellationToken.None);
@@ -112,8 +186,40 @@ public class ProjectServiceTests
         Assert.Equal(FrameStatus.Completed, frame.Status);
         Assert.Equal(MessageRoles.Assistant, message.Role);
         Assert.Equal(secretaryRole.Id, message.AgentRoleId);
-        Assert.Null(message.ProjectAgentRoleId);
+        Assert.NotNull(message.ProjectAgentRoleId);
         Assert.Contains("头脑风暴已经开始了", message.Content);
+    }
+
+    /// <summary>
+    /// zh-CN: 验证初始化项目时会自动把秘书加入项目成员，避免项目详情页出现“无人入组”的空状态。
+    /// en: Verifies that project initialization automatically adds the secretary to the project membership so the project does not start with an empty member list.
+    /// </summary>
+    [Fact]
+    public async Task InitializeAsync_AutoAddsSecretaryToProjectMembers()
+    {
+        using var context = new TestContext();
+        var project = await context.AddProjectAsync("Brainstorm Members", ProjectPhases.Brainstorming);
+        project.Status = ProjectStatus.Initializing;
+        var secretaryRole = new AgentRole
+        {
+            Name = "Monica",
+            JobTitle = BuiltinRoleTypes.Secretary,
+            Source = AgentSource.Builtin,
+            IsBuiltin = true,
+            IsActive = true
+        };
+        context.Db.AgentRoles.Add(secretaryRole);
+        await context.Db.SaveChangesAsync();
+
+        await context.Service.InitializeAsync(project.Id, CancellationToken.None);
+
+        var projectAgents = await context.Db.ProjectAgentRoles
+            .AsNoTracking()
+            .Where(item => item.ProjectId == project.Id)
+            .ToListAsync();
+
+        var projectAgent = Assert.Single(projectAgents);
+        Assert.Equal(secretaryRole.Id, projectAgent.AgentRoleId);
     }
 
     /// <summary>
@@ -126,6 +232,14 @@ public class ProjectServiceTests
         using var context = new TestContext();
         var project = await context.AddProjectAsync("Brainstorm Existing", ProjectPhases.Brainstorming);
         project.Status = ProjectStatus.Initializing;
+        context.Db.AgentRoles.Add(new AgentRole
+        {
+            Name = "Monica",
+            JobTitle = BuiltinRoleTypes.Secretary,
+            Source = AgentSource.Builtin,
+            IsBuiltin = true,
+            IsActive = true
+        });
         var session = new ChatSession
         {
             ProjectId = project.Id,
@@ -185,6 +299,22 @@ public class ProjectServiceTests
     {
         using var context = new TestContext();
         var project = await context.AddProjectAsync("Start Project", ProjectPhases.ReadyToStart);
+        var secretaryRole = new AgentRole
+        {
+            Name = "Monica",
+            JobTitle = BuiltinRoleTypes.Secretary,
+            Source = AgentSource.Builtin,
+            IsBuiltin = true,
+            IsActive = true
+        };
+        var producerRole = new AgentRole
+        {
+            Name = "Ada",
+            JobTitle = "producer",
+            Source = AgentSource.Custom,
+            IsActive = true
+        };
+        context.Db.AgentRoles.AddRange(secretaryRole, producerRole);
 
         context.Db.ChatSessions.AddRange(
             new ChatSession
@@ -201,6 +331,11 @@ public class ProjectServiceTests
                 Status = SessionStatus.AwaitingInput,
                 InitialInput = "brainstorm-awaiting"
             });
+        context.Db.ProjectAgentRoles.Add(new ProjectAgentRole
+        {
+            ProjectId = project.Id,
+            AgentRoleId = producerRole.Id
+        });
         await context.Db.SaveChangesAsync();
 
         var startedProject = await context.Service.StartAsync(project.Id, CancellationToken.None);
@@ -225,6 +360,32 @@ public class ProjectServiceTests
         Assert.Equal(SessionStatus.Active, groupSession.Status);
         Assert.Equal(ContextStrategies.Hybrid, groupSession.ContextStrategy);
         Assert.Equal("项目已启动，项目群聊已创建。", groupSession.InitialInput);
+    }
+
+    /// <summary>
+    /// zh-CN: 验证启动项目时如果只有秘书而没有其他成员，会抛出明确异常，避免项目在无人执行的状态下进入运行阶段。
+    /// en: Verifies that starting a project fails with a clear exception when the secretary is the only member, preventing a running project with no actual team members.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_ThrowsWhenOnlySecretaryIsAssigned()
+    {
+        using var context = new TestContext();
+        var project = await context.AddProjectAsync("Secretary Only", ProjectPhases.ReadyToStart);
+        var secretaryRole = new AgentRole
+        {
+            Name = "Monica",
+            JobTitle = BuiltinRoleTypes.Secretary,
+            Source = AgentSource.Builtin,
+            IsBuiltin = true,
+            IsActive = true
+        };
+        context.Db.AgentRoles.Add(secretaryRole);
+        await context.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            context.Service.StartAsync(project.Id, CancellationToken.None));
+
+        Assert.Contains("至少一名项目成员", ex.Message);
     }
 
     /// <summary>
@@ -321,6 +482,34 @@ public class ProjectServiceTests
         Assert.Equal(2, projectAgents.Count);
         Assert.Contains(secretaryRole.Id, projectAgents);
         Assert.Contains(producerRole.Id, projectAgents);
+    }
+
+    /// <summary>
+    /// zh-CN: 验证读取历史项目成员时会自动修复缺失的秘书成员，避免旧项目页面加载后仍然没有默认协调角色。
+    /// en: Verifies that reading project members repairs missing secretary membership so legacy projects regain their default coordinator automatically.
+    /// </summary>
+    [Fact]
+    public async Task GetProjectAgentsAsync_AutoRepairsMissingSecretaryMembership()
+    {
+        using var context = new TestContext();
+        var project = await context.AddProjectAsync("Legacy Project", ProjectPhases.Running);
+        var secretaryRole = new AgentRole
+        {
+            Name = "Monica",
+            JobTitle = BuiltinRoleTypes.Secretary,
+            Source = AgentSource.Builtin,
+            IsBuiltin = true,
+            IsActive = true
+        };
+        context.Db.AgentRoles.Add(secretaryRole);
+        await context.Db.SaveChangesAsync();
+
+        var projectAgents = await context.Service.GetProjectAgentsAsync(project.Id, CancellationToken.None);
+
+        var projectAgent = Assert.Single(projectAgents);
+        Assert.Equal(secretaryRole.Id, projectAgent.AgentRoleId);
+        Assert.NotNull(projectAgent.AgentRole);
+        Assert.Equal(secretaryRole.Id, projectAgent.AgentRole!.Id);
     }
 
     /// <summary>

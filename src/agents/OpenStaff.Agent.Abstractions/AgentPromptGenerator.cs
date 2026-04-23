@@ -276,7 +276,9 @@ internal class AgentPromptGenerator : IAgentPromptGenerator
                 break;
             case SceneType.ProjectGroup:
                 builder.AppendLine("\tYou are in the project team group chat.");
-                builder.AppendLine("\tThis chat is for project execution. The user may assign work by mentioning you directly; otherwise the secretary usually receives the task first.");
+                builder.AppendLine("\tThis chat is for project execution.");
+                builder.AppendLine("\tAll new group inputs are first handled by the hidden project orchestrator.");
+                builder.AppendLine("\tThe user is chatting naturally in a multi-person project group, not issuing commands to a visible orchestrator.");
                 builder.AppendLine("\tFocus your reply on the current assignment and give a clear outcome, next step, or blocker.");
                 builder.AppendLine("\tIf the task is complete, report the deliverable directly. If it is blocked or incomplete, say so explicitly and do not pretend it is done.");
                 builder.AppendLine("\tOnly the concise result belongs in the group chat. Execution details are tracked separately by the system.");
@@ -284,23 +286,31 @@ internal class AgentPromptGenerator : IAgentPromptGenerator
                 AppendProjectGroupRoutingContext(builder, agentContext);
                 if (IsSecretaryRole(agentContext.Role))
                 {
-                    builder.AppendLine("\tYou are acting as the dispatching secretary for the project group chat.");
-                    builder.AppendLine("\tWhen the user does not explicitly mention a member, reply in natural language first.");
-                    builder.AppendLine("\tAppend a structured dispatch block only when follow-up execution should be assigned to a project member.");
-                    AppendProjectDispatchContract(builder);
+                    var outputMode = GetProjectGroupOrchestratorOutputMode(agentContext);
+                    builder.AppendLine("\tYou are the hidden project orchestrator.");
+                    builder.AppendLine("\tThink globally for the whole project: planning, TODOs, dispatch, priorities, blockers, and capability decisions all belong to you.");
+                    builder.AppendLine("\tDo not default to a secretary reply.");
+                    builder.AppendLine("\tFirst decide who should speak in the visible group chat: a member, the secretary, multiple members, or nobody before dispatch.");
+                    builder.AppendLine("\tWhen a member should reply or act, prefer dispatching directly and omit any secretary preface.");
+                    builder.AppendLine("\tWhen the user already names one or more members and asks them to reply, answer, confirm, or say specific words in the group, treat that as a direct request for those members to speak next.");
+                    builder.AppendLine("\tIn that case, prefer a dispatch-only response so the named members reply in their own voice. Do not summarize or paraphrase their requested replies as the secretary.");
+                    builder.AppendLine("\tOnly reply visibly as the secretary when the user explicitly addresses the secretary, when the topic is project-level coordination/management, or when no single member should represent the answer.");
+                    builder.AppendLine("\tThe only valid output contract has these fields: replyMode, secretaryReply, dispatches[].targetRole, dispatches[].task.");
+                    builder.AppendLine("\treplyMode must be one of: secretary_reply, dispatch_only, secretary_reply_and_dispatch.");
+                    builder.AppendLine("\tUse secretaryReply only when the visible group chat should see a secretary message.");
+                    builder.AppendLine("\tUse dispatches only when follow-up execution should be assigned to project members.");
+                    AppendProjectOrchestratorContract(builder, outputMode);
                     builder.AppendLine("\tOnly dispatch to members that are already assigned to this project. Do not invent role names.");
                     builder.AppendLine("\ttask must be the final task instruction for the target agent, not a note, summary, or simulated UI chat format.");
                 }
                 else
                 {
-                    builder.AppendLine("\tIf you have finished your current stage and another member must continue, send a short natural-language handoff first.");
-                    builder.AppendLine("\tAppend a structured dispatch block only when a real handoff is needed. If you should continue the work yourself, do not emit it.");
-                    AppendProjectDispatchContract(builder);
-                    builder.AppendLine("\tOnly dispatch to members that are already assigned to this project. Do not invent role names.");
-                    builder.AppendLine("\ttask must be the final task instruction for the target agent, not a note, summary, or simulated UI chat format.");
+                    builder.AppendLine("\tYou are an execution member, not the global coordinator.");
+                    builder.AppendLine("\tDo not directly dispatch work to other members.");
+                    builder.AppendLine("\tIf more cross-role collaboration is needed, report your progress or blocker in one short natural-language sentence so the hidden project orchestrator can re-plan.");
                     builder.AppendLine("\tIf you are blocked because you lack required tools, MCP connections, or permissions, explain the blocker in one short natural-language sentence first.");
                     AppendCapabilityRequestContract(builder);
-                    builder.AppendLine("\tDo not emit both a dispatch block and a capability-request block in the same reply. Choose the single block that best matches the real execution state.");
+                    builder.AppendLine("\tDo not emit a dispatch block. Only use the capability-request block when missing capability is the real blocker.");
                 }
                 break;
             case SceneType.Private:
@@ -362,13 +372,22 @@ internal class AgentPromptGenerator : IAgentPromptGenerator
         }
     }
 
-    private static void AppendProjectDispatchContract(StringBuilder builder)
+    private static void AppendProjectOrchestratorContract(StringBuilder builder, string outputMode)
     {
-        builder.AppendLine("\tUse exactly the following dispatch block format when you need to hand work to another member:");
-        builder.AppendLine("\t<openstaff_project_dispatch>");
-        builder.AppendLine("\t{\"dispatches\":[{\"targetRole\":\"producer\",\"task\":\"The final task instruction for the target agent\"}]}");
-        builder.AppendLine("\t</openstaff_project_dispatch>");
-        builder.AppendLine("\tDo not output JSON outside the structured dispatch block.");
+        if (string.Equals(outputMode, ProjectGroupOrchestratorContract.NativeJsonSchemaOutputMode, StringComparison.Ordinal))
+        {
+            builder.AppendLine("\tThe runtime enforces a native JSON Schema response.");
+            builder.AppendLine("\tOutput only the JSON object. Do not wrap it in markdown, code fences, XML tags, or any extra text.");
+            builder.AppendLine("\tExample shape: {\"replyMode\":\"dispatch_only\",\"dispatches\":[{\"targetRole\":\"producer\",\"task\":\"The final task instruction for the target agent\"}]}");
+            return;
+        }
+
+        builder.AppendLine("\tThe current provider does not guarantee native structured outputs.");
+        builder.AppendLine("\tOutput exactly one tagged JSON block and nothing else:");
+        builder.AppendLine($"\t<{ProjectGroupOrchestratorContract.EnvelopeTag}>");
+        builder.AppendLine("\t{\"replyMode\":\"dispatch_only\",\"dispatches\":[{\"targetRole\":\"producer\",\"task\":\"The final task instruction for the target agent\"}]}");
+        builder.AppendLine($"\t</{ProjectGroupOrchestratorContract.EnvelopeTag}>");
+        builder.AppendLine("\tDo not output extra text before or after the tagged JSON block.");
     }
 
     private static void AppendCapabilityRequestContract(StringBuilder builder)
@@ -385,6 +404,17 @@ internal class AgentPromptGenerator : IAgentPromptGenerator
         return agentContext.ExtraConfig.TryGetValue(key, out var value)
             ? value?.ToString()
             : null;
+    }
+
+    private static string GetProjectGroupOrchestratorOutputMode(AgentContext agentContext)
+    {
+        var configuredMode = GetExtraConfigValue(agentContext, ProjectGroupOrchestratorContract.OutputModeExtraConfigKey);
+        return string.Equals(
+                configuredMode,
+                ProjectGroupOrchestratorContract.NativeJsonSchemaOutputMode,
+                StringComparison.Ordinal)
+            ? ProjectGroupOrchestratorContract.NativeJsonSchemaOutputMode
+            : ProjectGroupOrchestratorContract.TaggedJsonFallbackOutputMode;
     }
 
     private static bool IsSecretaryRole(AgentRole role)

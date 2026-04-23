@@ -31,6 +31,11 @@ export interface SessionConversationApplyResult {
   handled: boolean;
 }
 
+const INTERNAL_ASSISTANT_BLOCK_PATTERNS = [
+  /<openstaff_project_dispatch>[\s\S]*?<\/openstaff_project_dispatch>/giu,
+  /<openstaff_capability_request>[\s\S]*?<\/openstaff_capability_request>/giu,
+];
+
 export function createSessionConversationState(): SessionConversationState {
   return {
     pendingAssistantId: null,
@@ -39,6 +44,19 @@ export function createSessionConversationState(): SessionConversationState {
 
 export function createLocalConversationMessageId(prefix: string): string {
   return `local-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function sanitizeSessionConversationAssistantContent(content: null | string | undefined): string {
+  if (!content) {
+    return '';
+  }
+
+  const sanitized = INTERNAL_ASSISTANT_BLOCK_PATTERNS
+    .reduce((current, pattern) => current.replace(pattern, ''), content)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return sanitized;
 }
 
 export function shouldStreamSessionConversation(
@@ -231,30 +249,41 @@ export function applySessionConversationEvent(
         nextSteps = mergeToolCallSteps(nextSteps, finalizedToolCalls);
       }
 
-      messages.splice(
-        pendingIndex,
-        1,
-        withAssistantStepState(current, nextSteps, {
-          content: asString(payload.content) ?? current.content,
-          thinking: asString(payload.thinking) ?? current.thinking,
-          model: asString(payload.model) ?? current.model,
-          streaming: false,
-          thinkingStreaming: false,
-          timing: normalizeTiming(payload.timing) ?? current.timing,
-          usage: normalizeUsage(payload.usage) ?? current.usage,
-        }),
-      );
+      const finalizedMessage = withAssistantStepState(current, nextSteps, {
+        content: sanitizeSessionConversationAssistantContent(asString(payload.content) ?? current.content),
+        thinking: asString(payload.thinking) ?? current.thinking,
+        model: asString(payload.model) ?? current.model,
+        streaming: false,
+        thinkingStreaming: false,
+        timing: normalizeTiming(payload.timing) ?? current.timing,
+        usage: normalizeUsage(payload.usage) ?? current.usage,
+      });
+      if (!shouldKeepSessionConversationMessage(finalizedMessage)) {
+        messages.splice(pendingIndex, 1);
+        state.pendingAssistantId = null;
+        return { handled: true, clearSending: true };
+      }
+
+      messages.splice(pendingIndex, 1, finalizedMessage);
       return { handled: true };
     }
     case 'message': {
-      const finalContent = asString(payload.content) ?? '';
+      const finalContent = sanitizeSessionConversationAssistantContent(asString(payload.content) ?? '');
       const finalMessageId =
         eventMessageId ?? createLocalConversationMessageId('assistant-final');
       const pendingIndex = findPendingAssistantIndex(messages, state);
 
       if (pendingIndex >= 0) {
         const current = messages[pendingIndex]!;
-        const resolvedContent = finalContent || current.content || '（无响应）';
+        const resolvedContent = finalContent
+          || sanitizeSessionConversationAssistantContent(current.content)
+          || '';
+        if (!resolvedContent) {
+          messages.splice(pendingIndex, 1);
+          state.pendingAssistantId = null;
+          return { handled: true, clearSending: true };
+        }
+
         const nextSteps = reconcileFinalResponseSteps(
           current.steps,
           resolvedContent,
@@ -283,6 +312,10 @@ export function applySessionConversationEvent(
           ),
         );
         state.pendingAssistantId = null;
+        return { handled: true, clearSending: true };
+      }
+
+      if (!finalContent) {
         return { handled: true, clearSending: true };
       }
 
@@ -399,6 +432,34 @@ export function reconcileUserMessage(
     content,
     timestamp,
     parentMessageId,
+  });
+}
+
+export function shouldKeepSessionConversationMessage(
+  message: SessionConversationMessage,
+): boolean {
+  if (message.role === 'user') {
+    return !!message.content.trim() || !!message.streaming || !!message.thinkingStreaming;
+  }
+
+  if (message.streaming || message.thinkingStreaming) {
+    return true;
+  }
+
+  if (sanitizeSessionConversationAssistantContent(message.content)) {
+    return true;
+  }
+
+  return (message.steps ?? []).some((step) => {
+    if (isResponseStep(step)) {
+      return !!sanitizeSessionConversationAssistantContent(step.content);
+    }
+
+    if (isThinkingStep(step)) {
+      return !!step.streaming && !!step.content.trim();
+    }
+
+    return step.status === 'error' && !!(step.error?.trim() || step.result?.trim());
   });
 }
 
@@ -547,19 +608,22 @@ function appendResponseTokenToMessage(
   const lastStep = nextSteps[nextSteps.length - 1];
   const appendToExisting =
     lastStep != null && isResponseStep(lastStep) && !!lastStep.streaming;
+  const nextResponseContent = sanitizeSessionConversationAssistantContent(
+    appendToExisting ? `${lastStep.content}${token}` : token,
+  );
 
   if (appendToExisting) {
     nextSteps.splice(nextSteps.length - 1, 1, {
       ...lastStep,
-      content: `${lastStep.content}${token}`,
+      content: nextResponseContent,
       streaming: true,
     });
   } else {
-    nextSteps.push(createResponseStep(token, true));
+    nextSteps.push(createResponseStep(nextResponseContent, true));
   }
 
   return withAssistantStepState(message, nextSteps, {
-    content: `${message.content ?? ''}${token}`,
+    content: sanitizeSessionConversationAssistantContent(`${message.content ?? ''}${token}`),
     streaming: true,
     thinkingStreaming: false,
   });

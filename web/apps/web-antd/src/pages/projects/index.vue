@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { AnalysisOverviewItem } from '@vben/common-ui';
-import type { ProjectDto } from '@openstaff/api';
+import type { AgentDto, ProjectDto } from '@openstaff/api';
 
 import { AnalysisOverview, Page } from '@vben/common-ui';
 import { useMutation, useQuery } from '@tanstack/vue-query';
 import {
   deleteApiProjectsById,
   getApiProjects,
+  getApiProjectsByProjectIdAgents,
   getApiProviderAccounts,
   postApiProjectsByIdExport,
   postApiProjectsByIdInitialize,
@@ -240,6 +241,16 @@ async function startProject(project: ProjectDto) {
   }
 
   try {
+    const projectAgents = unwrapClientEnvelope(
+      await getApiProjectsByProjectIdAgents({
+        path: { projectId: project.id },
+      }),
+    ) as AgentDto[];
+    if (projectAgents.length <= 1) {
+      message.error(t('project.validationStartMembers'));
+      return;
+    }
+
     await startProjectMutation.mutateAsync(project.id);
   } catch (error) {
     message.error(getErrorMessage(error, t('project.actionFailed')));

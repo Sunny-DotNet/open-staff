@@ -3,6 +3,7 @@ import type { AnalysisOverviewItem } from '@vben/common-ui';
 import type {
   AgentDto,
   AgentRoleDto,
+  ProviderModelDto,
   ProjectAgentMcpBindingDto,
   ProjectAgentMcpBindingInput,
   ProjectDto,
@@ -20,6 +21,7 @@ import {
   getApiMonitorProjectsByProjectIdStats,
   getApiProjectsById,
   getApiProjectsByProjectIdAgents,
+  getApiProviderAccountsByIdModels,
   getApiProviderAccounts,
   getApiSessionsByProjectByProjectId,
   postApiProjectsByIdExport,
@@ -207,6 +209,33 @@ const providerOptions = computed(() =>
     })),
 );
 
+const providerModelsQuery = useQuery({
+  queryKey: ['provider-account-models', 'project-workspace', () => form.defaultProviderId],
+  queryFn: async () =>
+    unwrapClientEnvelope(
+      await getApiProviderAccountsByIdModels({
+        path: { id: form.defaultProviderId! },
+      }),
+    ),
+  enabled: computed(() => !!form.defaultProviderId && !!projectId.value),
+});
+
+const providerModelOptions = computed(() => {
+  const options = (providerModelsQuery.data.value ?? []).map((model: ProviderModelDto) => ({
+    label: formatProviderModelLabel(model),
+    value: model.id ?? '',
+  }));
+  const currentModel = form.defaultModelName.trim();
+  if (currentModel && !options.some((option) => option.value === currentModel)) {
+    options.unshift({
+      label: currentModel,
+      value: currentModel,
+    });
+  }
+
+  return options;
+});
+
 const assignableRoleOptions = computed(() =>
   roles.value
     .filter((role) => role.id && role.id !== EMPTY_GUID && !role.isVirtual)
@@ -336,6 +365,24 @@ const globalBrainstormRole = computed(() =>
   ) ?? null,
 );
 
+const secretaryRoleId = computed(() => globalBrainstormRole.value?.id ?? '');
+const normalizedSelectedAgentRoleIds = computed(() => {
+  const values = new Set(selectedAgentRoleIds.value.filter(Boolean));
+  if (secretaryRoleId.value) {
+    values.add(secretaryRoleId.value);
+  }
+
+  return [...values].sort();
+});
+const persistedAgentRoleIds = computed(() =>
+  [...new Set(projectAgents.value.flatMap((agent) => agent.agentRoleId ? [agent.agentRoleId] : []))]
+    .sort(),
+);
+const hasPendingMemberChanges = computed(
+  () => normalizedSelectedAgentRoleIds.value.join('|') !== persistedAgentRoleIds.value.join('|'),
+);
+const canStartWithSavedMembers = computed(() => projectAgents.value.length > 1);
+
 const brainstormHeaderAgent = computed(() => {
   const projectSecretaryAgent = projectChatHeaderAgents.value.find((agent) =>
     matchesSecretaryRole(agent.label)
@@ -413,6 +460,10 @@ const saveProjectMutation = useMutation({
   mutationFn: async () => {
     if (!projectId.value) {
       throw new Error(t('project.validationProject'));
+    }
+
+    if (form.defaultProviderId && !form.defaultModelName.trim()) {
+      throw new Error(t('project.validationProviderModel'));
     }
 
     const extraConfig = form.extraConfig.trim();
@@ -571,6 +622,15 @@ watch(
 );
 
 watch(
+  () => form.defaultProviderId,
+  (value, previous) => {
+    if (value && value !== previous) {
+      form.defaultModelName = '';
+    }
+  },
+);
+
+watch(
   () => projectAgents.value,
   (value) => {
     selectedAgentRoleIds.value = value.flatMap((agent) =>
@@ -712,6 +772,16 @@ async function initializeProject() {
 }
 
 async function startProject() {
+  if (hasPendingMemberChanges.value) {
+    message.error(t('project.validationSaveMembersBeforeStart'));
+    return;
+  }
+
+  if (!canStartWithSavedMembers.value) {
+    message.error(t('project.validationStartMembers'));
+    return;
+  }
+
   try {
     await startProjectMutation.mutateAsync();
     activeTab.value = 'chat';
@@ -854,6 +924,17 @@ function countStatus(
   key: string,
 ) {
   return toNumber(source?.[key]);
+}
+
+function formatProviderModelLabel(model: ProviderModelDto) {
+  const details = [model.vendor, model.protocols]
+    .map((item) => item?.trim())
+    .filter((item): item is string => !!item);
+  if (details.length === 0) {
+    return model.id ?? '--';
+  }
+
+  return `${model.id ?? '--'} (${details.join(' · ')})`;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -1225,9 +1306,30 @@ function normalizeWorkspaceTab(value: unknown): WorkspaceTabKey {
                   </a-form-item>
 
                   <a-form-item :label="t('project.model')">
-                    <a-input v-model:value="form.defaultModelName" />
+                    <a-select
+                      v-if="form.defaultProviderId"
+                      v-model:value="form.defaultModelName"
+                      allow-clear
+                      show-search
+                      :loading="providerModelsQuery.isFetching.value"
+                      :options="providerModelOptions"
+                      :placeholder="t('project.modelSelectPlaceholder')"
+                    />
+                    <a-input
+                      v-else
+                      v-model:value="form.defaultModelName"
+                      :placeholder="t('project.modelPlaceholder')"
+                    />
                   </a-form-item>
                 </div>
+
+                <a-alert
+                  v-if="form.defaultProviderId && providerModelsQuery.isError.value"
+                  class="mb-4"
+                  show-icon
+                  type="warning"
+                  :message="getErrorMessage(providerModelsQuery.error.value, t('project.loadModelsFailed'))"
+                />
 
                 <a-form-item :label="t('project.extraConfig')">
                   <a-textarea
@@ -1262,6 +1364,22 @@ function normalizeWorkspaceTab(value: unknown): WorkspaceTabKey {
                 :options="assignableRoleOptions"
                 :placeholder="t('project.rolePlaceholder')"
                 style="width: 100%"
+              />
+
+              <a-alert
+                v-if="hasPendingMemberChanges"
+                class="mt-4"
+                show-icon
+                type="info"
+                :message="t('project.validationSaveMembersBeforeStart')"
+              />
+
+              <a-alert
+                v-else-if="!canStartWithSavedMembers"
+                class="mt-4"
+                show-icon
+                type="warning"
+                :message="t('project.validationStartMembers')"
               />
 
               <div class="mt-4 flex flex-wrap gap-2">

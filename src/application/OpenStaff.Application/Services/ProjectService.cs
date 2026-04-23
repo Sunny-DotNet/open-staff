@@ -163,6 +163,8 @@ public class ProjectService
     /// </summary>
     public async Task<Project> CreateAsync(CreateProjectRequest request, CancellationToken ct)
     {
+        ValidateProjectModelSelection(request.DefaultProviderId, request.DefaultModelName, request.Language ?? "zh-CN");
+
         var project = new Project
         {
             Name = request.Name,
@@ -187,11 +189,14 @@ public class ProjectService
         var project = await _projects.FindAsync(id, ct);
         if (project == null) return null;
 
+        var nextLanguage = request.Language ?? project.Language;
+        ValidateProjectModelSelection(request.DefaultProviderId, request.DefaultModelName, nextLanguage);
+
         if (request.Name != null) project.Name = request.Name;
         if (request.Description != null) project.Description = request.Description;
         if (request.Language != null) project.Language = request.Language;
-        if (request.DefaultProviderId.HasValue) project.DefaultProviderId = request.DefaultProviderId;
-        if (request.DefaultModelName != null) project.DefaultModelName = request.DefaultModelName;
+        project.DefaultProviderId = request.DefaultProviderId;
+        project.DefaultModelName = request.DefaultModelName;
         if (request.ExtraConfig != null) project.ExtraConfig = request.ExtraConfig;
         project.UpdatedAt = DateTime.UtcNow;
 
@@ -245,6 +250,8 @@ public class ProjectService
         if (project.Status != ProjectStatus.Initializing && project.Status != ProjectStatus.Paused)
             throw new InvalidOperationException($"Project {id} is in {project.Status} status, cannot initialize");
 
+        var secretaryAdded = await EnsureSecretaryProjectAgentAsync(project, ct);
+
         // zh-CN: 工作区路径一旦确定，就会成为 README、导入导出和后续执行的统一根目录。
         // en: Once the workspace path is determined, it becomes the shared root for README, import/export, and later execution flows.
         var workspacesRoot = _config["Workspaces:RootPath"]
@@ -297,6 +304,8 @@ public class ProjectService
         project.Phase = ProjectPhases.Brainstorming;
         project.UpdatedAt = DateTime.UtcNow;
         await _repositoryContext.SaveChangesAsync(ct);
+        if (secretaryAdded)
+            await RefreshProjectAgentCachesAsync(project.Id, ct);
 
         var kickoffSummary = BuildBrainstormKickoffSummary(project);
         await _conversationTriggerService.TriggerProjectSceneMessageAsync(
@@ -469,6 +478,27 @@ public class ProjectService
             || AgentJobTitleCatalog.IsSecretary(role.Name);
     }
 
+    private static void ValidateProjectModelSelection(Guid? providerId, string? modelName, string? language)
+    {
+        if (providerId.HasValue && string.IsNullOrWhiteSpace(modelName))
+        {
+            throw new InvalidOperationException(IsChineseLanguage(language)
+                ? "已选择默认 Provider 时，必须同时选择默认模型。"
+                : "When a default provider is selected, a default model is required.");
+        }
+    }
+
+    private static string BuildStartRequiresMembersMessage(Project project)
+    {
+        return IsChineseLanguage(project.Language)
+            ? "启动项目前，请先保存至少一名项目成员。秘书会自动入群，但不能作为唯一成员。"
+            : "Before starting the project, save at least one project member. The secretary joins automatically but cannot be the only member.";
+    }
+
+    private static bool IsChineseLanguage(string? language)
+        => !string.IsNullOrWhiteSpace(language)
+           && language.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// 启动项目执行阶段。
     /// Starts the execution phase of a project.
@@ -483,6 +513,17 @@ public class ProjectService
 
         if (project.Phase != ProjectPhases.ReadyToStart && project.Phase != ProjectPhases.Running)
             throw new InvalidOperationException($"Project {id} is in phase {project.Phase}, cannot start");
+
+        var secretaryAdded = await EnsureSecretaryProjectAgentAsync(project, ct);
+        var projectMembers = await _projectAgents
+            .AsNoTracking()
+            .Include(item => item.AgentRole)
+            .Where(item => item.ProjectId == id)
+            .ToListAsync(ct);
+        var hasNonSecretaryMember = projectMembers.Any(item =>
+            item.AgentRole != null && !IsSecretaryRole(item.AgentRole));
+        if (!hasNonSecretaryMember)
+            throw new InvalidOperationException(BuildStartRequiresMembersMessage(project));
 
         var now = DateTime.UtcNow;
         var activeBrainstormSessions = await _chatSessions
@@ -523,6 +564,8 @@ public class ProjectService
         project.UpdatedAt = now;
 
         await _repositoryContext.SaveChangesAsync(ct);
+        if (secretaryAdded)
+            await RefreshProjectAgentCachesAsync(project.Id, ct);
         await EnsureProjectGroupKickoffAsync(project, activeGroupSession.Id, ct);
         _logger.LogInformation("Project {ProjectId} started, brainstorm sessions closed: {Count}", id, activeBrainstormSessions.Count);
         return project;
@@ -630,6 +673,8 @@ public class ProjectService
     /// </summary>
     public async Task<List<ProjectAgentRole>> GetProjectAgentsAsync(Guid projectId, CancellationToken ct)
     {
+        await EnsureSecretaryProjectAgentAsync(projectId, ct, saveChanges: true);
+
         return await _projectAgents
             .Where(pa => pa.ProjectId == projectId)
             .Include(pa => pa.AgentRole)
@@ -646,13 +691,7 @@ public class ProjectService
         var project = await _projects.FindAsync(projectId, ct);
         if (project == null) throw new InvalidOperationException($"Project {projectId} not found");
 
-        var secretaryRoleId = await _agentRoles
-            .AsNoTracking()
-            .Where(role => role.IsActive && role.IsBuiltin)
-            .Select(role => role.Id)
-            .FirstOrDefaultAsync(ct);
-        if (secretaryRoleId == Guid.Empty)
-            throw new InvalidOperationException("Secretary role is not available");
+        var secretaryRoleId = (await ResolveSecretaryRoleAsync(ct)).Id;
 
         var normalizedRoleIds = agentRoleIds.Distinct().ToList();
         if (!normalizedRoleIds.Contains(secretaryRoleId))
@@ -680,11 +719,65 @@ public class ProjectService
         await _roleCapabilityBindingService.CopyRoleBindingsToProjectAgentsAsync(createdProjectAgents, ct, saveChanges: false);
         project.UpdatedAt = DateTime.UtcNow;
         await _repositoryContext.SaveChangesAsync(ct);
+        await RefreshProjectAgentCachesAsync(projectId, ct);
+        _logger.LogInformation("Project {ProjectId} agents updated: {Count} roles", projectId, normalizedRoleIds.Count);
+    }
+
+    private async Task<AgentRole> ResolveSecretaryRoleAsync(CancellationToken ct)
+    {
+        var roles = await _agentRoles
+            .AsNoTracking()
+            .Where(role => role.IsActive)
+            .OrderByDescending(role => role.IsBuiltin)
+            .ThenBy(role => role.CreatedAt)
+            .ToListAsync(ct);
+
+        var secretaryRole = roles.FirstOrDefault(role =>
+            AgentJobTitleCatalog.IsSecretary(role.JobTitle)
+            || AgentJobTitleCatalog.IsSecretary(role.Name));
+        return secretaryRole ?? throw new InvalidOperationException("Secretary role is not available");
+    }
+
+    private async Task<bool> EnsureSecretaryProjectAgentAsync(Guid projectId, CancellationToken ct, bool saveChanges = false)
+    {
+        var project = await _projects.FirstOrDefaultAsync(item => item.Id == projectId, ct);
+        return project != null && await EnsureSecretaryProjectAgentAsync(project, ct, saveChanges);
+    }
+
+    private async Task<bool> EnsureSecretaryProjectAgentAsync(Project project, CancellationToken ct, bool saveChanges = false)
+    {
+        var secretaryRole = await ResolveSecretaryRoleAsync(ct);
+        var alreadyAssigned = await _projectAgents
+            .AsNoTracking()
+            .AnyAsync(item => item.ProjectId == project.Id && item.AgentRoleId == secretaryRole.Id, ct);
+        if (alreadyAssigned)
+            return false;
+
+        var projectAgent = new ProjectAgentRole
+        {
+            ProjectId = project.Id,
+            AgentRoleId = secretaryRole.Id
+        };
+        _projectAgents.Add(projectAgent);
+        await _roleCapabilityBindingService.CopyRoleBindingsToProjectAgentsAsync([projectAgent], ct, saveChanges: false);
+        project.UpdatedAt = DateTime.UtcNow;
+
+        if (saveChanges)
+        {
+            await _repositoryContext.SaveChangesAsync(ct);
+            await RefreshProjectAgentCachesAsync(project.Id, ct);
+        }
+
+        _logger.LogInformation("Auto-added secretary role {RoleId} to project {ProjectId}", secretaryRole.Id, project.Id);
+        return true;
+    }
+
+    private async Task RefreshProjectAgentCachesAsync(Guid projectId, CancellationToken ct)
+    {
         if (_mcpHub != null)
             await _mcpHub.InvalidateProjectAsync(projectId);
         if (_mcpWarmupCoordinator != null)
             await _mcpWarmupCoordinator.RebuildProjectAsync(projectId, ct);
-        _logger.LogInformation("Project {ProjectId} agents updated: {Count} roles", projectId, normalizedRoleIds.Count);
     }
 
     /// <summary>

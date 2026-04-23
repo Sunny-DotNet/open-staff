@@ -34,6 +34,7 @@ import {
   createLocalConversationMessageId,
   createSessionConversationState,
   removePendingAssistantPlaceholder,
+  sanitizeSessionConversationAssistantContent,
   startAssistantPlaceholder,
   shouldStreamSessionConversation,
   type SessionConversationMessage,
@@ -152,6 +153,11 @@ const projectRoleAvatars = computed(() => {
 const projectGroupHeaderTitle = computed(() => props.project?.name || t('project.chat'));
 const projectGroupHeaderSubtitle = computed(
   () => `${t('project.assignedAgents')} · ${projectRoleAvatars.value.length}`,
+);
+const conversationSending = computed(() =>
+  props.scene === 'ProjectGroup'
+    ? false
+    : (chatLoading.value || restoring.value),
 );
 const projectGroupMentionOptions = computed(() => {
   const options = new Map<string, {
@@ -330,17 +336,30 @@ async function loadHistory(sessionId: string) {
     }),
   );
 
-  chatMessages.value = (history.messages ?? []).map((item) => ({
-    agentKey: item.projectAgentRoleId ?? item.agentRoleId ?? null,
-    content: item.content ?? '',
-    id: item.id ?? createLocalConversationMessageId('history'),
-    parentMessageId: item.parentMessageId ?? null,
-    role: item.role === 'user' ? 'user' : 'assistant',
-    timestamp: item.createdAt ?? new Date().toISOString(),
-    timing: normalizeTiming(item.timing),
-    usage: normalizeUsage(item.usage),
-    ...resolveProjectGroupIdentity(item.role, item.projectAgentRoleId ?? item.agentRoleId),
-  }));
+  const nextMessages: SessionConversationMessage[] = [];
+  for (const item of history.messages ?? []) {
+    const role = item.role === 'user' ? 'user' : 'assistant';
+    const content = role === 'assistant'
+      ? sanitizeSessionConversationAssistantContent(item.content ?? '')
+      : (item.content ?? '');
+    if (role === 'assistant' && !content) {
+      continue;
+    }
+
+    nextMessages.push({
+      agentKey: item.projectAgentRoleId ?? item.agentRoleId ?? null,
+      content,
+      id: item.id ?? createLocalConversationMessageId('history'),
+      parentMessageId: item.parentMessageId ?? null,
+      role,
+      timestamp: item.createdAt ?? new Date().toISOString(),
+      timing: normalizeTiming(item.timing),
+      usage: normalizeUsage(item.usage),
+      ...resolveProjectGroupIdentity(item.role, item.projectAgentRoleId ?? item.agentRoleId),
+    });
+  }
+
+  chatMessages.value = nextMessages;
 }
 
 async function reconstructFromEvents(sessionId: string) {
@@ -540,7 +559,9 @@ async function sendMessage() {
       }
 
       currentSessionId.value = created.sessionId ?? null;
-      startAssistantPlaceholder(chatMessages.value, conversationState);
+      if (props.scene !== 'ProjectGroup') {
+        startAssistantPlaceholder(chatMessages.value, conversationState);
+      }
       if (!currentSessionId.value) {
         throw new Error(props.startFailedMessage);
       }
@@ -549,7 +570,9 @@ async function sendMessage() {
       return;
     }
 
-    startAssistantPlaceholder(chatMessages.value, conversationState);
+    if (props.scene !== 'ProjectGroup') {
+      startAssistantPlaceholder(chatMessages.value, conversationState);
+    }
     const result = unwrapClientEnvelope(await postApiSessionsBySessionIdMessages({
       body: {
         input: groupPayload.executionInput,
@@ -968,7 +991,7 @@ function buildProjectGroupMessagePayload(input: string) {
   }
 
   return {
-    executionInput: stripFirstProjectGroupMention(input, firstMention.rawText ?? ''),
+    executionInput: input,
     mentions,
     rawInput: input,
   };
@@ -977,20 +1000,6 @@ function buildProjectGroupMessagePayload(input: string) {
 function shouldStripProjectGroupMention(mention: ConversationMentionDto) {
   return mention.resolvedKind === 'project_agent_role'
     || normalizeAgentIdentityKey(mention.builtinRole) === 'secretary';
-}
-
-function stripFirstProjectGroupMention(input: string, rawText: string) {
-  if (!rawText) {
-    return input;
-  }
-
-  const index = input.toLocaleLowerCase().indexOf(rawText.toLocaleLowerCase());
-  if (index < 0) {
-    return input;
-  }
-
-  const cleaned = `${input.slice(0, index)}${input.slice(index + rawText.length)}`.trim();
-  return cleaned || input;
 }
 
 function normalizeTiming(
@@ -1059,7 +1068,7 @@ function normalizeUsage(
           :input-placeholder="canInputScene ? inputPlaceholder : (inputDisabledHint || inputPlaceholder)"
           :mention-options="props.scene === 'ProjectGroup' ? projectGroupMentionOptions : []"
           :messages="chatMessages"
-          :sending="chatLoading || restoring"
+          :sending="conversationSending"
           :send-disabled="!canInputScene"
           :subtitle="connected ? t('role.signalrConnected') : t('role.signalrConnecting')"
           :subtitle-status="connected ? 'online' : 'connecting'"

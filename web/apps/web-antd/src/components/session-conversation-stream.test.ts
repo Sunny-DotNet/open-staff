@@ -6,6 +6,7 @@ import {
   applySessionConversationEvent,
   createLocalConversationMessageId,
   createSessionConversationState,
+  sanitizeSessionConversationAssistantContent,
   shouldStreamSessionConversation,
   type SessionConversationMessage,
 } from './session-conversation-stream';
@@ -183,5 +184,70 @@ describe('session conversation stream', () => {
       role: 'user',
       content: '帮我看一下项目状态',
     });
+  });
+
+  it('strips project dispatch envelopes from assistant content', () => {
+    expect(
+      sanitizeSessionConversationAssistantContent(
+        '收到，我来安排。\n\n<openstaff_project_dispatch>{"dispatches":[{"targetRole":"backend_engineer","task":"reply"}]}</openstaff_project_dispatch>',
+      ),
+    ).toBe('收到，我来安排。');
+  });
+
+  it('drops assistant messages that only contain internal project dispatch envelopes', () => {
+    const messages: SessionConversationMessage[] = [];
+    const state = createSessionConversationState();
+
+    applySessionConversationEvent(
+      messages,
+      state,
+      createEvent(
+        'message',
+        {
+          content:
+            '<openstaff_project_dispatch>{"dispatches":[{"targetRole":"backend_engineer","task":"reply"}]}</openstaff_project_dispatch>',
+        },
+        'assistant-dispatch-only',
+      ),
+    );
+
+    expect(messages).toHaveLength(0);
+  });
+
+  it('drops completed assistant runs that only keep internal dispatch traces', () => {
+    const messages: SessionConversationMessage[] = [];
+    const state = createSessionConversationState();
+
+    applySessionConversationEvent(
+      messages,
+      state,
+      createEvent('tool_call', {
+        arguments: JSON.stringify({ task: 'reply' }),
+        name: 'dispatch_role',
+        toolCallId: 'dispatch-1',
+      }, 'assistant-dispatch-run'),
+    );
+    applySessionConversationEvent(
+      messages,
+      state,
+      createEvent('tool_result', {
+        name: 'dispatch_role',
+        result: 'done',
+        toolCallId: 'dispatch-1',
+      }, 'assistant-dispatch-run'),
+    );
+    const reduced = applySessionConversationEvent(
+      messages,
+      state,
+      createEvent('streaming_done', {
+        content:
+          '<openstaff_project_dispatch>{"dispatches":[{"targetRole":"backend_engineer","task":"reply"}]}</openstaff_project_dispatch>',
+        model: 'glm-5.1',
+      }, 'assistant-dispatch-run'),
+    );
+
+    expect(reduced.clearSending).toBe(true);
+    expect(messages).toHaveLength(0);
+    expect(state.pendingAssistantId).toBeNull();
   });
 });

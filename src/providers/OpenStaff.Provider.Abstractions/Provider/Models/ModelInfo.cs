@@ -22,11 +22,20 @@ public record class ModelInfo
     /// 模型支持的协议位标志。
     /// Bit flags describing the protocols supported by the model.
     /// </param>
-    public ModelInfo(string modelSlug, string vendorSlug, ModelProtocolType modelProtocols)
+    /// <param name="supportsStructuredOutputs">
+    /// 是否显式声明支持结构化输出；未知时为 <c>null</c>。
+    /// Whether the model explicitly advertises structured-output support; <c>null</c> when unknown.
+    /// </param>
+    public ModelInfo(
+        string modelSlug,
+        string vendorSlug,
+        ModelProtocolType modelProtocols,
+        bool? supportsStructuredOutputs = null)
     {
         ModelSlug = modelSlug;
         VendorSlug = vendorSlug;
         ModelProtocols = modelProtocols;
+        SupportsStructuredOutputs = supportsStructuredOutputs;
     }
 
     /// <summary>
@@ -46,6 +55,12 @@ public record class ModelInfo
     /// Supported protocol set for the model.
     /// </summary>
     public ModelProtocolType ModelProtocols { get; init; }
+
+    /// <summary>
+    /// 模型是否显式支持结构化输出。
+    /// Whether the model explicitly supports structured outputs.
+    /// </summary>
+    public bool? SupportsStructuredOutputs { get; init; }
 }
 
 /// <summary>

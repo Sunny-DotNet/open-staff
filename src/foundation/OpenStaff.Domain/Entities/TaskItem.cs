@@ -123,6 +123,9 @@ public sealed class TaskItemRuntimeMetadata
     /// <summary>目标项目内角色关联标识 / Target project-scoped role membership identifier.</summary>
     public Guid? TargetProjectAgentRoleId { get; set; }
 
+    /// <summary>目标角色显示名 / Target role display name used for runtime reconstruction.</summary>
+    public string? TargetRoleName { get; set; }
+
     /// <summary>最近一次状态 / Most recent status.</summary>
     public string? LastStatus { get; set; }
 

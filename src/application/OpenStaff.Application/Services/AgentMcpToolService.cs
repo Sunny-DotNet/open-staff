@@ -317,8 +317,8 @@ public sealed class AgentMcpToolService : IAgentMcpToolService
                 .ToHashSet(StringComparer.OrdinalIgnoreCase)
                 ?? [];
 
-            if (filter.Contains("shell.exec"))
-                filter.Add("shell.system_info");
+            if (filter.Contains("shell_exec"))
+                filter.Add("shell_system_info");
 
             return filter;
         }
@@ -330,8 +330,12 @@ public sealed class AgentMcpToolService : IAgentMcpToolService
 
     private static string NormalizeToolFilterEntry(string toolName)
         => string.Equals(toolName, "cmd", StringComparison.OrdinalIgnoreCase)
-            ? "shell.exec"
-            : toolName;
+            ? "shell_exec"
+            : string.Equals(toolName, "shell.exec", StringComparison.OrdinalIgnoreCase)
+                ? "shell_exec"
+                : string.Equals(toolName, "shell.system_info", StringComparison.OrdinalIgnoreCase)
+                    ? "shell_system_info"
+                    : toolName;
 }
 
 

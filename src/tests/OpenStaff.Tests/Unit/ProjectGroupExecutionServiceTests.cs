@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenStaff.Application.Conversations.Models;
 using OpenStaff.Application.Sessions.Services;
+using OpenStaff.Core.Agents;
 using OpenStaff.Entities;
 using OpenStaff.EntityFrameworkCore;
 using OpenStaff.EntityFrameworkCore.Repositories;
@@ -16,11 +17,11 @@ namespace OpenStaff.Tests.Unit;
 public class ProjectGroupExecutionServiceTests
 {
     /// <summary>
-    /// zh-CN: 验证显式 @提及时会解析到对应项目代理，同时把提及文本从任务目的中剥离，避免下游重复看到路由噪声。
-    /// en: Verifies that an explicit @mention resolves to the matching project agent and is stripped from the task purpose so downstream execution does not see routing noise.
+    /// zh-CN: 验证显式 @提及时，入口仍统一先回到隐藏项目模型，而不是直接短路到被提及成员。
+    /// en: Verifies that explicit @mentions still route back to the hidden project orchestrator instead of short-circuiting straight to the mentioned member.
     /// </summary>
     [Fact]
-    public async Task ResolveDispatchTargetAsync_WithMentionedProjectAgent_ReturnsCleanPurpose()
+    public async Task ResolveDispatchTargetAsync_WithMentionedProjectAgent_ReturnsOrchestratorFirstTarget()
     {
         using var context = new TestContext();
         var project = await context.AddProjectAsync();
@@ -31,19 +32,21 @@ public class ProjectGroupExecutionServiceTests
             "@Producer 帮我写后端 API",
             CancellationToken.None);
 
-        Assert.Equal("producer", result.TargetRole);
-        Assert.Equal("帮我写后端 API", result.Purpose);
+        Assert.Equal(BuiltinRoleTypes.Secretary, result.TargetRole);
+        Assert.Equal("@Producer 帮我写后端 API", result.Purpose);
         Assert.Equal("@Producer 帮我写后端 API", result.UserMessageContent);
         Assert.True(result.HasExplicitMention);
-        Assert.Equal(projectAgent.Id, result.ProjectAgentRoleId);
+        Assert.Null(result.ProjectAgentRoleId);
+        Assert.Equal("Producer", result.MentionedTarget);
+        Assert.Equal("project_group_user_input", result.DispatchSource);
     }
 
     /// <summary>
-    /// zh-CN: 验证结构化 mentions 会优先用 projectAgentRoleId 做解析，而不是再次猜测文本。
-    /// en: Verifies structured mentions prefer the supplied project-agent identifier instead of guessing from text again.
+    /// zh-CN: 验证结构化 mentions 仍会保留下来作为项目模型的编排线索，但不再直接变成成员执行目标。
+    /// en: Verifies structured mentions are preserved as orchestration hints for the hidden project model instead of becoming direct member execution targets.
     /// </summary>
     [Fact]
-    public async Task ResolveDispatchTargetAsync_WithStructuredMention_UsesProjectAgentRoleId()
+    public async Task ResolveDispatchTargetAsync_WithStructuredMention_PreservesNaturalInput()
     {
         using var context = new TestContext();
         var project = await context.AddProjectAsync();
@@ -55,11 +58,13 @@ public class ProjectGroupExecutionServiceTests
             [new ConversationMention("@Ada", "project_agent_role", ProjectAgentRoleId: projectAgent.Id)],
             CancellationToken.None);
 
-        Assert.Equal("producer", result.TargetRole);
-        Assert.Equal("开工", result.Purpose);
+        Assert.Equal(BuiltinRoleTypes.Secretary, result.TargetRole);
+        Assert.Equal("@Ada 开工", result.Purpose);
         Assert.Equal("@Ada 开工", result.UserMessageContent);
         Assert.True(result.HasExplicitMention);
-        Assert.Equal(projectAgent.Id, result.ProjectAgentRoleId);
+        Assert.Null(result.ProjectAgentRoleId);
+        Assert.Equal("Ada", result.MentionedTarget);
+        Assert.Equal("project_group_user_input", result.DispatchSource);
     }
 
     /// <summary>
@@ -81,6 +86,50 @@ public class ProjectGroupExecutionServiceTests
         var dispatch = Assert.Single(dispatches);
         Assert.Equal("producer", dispatch.TargetRole);
         Assert.Equal("请编写后端 API", dispatch.Task);
+    }
+
+    [Fact]
+    public void TryExtractOrchestratorResult_WithNativeJson_ReturnsStructuredPlan()
+    {
+        using var context = new TestContext();
+
+        var extracted = context.Service.TryExtractOrchestratorResult(
+            "{\"replyMode\":\"dispatch_only\",\"dispatches\":[{\"targetRole\":\"Sophie\",\"task\":\"Reply in the visible project group with exactly this text and nothing else: backend dispatch ok 4\"},{\"targetRole\":\"圆圆\",\"task\":\"Reply in the visible project group with exactly this text and nothing else: review dispatch ok 4\"}]}",
+            out var result);
+
+        Assert.True(extracted);
+        Assert.NotNull(result);
+        Assert.Equal(ProjectGroupOrchestratorReplyMode.DispatchOnly, result!.ReplyMode);
+        Assert.Collection(
+            result.Dispatches,
+            first =>
+            {
+                Assert.Equal("Sophie", first.TargetRole);
+                Assert.Equal("Reply in the visible project group with exactly this text and nothing else: backend dispatch ok 4", first.Task);
+            },
+            second =>
+            {
+                Assert.Equal("圆圆", second.TargetRole);
+                Assert.Equal("Reply in the visible project group with exactly this text and nothing else: review dispatch ok 4", second.Task);
+            });
+    }
+
+    [Fact]
+    public void TryExtractOrchestratorResult_WithTaggedFallback_ReturnsStructuredPlan()
+    {
+        using var context = new TestContext();
+
+        var extracted = context.Service.TryExtractOrchestratorResult(
+            "<openstaff_project_orchestrator_result>{\"replyMode\":\"secretary_reply_and_dispatch\",\"secretaryReply\":\"我来安排。\",\"dispatches\":[{\"targetRole\":\"producer\",\"task\":\"请补齐接口实现\"}]}</openstaff_project_orchestrator_result>",
+            out var result);
+
+        Assert.True(extracted);
+        Assert.NotNull(result);
+        Assert.Equal(ProjectGroupOrchestratorReplyMode.SecretaryReplyAndDispatch, result!.ReplyMode);
+        Assert.Equal("我来安排。", result.SecretaryReply);
+        var dispatch = Assert.Single(result.Dispatches);
+        Assert.Equal("producer", dispatch.TargetRole);
+        Assert.Equal("请补齐接口实现", dispatch.Task);
     }
 
     /// <summary>

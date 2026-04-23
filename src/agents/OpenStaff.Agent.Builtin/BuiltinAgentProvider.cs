@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using OpenStaff.Agents;
 using OpenStaff.Core.Agents;
 using OpenStaff.Entities;
+using OpenStaff.Provider.Protocols;
 
 namespace OpenStaff.Agent.Builtin;
 
@@ -82,13 +83,30 @@ public class BuiltinAgentProvider : IAgentProvider
         // zh-CN: 运行时角色画像完全来自数据库实体；这里仅重建执行当前模型所需的轻量配置。
         // en: The runtime execution profile comes entirely from the persisted role entity; this only reconstructs the lightweight config needed for execution.
         var config = BuildRoleConfigFromDb(role);
-        var systemPrompt = await _agentPromptGenerator.PromptBuildAsync(role, context, CancellationToken.None);
-
         var modelName = config.ModelName ?? role.ModelName ?? "gpt-4o";
         if (!role.ModelProviderId.HasValue)
             throw new InvalidOperationException($"Role '{role.Name}' must bind a provider account.");
 
-        var chatClient = await _chatClientFactory.CreateAsync(role.ModelProviderId.Value, modelName, CancellationToken.None);
+        var providerAccountId = role.ModelProviderId.Value;
+        var projectGroupOutputMode = RequiresProjectGroupOrchestratorContract(role, context)
+            ? ProjectGroupOrchestratorContract.TaggedJsonFallbackOutputMode
+            : null;
+        ResolvedProvider? resolvedProvider = null;
+
+        if (projectGroupOutputMode != null)
+        {
+            (resolvedProvider, projectGroupOutputMode) = await ResolveProjectGroupProviderModeAsync(
+                providerAccountId,
+                modelName,
+                projectGroupOutputMode,
+                CancellationToken.None);
+            context.ExtraConfig[ProjectGroupOrchestratorContract.OutputModeExtraConfigKey] = projectGroupOutputMode;
+        }
+
+        var systemPrompt = await _agentPromptGenerator.PromptBuildAsync(role, context, CancellationToken.None);
+        var chatClient = resolvedProvider != null
+            ? await _chatClientFactory.CreateAsync(resolvedProvider, modelName, CancellationToken.None)
+            : await _chatClientFactory.CreateAsync(providerAccountId, modelName, CancellationToken.None);
 
         List<AITool>? aiTools = null;
         if (additionalTools is { Count: > 0 })
@@ -120,6 +138,19 @@ public class BuiltinAgentProvider : IAgentProvider
             options.ChatOptions.Instructions = systemPrompt;
         }
 
+        if (string.Equals(
+                projectGroupOutputMode,
+                ProjectGroupOrchestratorContract.NativeJsonSchemaOutputMode,
+                StringComparison.Ordinal))
+        {
+            options.ChatOptions ??= new();
+            options.ChatOptions.ResponseFormat = ChatResponseFormat.ForJsonSchema(
+                typeof(ProjectGroupOrchestratorResult),
+                ProjectGroupOrchestratorContract.SerializerOptions,
+                ProjectGroupOrchestratorContract.EnvelopeTag,
+                "Structured project-group orchestration result.");
+        }
+
         if (aiTools is { Count: > 0 })
         {
             options.ChatOptions ??= new();
@@ -129,6 +160,43 @@ public class BuiltinAgentProvider : IAgentProvider
         AIAgent agent = chatClient.AsAIAgent(options, _loggerFactory, _serviceProvider);
 
         return new AgentComponents(agent, config.Name, systemPrompt, aiTools);
+    }
+
+    private async Task<(ResolvedProvider? Provider, string OutputMode)> ResolveProjectGroupProviderModeAsync(
+        Guid providerAccountId,
+        string modelName,
+        string fallbackMode,
+        CancellationToken cancellationToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var providerResolver = scope.ServiceProvider.GetService<IProviderResolver>();
+        var protocolFactory = scope.ServiceProvider.GetService<IProtocolFactory>();
+        if (providerResolver == null || protocolFactory == null)
+            return (null, fallbackMode);
+
+        var resolvedProvider = await providerResolver.ResolveAsync(providerAccountId, cancellationToken);
+        if (resolvedProvider == null)
+            return (null, fallbackMode);
+
+        var protocol = protocolFactory.CreateProtocolWithEnv(
+            resolvedProvider.Account.ProtocolType,
+            resolvedProvider.EnvConfigJson ?? "{}");
+        var modelInfo = await _chatClientFactory.ResolveModelInfoAsync(
+            resolvedProvider,
+            protocol,
+            modelName,
+            cancellationToken);
+
+        var outputMode = modelInfo.SupportsStructuredOutputs == true
+            ? ProjectGroupOrchestratorContract.NativeJsonSchemaOutputMode
+            : fallbackMode;
+        return (resolvedProvider, outputMode);
+    }
+
+    private static bool RequiresProjectGroupOrchestratorContract(AgentRole role, AgentContext context)
+    {
+        return context.Scene == SceneType.ProjectGroup
+            && (AgentJobTitleCatalog.IsSecretary(role.JobTitle) || AgentJobTitleCatalog.IsSecretary(role.Name));
     }
 
     /// <summary>

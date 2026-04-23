@@ -118,12 +118,115 @@ public class BuiltinAgentProviderTests
         Assert.IsAssignableFrom<IStaffAgent>(agent);
     }
 
+    [Fact]
+    public async Task CreateAgent_ProjectGroupSecretary_EnablesNativeStructuredOutputModeWhenModelSupportsIt()
+    {
+        var promptGenerator = new Mock<IAgentPromptGenerator>();
+        Dictionary<string, object>? capturedExtraConfig = null;
+        promptGenerator
+            .Setup(item => item.PromptBuildAsync(It.IsAny<AgentRole>(), It.IsAny<AgentContext>(), It.IsAny<CancellationToken>()))
+            .Callback<AgentRole, AgentContext, CancellationToken>((_, context, _) => capturedExtraConfig = new Dictionary<string, object>(context.ExtraConfig))
+            .ReturnsAsync("prompt");
+
+        var provider = CreateProjectGroupProvider(
+            promptGenerator.Object,
+            [new ModelInfo("gpt-4o", "openai", ModelProtocolType.OpenAIChatCompletions, supportsStructuredOutputs: true)]);
+        var role = CreateRole();
+        var context = new AgentContext
+        {
+            Role = role,
+            Scene = SceneType.ProjectGroup,
+            ExtraConfig = new Dictionary<string, object>()
+        };
+
+        await provider.CreateAgentAsync(role, context);
+
+        Assert.NotNull(capturedExtraConfig);
+        Assert.Equal(
+            ProjectGroupOrchestratorContract.NativeJsonSchemaOutputMode,
+            capturedExtraConfig![ProjectGroupOrchestratorContract.OutputModeExtraConfigKey]);
+    }
+
+    [Fact]
+    public async Task CreateAgent_ProjectGroupSecretary_FallsBackToTaggedStructuredOutputModeWhenModelDoesNotAdvertiseSupport()
+    {
+        var promptGenerator = new Mock<IAgentPromptGenerator>();
+        Dictionary<string, object>? capturedExtraConfig = null;
+        promptGenerator
+            .Setup(item => item.PromptBuildAsync(It.IsAny<AgentRole>(), It.IsAny<AgentContext>(), It.IsAny<CancellationToken>()))
+            .Callback<AgentRole, AgentContext, CancellationToken>((_, context, _) => capturedExtraConfig = new Dictionary<string, object>(context.ExtraConfig))
+            .ReturnsAsync("prompt");
+
+        var provider = CreateProjectGroupProvider(
+            promptGenerator.Object,
+            [new ModelInfo("gpt-4o", "openai", ModelProtocolType.OpenAIChatCompletions, supportsStructuredOutputs: false)]);
+        var role = CreateRole();
+        var context = new AgentContext
+        {
+            Role = role,
+            Scene = SceneType.ProjectGroup,
+            ExtraConfig = new Dictionary<string, object>()
+        };
+
+        await provider.CreateAgentAsync(role, context);
+
+        Assert.NotNull(capturedExtraConfig);
+        Assert.Equal(
+            ProjectGroupOrchestratorContract.TaggedJsonFallbackOutputMode,
+            capturedExtraConfig![ProjectGroupOrchestratorContract.OutputModeExtraConfigKey]);
+    }
+
     /// <summary>
     /// zh-CN: 提供一个最小的协议测试替身，只为 agent 装配测试暴露模型元数据入口。
     /// en: Minimal protocol test double that exposes only the model-metadata entry point needed by agent assembly tests.
     /// </summary>
-    private sealed class StubProtocol : IProtocol
+    private static BuiltinAgentProvider CreateProjectGroupProvider(
+        IAgentPromptGenerator promptGenerator,
+        IEnumerable<ModelInfo> models)
     {
+        var accountId = Guid.NewGuid();
+        var protocol = new StubProtocol(models);
+        var protocolFactory = new Mock<IProtocolFactory>();
+        protocolFactory
+            .Setup(item => item.CreateProtocolWithEnv("openai", It.IsAny<string>()))
+            .Returns(protocol);
+
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<IProviderResolver>(_ =>
+            {
+                var resolver = new Mock<IProviderResolver>();
+                resolver.Setup(item => item.ResolveAsync(accountId, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new ResolvedProvider
+                    {
+                        Account = new ProviderAccount { Id = accountId, ProtocolType = "openai", Name = "Test" },
+                        EnvConfigJson = "{}"
+                    });
+                return resolver.Object;
+            })
+            .AddSingleton<IProtocolFactory>(protocolFactory.Object)
+            .BuildServiceProvider();
+
+        var providerAccounts = new Mock<IProviderAccountRepository>();
+        var chatClientFactory = new ChatClientFactory(
+            services.GetRequiredService<ILoggerFactory>(),
+            providerAccounts.Object,
+            new Mock<ICurrentProviderDetail>().Object,
+            protocolFactory.Object,
+            new PlatformRegistry([new OpenAIChatClientFactoryPlatform()]),
+            services);
+
+        return new BuiltinAgentProvider(
+            services,
+            chatClientFactory,
+            promptGenerator,
+            services.GetRequiredService<ILoggerFactory>());
+    }
+
+    private sealed class StubProtocol(IEnumerable<ModelInfo>? models = null) : IProtocol
+    {
+        private readonly IEnumerable<ModelInfo> _models = models ?? [];
+
         public bool IsVendor => false;
 
         public string ProtocolKey => "openai";
@@ -138,7 +241,7 @@ public class BuiltinAgentProviderTests
         /// </summary>
         public Task<IEnumerable<ModelInfo>> ModelsAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IEnumerable<ModelInfo>>([]);
+            return Task.FromResult(_models);
         }
     }
 

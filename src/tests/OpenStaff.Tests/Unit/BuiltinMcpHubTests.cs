@@ -29,7 +29,7 @@ public sealed class BuiltinMcpHubTests
         var tools = await hub.GetDraftToolsAsync(server, selectedProfileId: null, parameterValues: null, CancellationToken.None);
 
         var tool = Assert.Single(tools);
-        Assert.Equal("shell.exec", tool.Name);
+        Assert.Equal("shell_exec", tool.Name);
         Assert.Equal(1, provider.InvocationCount);
     }
 
@@ -114,7 +114,7 @@ public sealed class BuiltinMcpHubTests
         {
             InvocationCount++;
             SeenSessionIds.Add(connection.SessionId);
-            var tool = AIFunctionFactory.Create((string executable) => executable, "shell.exec", "fake shell tool", serializerOptions: null);
+            var tool = AIFunctionFactory.Create((string executable) => executable, "shell_exec", "fake shell tool", serializerOptions: null);
             return Task.FromResult<IReadOnlyList<McpRuntimeToolDescriptor>>([McpRuntimeToolDescriptor.FromAITool(tool)]);
         }
     }

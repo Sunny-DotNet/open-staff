@@ -15,9 +15,9 @@ namespace OpenStaff.Mcp.BuiltinShell;
 
 public sealed class ShellBuiltinMcpToolProvider : IBuiltinMcpToolProvider
 {
-    private const string ShellExecToolName = "shell.exec";
+    private const string ShellExecToolName = "shell_exec";
     private const string ShellExecDescription = "Execute a process inside the configured workspace and return exit code, stdout, stderr, and duration.";
-    private const string ShellSystemInfoToolName = "shell.system_info";
+    private const string ShellSystemInfoToolName = "shell_system_info";
     private const string ShellSystemInfoDescription = "Collect host system information including processor, memory, disks, network adapters, and installed software summary.";
 
     private readonly ICommandRunner _commandRunner;

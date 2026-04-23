@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import type {
   CreateProjectInput,
+  ProviderModelDto,
   ProjectDto,
   ProviderAccountDto,
   UpdateProjectInput,
 } from '@openstaff/api';
 
 import {
+  getApiProviderAccountsByIdModels,
   postApiProjects,
   putApiProjectsById,
   unwrapClientEnvelope,
 } from '@openstaff/api';
-import { useMutation } from '@tanstack/vue-query';
+import { useMutation, useQuery } from '@tanstack/vue-query';
 import { message } from 'ant-design-vue';
 import { computed, reactive, ref, watch } from 'vue';
 
@@ -55,6 +57,33 @@ const providerOptions = computed(() =>
       value: provider.id ?? '',
     })),
 );
+
+const providerModelsQuery = useQuery({
+  queryKey: ['provider-account-models', 'project-edit', () => form.defaultProviderId],
+  queryFn: async () =>
+    unwrapClientEnvelope(
+      await getApiProviderAccountsByIdModels({
+        path: { id: form.defaultProviderId! },
+      }),
+    ),
+  enabled: computed(() => !!form.defaultProviderId && props.editorOpen),
+});
+
+const providerModelOptions = computed(() => {
+  const options = (providerModelsQuery.data.value ?? []).map((model: ProviderModelDto) => ({
+    label: formatProviderModelLabel(model),
+    value: model.id ?? '',
+  }));
+  const currentModel = form.defaultModelName.trim();
+  if (currentModel && !options.some((option) => option.value === currentModel)) {
+    options.unshift({
+      label: currentModel,
+      value: currentModel,
+    });
+  }
+
+  return options;
+});
 
 const createProjectMutation = useMutation({
   mutationFn: async (payload: CreateProjectInput) =>
@@ -111,6 +140,15 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => form.defaultProviderId,
+  (value, previous) => {
+    if (value && value !== previous) {
+      form.defaultModelName = '';
+    }
+  },
+);
+
 function closeDrawer() {
   emit('update:editorOpen', false);
   submitting.value = false;
@@ -119,6 +157,11 @@ function closeDrawer() {
 async function submit() {
   if (!form.name.trim()) {
     message.error(t('project.validationName'));
+    return;
+  }
+
+  if (form.defaultProviderId && !form.defaultModelName.trim()) {
+    message.error(t('project.validationProviderModel'));
     return;
   }
 
@@ -165,6 +208,17 @@ function getErrorMessage(error: unknown, fallback: string) {
 
   return fallback;
 }
+
+function formatProviderModelLabel(model: ProviderModelDto) {
+  const details = [model.vendor, model.protocols]
+    .map((item) => item?.trim())
+    .filter((item): item is string => !!item);
+  if (details.length === 0) {
+    return model.id ?? '--';
+  }
+
+  return `${model.id ?? '--'} (${details.join(' · ')})`;
+}
 </script>
 
 <template>
@@ -210,11 +264,29 @@ function getErrorMessage(error: unknown, fallback: string) {
       </div>
 
       <a-form-item :label="t('project.model')">
+        <a-select
+          v-if="form.defaultProviderId"
+          v-model:value="form.defaultModelName"
+          allow-clear
+          show-search
+          :loading="providerModelsQuery.isFetching.value"
+          :options="providerModelOptions"
+          :placeholder="t('project.modelSelectPlaceholder')"
+        />
         <a-input
+          v-else
           v-model:value="form.defaultModelName"
           :placeholder="t('project.modelPlaceholder')"
         />
       </a-form-item>
+
+      <a-alert
+        v-if="form.defaultProviderId && providerModelsQuery.isError.value"
+        class="mb-4"
+        show-icon
+        type="warning"
+        :message="getErrorMessage(providerModelsQuery.error.value, t('project.loadModelsFailed'))"
+      />
     </a-form>
 
     <template #footer>

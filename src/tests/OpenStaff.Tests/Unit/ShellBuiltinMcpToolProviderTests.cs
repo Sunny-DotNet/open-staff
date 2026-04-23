@@ -51,7 +51,7 @@ public sealed class ShellBuiltinMcpToolProviderTests
 
         var tools = await provider.GetToolsAsync(CreateConnection("""{"transportType":"builtin","builtinProvider":"shell"}"""), CancellationToken.None);
 
-        Assert.Contains(tools, tool => tool.Name == "shell.system_info");
+        Assert.Contains(tools, tool => tool.Name == "shell_system_info");
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class ShellBuiltinMcpToolProviderTests
                 .Setup(handler => handler.HandleAsync(
                     It.Is<PermissionAuthorizationRequest>(request =>
                         request.Kind == "shell"
-                        && request.ToolName == "shell.exec"
+                        && request.ToolName == "shell_exec"
                         && request.CommandText == "dotnet --version"),
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new PermissionAuthorizationResult(PermissionAuthorizationKind.Reject));
@@ -189,7 +189,7 @@ public sealed class ShellBuiltinMcpToolProviderTests
                 .Setup(handler => handler.HandleAsync(
                     It.Is<PermissionAuthorizationRequest>(request =>
                         request.Kind == "shell"
-                        && request.ToolName == "shell.exec"
+                        && request.ToolName == "shell_exec"
                         && request.CommandText == "powershell -NoProfile"
                         && request.Warning != null
                         && request.Warning.Contains("不在免审批白名单中", StringComparison.Ordinal)),
@@ -251,7 +251,7 @@ public sealed class ShellBuiltinMcpToolProviderTests
             .Setup(handler => handler.HandleAsync(
                 It.Is<PermissionAuthorizationRequest>(request =>
                     request.Kind == "shell"
-                    && request.ToolName == "shell.system_info"
+                        && request.ToolName == "shell_system_info"
                     && request.CommandText == "system.info"
                     && request.Message.Contains("读取系统信息", StringComparison.Ordinal)),
                 It.IsAny<CancellationToken>()))
@@ -261,7 +261,7 @@ public sealed class ShellBuiltinMcpToolProviderTests
         var function = await GetFunctionAsync(
             provider,
             CreateConnection("""{"transportType":"builtin","builtinProvider":"shell"}"""),
-            "shell.system_info");
+            "shell_system_info");
 
         var result = await function.InvokeAsync(new AIFunctionArguments
         {
@@ -304,7 +304,7 @@ public sealed class ShellBuiltinMcpToolProviderTests
     private static async Task<AIFunction> GetExecFunctionAsync(
         ShellBuiltinMcpToolProvider provider,
         ResolvedMcpClientConnection connection)
-        => await GetFunctionAsync(provider, connection, "shell.exec");
+        => await GetFunctionAsync(provider, connection, "shell_exec");
 
     private static async Task<AIFunction> GetFunctionAsync(
         ShellBuiltinMcpToolProvider provider,

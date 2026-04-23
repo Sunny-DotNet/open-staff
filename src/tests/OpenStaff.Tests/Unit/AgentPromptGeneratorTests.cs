@@ -178,7 +178,7 @@ public class AgentPromptGeneratorTests
     }
 
     [Fact]
-    public async Task PromptBuildAsync_ProjectGroupSecretary_IncludesDispatchProtocolAndRoutingContext()
+    public async Task PromptBuildAsync_ProjectGroupSecretary_WithNativeStructuredOutput_IncludesStructuredContract()
     {
         using var services = new ServiceCollection()
             .AddScoped<ISettingsApiService>(_ => new FakeSettingsApiService())
@@ -209,24 +209,71 @@ public class AgentPromptGeneratorTests
                 ExtraConfig = new Dictionary<string, object>
                 {
                     ["openstaff_original_input"] = "@Monica 开工",
-                    ["openstaff_execution_purpose"] = "开工",
+                    ["openstaff_execution_purpose"] = "@Monica 开工",
                     ["openstaff_target_role"] = "secretary",
                     ["openstaff_initiator_role"] = "user",
-                    ["openstaff_dispatch_source"] = "project_group_mention",
-                    ["openstaff_dispatch_context"] = "The user mentioned you directly in the project group, so this task should be handled by you first."
+                    ["openstaff_dispatch_source"] = "project_group_user_input",
+                    ["openstaff_dispatch_context"] = "This is a new user request in the project group. You are the hidden project orchestrator and should decide who, if anyone, should reply in the visible group chat.",
+                    [ProjectGroupOrchestratorContract.OutputModeExtraConfigKey] = ProjectGroupOrchestratorContract.NativeJsonSchemaOutputMode
                 }
             },
             CancellationToken.None);
 
         Assert.Contains("Original group message: @Monica 开工", prompt);
-        Assert.Contains("Normalized execution task: 开工", prompt);
-        Assert.Contains("Dispatch source: project_group_mention", prompt);
-        Assert.Contains("Why you received this task: The user mentioned you directly in the project group, so this task should be handled by you first.", prompt);
-        Assert.Contains("<openstaff_project_dispatch>", prompt);
+        Assert.Contains("Dispatch source: project_group_user_input", prompt);
+        Assert.Contains("hidden project orchestrator", prompt);
+        Assert.Contains("Do not default to a secretary reply.", prompt);
+        Assert.Contains("prefer a dispatch-only response so the named members reply in their own voice", prompt);
+        Assert.Contains("Do not summarize or paraphrase their requested replies as the secretary.", prompt);
+        Assert.Contains("replyMode must be one of: secretary_reply, dispatch_only, secretary_reply_and_dispatch.", prompt);
+        Assert.Contains("The runtime enforces a native JSON Schema response.", prompt);
+        Assert.Contains("Output only the JSON object.", prompt);
+        Assert.DoesNotContain("<openstaff_project_dispatch>", prompt);
     }
 
     [Fact]
-    public async Task PromptBuildAsync_ProjectGroupMember_IncludesDispatchProtocolAndContext()
+    public async Task PromptBuildAsync_ProjectGroupSecretary_WithoutNativeStructuredOutput_UsesTaggedFallback()
+    {
+        using var services = new ServiceCollection()
+            .AddScoped<ISettingsApiService>(_ => new FakeSettingsApiService())
+            .BuildServiceProvider();
+
+        var generatorType = typeof(IAgentPromptGenerator).Assembly.GetType("OpenStaff.AgentPromptGenerator", throwOnError: true)!;
+        var generator = (IAgentPromptGenerator)Activator.CreateInstance(
+            generatorType,
+            services.GetRequiredService<IServiceScopeFactory>())!;
+
+        var role = new AgentRole
+        {
+            IsBuiltin = true,
+            Source = AgentSource.Builtin,
+            Name = "Monica",
+            JobTitle = BuiltinRoleTypes.Secretary,
+            Description = "负责承接用户诉求并协调团队。"
+        };
+
+        var prompt = await generator.PromptBuildAsync(
+            role,
+            new AgentContext
+            {
+                Role = role,
+                Scene = SceneType.ProjectGroup,
+                ProjectId = Guid.NewGuid(),
+                Project = new Project { Name = "OpenStaff" },
+                ExtraConfig = new Dictionary<string, object>
+                {
+                    ["openstaff_dispatch_source"] = "project_group_user_input"
+                }
+            },
+            CancellationToken.None);
+
+        Assert.Contains("The current provider does not guarantee native structured outputs.", prompt);
+        Assert.Contains("<openstaff_project_orchestrator_result>", prompt);
+        Assert.Contains("Do not output extra text before or after the tagged JSON block.", prompt);
+    }
+
+    [Fact]
+    public async Task PromptBuildAsync_ProjectGroupMember_IncludesCapabilityContractButNotDispatchProtocol()
     {
         using var services = new ServiceCollection()
             .AddScoped<ISettingsApiService>(_ => new FakeSettingsApiService())
@@ -259,16 +306,16 @@ public class AgentPromptGeneratorTests
                     ["openstaff_target_role"] = "producer",
                     ["openstaff_initiator_role"] = "secretary",
                     ["openstaff_dispatch_source"] = "project_group_secretary_dispatch",
-                    ["openstaff_dispatch_context"] = "The secretary reviewed the group context and handed the next step to you."
+                    ["openstaff_dispatch_context"] = "The hidden project orchestrator reviewed the group context and assigned the next step to you."
                 }
             },
             CancellationToken.None);
 
         Assert.Contains("Dispatch source: project_group_secretary_dispatch", prompt);
-        Assert.Contains("Why you received this task: The secretary reviewed the group context and handed the next step to you.", prompt);
-        Assert.Contains("<openstaff_project_dispatch>", prompt);
+        Assert.Contains("hidden project orchestrator", prompt);
+        Assert.DoesNotContain("<openstaff_project_dispatch>", prompt);
         Assert.Contains("<openstaff_capability_request>", prompt);
-        Assert.Contains("Do not emit both a dispatch block and a capability-request block in the same reply.", prompt);
+        Assert.Contains("Do not emit a dispatch block.", prompt);
     }
 
     [Fact]

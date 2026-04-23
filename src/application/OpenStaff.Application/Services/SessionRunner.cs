@@ -532,7 +532,13 @@ public class SessionRunner
     /// 执行单个 Frame — 调用目标 Agent，处理路由和子 Frame
     /// </summary>
     private async Task<FrameExecutionResult> ExecuteFrameAsync(
-        ChatSession session, ChatFrame frame, SceneType? scene, CancellationToken sessionCt)
+        ChatSession session,
+        ChatFrame frame,
+        SceneType? scene,
+        CancellationToken sessionCt,
+        string? forcedTargetRole = null,
+        bool? forcedSecretaryTarget = null,
+        string? forcedDispatchSource = null)
     {
         using var frameCts = CancellationTokenSource.CreateLinkedTokenSource(sessionCt);
         _frameCts[frame.Id] = (frameCts, DateTime.UtcNow);
@@ -541,8 +547,10 @@ public class SessionRunner
         try
         {
             var ct = frameCts.Token;
-            var isSecretaryTarget = await IsSecretaryTargetAsync(frame, ct);
-            var currentTargetRole = await ResolveFrameTargetDisplayAsync(frame, ct);
+            var isSecretaryTarget = forcedSecretaryTarget ?? await IsSecretaryTargetAsync(frame, ct);
+            var currentTargetRole = !string.IsNullOrWhiteSpace(forcedTargetRole)
+                ? forcedTargetRole
+                : await ResolveFrameTargetDisplayAsync(frame, ct);
 
             await PushEventAsync(session.Id, SessionEventTypes.FramePushed, frame.Id, new
             {
@@ -564,7 +572,7 @@ public class SessionRunner
             });
 
             // 调用目标 Agent
-            var response = await ExecuteRuntimeFrameAsync(session, frame, scene, ct);
+            var response = await ExecuteRuntimeFrameAsync(session, frame, scene, ct, currentTargetRole, forcedDispatchSource);
 
             var responseContent = response.Content ?? "";
             if (scene == SceneType.ProjectBrainstorm
@@ -587,21 +595,44 @@ public class SessionRunner
 
             ProjectGroupDispatchPlan? dispatchPlan = null;
             ProjectGroupCapabilityPlan? capabilityPlan = null;
+            ProjectGroupOrchestratorRelayPlan? relayPlan = null;
             if (scene == SceneType.ProjectGroup && response.Success)
             {
-                // zh-CN: 项目群中的任何被点名成员都允许继续分发后续工作；秘书和普通成员共用同一种结构化协议。
-                // en: Any targeted ProjectGroup member may continue orchestration by emitting the shared dispatch envelope, not just the secretary.
-                dispatchPlan = await BuildProjectGroupDispatchPlanAsync(
-                    session,
-                    responseContent,
-                    isSecretaryTarget ? "project_group_secretary_dispatch" : "project_group_member_dispatch",
-                    ct);
-                if (dispatchPlan != null)
+                if (isSecretaryTarget)
                 {
-                    responseContent = dispatchPlan.DisplayContent;
+                    var orchestratorResult = await BuildProjectGroupOrchestratorResultAsync(
+                        session,
+                        responseContent,
+                        ct);
+                    if (orchestratorResult != null)
+                    {
+                        dispatchPlan = orchestratorResult.DispatchPlan;
+                        responseContent = orchestratorResult.VisibleReply;
+                    }
+                    else
+                    {
+                        dispatchPlan = await BuildProjectGroupDispatchPlanAsync(
+                            session,
+                            responseContent,
+                            "project_group_secretary_dispatch",
+                            ct);
+                        if (dispatchPlan != null)
+                        {
+                            responseContent = dispatchPlan.DisplayContent;
+                        }
+                    }
                 }
-                else if (!isSecretaryTarget
-                    && _projectGroupExecution.TryExtractCapabilityRequest(responseContent, out var capabilityDisplayContent, out var capabilityRequest)
+                else if (_projectGroupExecution.TryExtractDispatch(responseContent, out var memberDisplayContent, out var memberDispatches))
+                {
+                    responseContent = string.IsNullOrWhiteSpace(memberDisplayContent)
+                        ? "我已完成当前阶段，已请求项目模型继续编排后续协作。"
+                        : memberDisplayContent;
+                    relayPlan = BuildProjectGroupOrchestratorRelayPlan(
+                        currentTargetRole,
+                        memberDisplayContent,
+                        memberDispatches);
+                }
+                else if (_projectGroupExecution.TryExtractCapabilityRequest(responseContent, out var capabilityDisplayContent, out var capabilityRequest)
                     && capabilityRequest != null)
                 {
                     // zh-CN: 成员角色返回能力申请时，先把展示文案留给用户，再生成后续审批/重试计划。
@@ -618,16 +649,25 @@ public class SessionRunner
                 }
             }
 
-            var responseMessage = await PublishAgentMessageAsync(
-                session.Id,
-                frame,
-                currentTargetRole,
-                responseContent,
-                response.Success,
-                ct,
-                usage: response.Usage,
-                timing: response.Timing,
-                model: response.Model);
+            var shouldPublishVisibleResponse = !(scene == SceneType.ProjectGroup
+                && isSecretaryTarget
+                && dispatchPlan != null
+                && string.IsNullOrWhiteSpace(responseContent));
+            Entities.ChatMessage? responseMessage = null;
+            if (shouldPublishVisibleResponse)
+            {
+                responseMessage = await PublishAgentMessageAsync(
+                    session.Id,
+                    frame,
+                    currentTargetRole,
+                    responseContent,
+                    response.Success,
+                    ct,
+                    usage: response.Usage,
+                    timing: response.Timing,
+                    model: response.Model);
+            }
+            var responseParentMessageId = responseMessage?.Id ?? await GetFrameEntryMessageIdAsync(frame.Id, ct);
 
             // 检查是否需要用户输入（暂停链式流转）
             if (response.RequiresUserInput)
@@ -656,7 +696,7 @@ public class SessionRunner
                     response.TargetRole,
                     responseContent,
                     ct,
-                    parentMessageId: responseMessage.Id);
+                    parentMessageId: responseParentMessageId);
 
                 var childResult = await ExecuteFrameAsync(session, childFrame, scene, sessionCt);
 
@@ -682,7 +722,11 @@ public class SessionRunner
 
             if (dispatchPlan != null)
             {
-                await ExecuteProjectGroupDispatchPlanAsync(session, frame, dispatchPlan, responseMessage.Id, sessionCt);
+                await ExecuteProjectGroupDispatchPlanAsync(session, frame, dispatchPlan, responseParentMessageId, sessionCt);
+            }
+            else if (relayPlan != null)
+            {
+                await ExecuteProjectOrchestratorRelayAsync(session, frame, relayPlan, responseParentMessageId, sessionCt);
             }
 
             return new FrameExecutionResult(
@@ -772,6 +816,20 @@ public class SessionRunner
         return (dispatchSource, DescribeProjectGroupDispatchContext(dispatchSource));
     }
 
+    private async Task<TaskItemRuntimeMetadata?> ReadFrameTaskMetadataAsync(Guid? taskId, CancellationToken ct)
+    {
+        if (!taskId.HasValue)
+            return null;
+
+        using var persistence = CreatePersistenceScope();
+        var metadataJson = await persistence.Tasks
+            .AsNoTracking()
+            .Where(task => task.Id == taskId.Value)
+            .Select(task => task.Metadata)
+            .FirstOrDefaultAsync(ct);
+        return TaskItemRuntimeMetadata.TryParse(metadataJson);
+    }
+
     private static ChatRole ResolveRuntimeInputRole(Entities.ChatMessage entryMessage)
     {
         // ProjectGroup 内部 dispatch 帧会把入口消息持久化成 assistant/internal，便于 UI 回放保留“谁在分发任务”。
@@ -785,11 +843,13 @@ public class SessionRunner
 
     private static string? DescribeProjectGroupDispatchContext(string? dispatchSource) => dispatchSource switch
     {
+        "project_group_user_input" => "This is a new user request in the project group. You are the hidden project orchestrator and should decide who, if anyone, should reply in the visible group chat.",
         "project_group_mention" => "The user mentioned you directly in the project group, so this task should be handled by you first.",
-        "project_group_secretary_dispatch" => "The secretary reviewed the group context and handed the next step to you.",
+        "project_group_secretary_dispatch" => "The hidden project orchestrator reviewed the group context and assigned the next step to you.",
         "project_group_secretary_broadcast" => "The secretary broadcast the same collaboration task to multiple members, and you are one of them.",
         "project_group_member_dispatch" => "Another project member finished the current stage and handed the follow-up work to you.",
         "project_group_member_broadcast" => "Another project member broadcast the follow-up collaboration task to multiple members, and you are one of them.",
+        "project_group_member_replan" => "Another project member reported progress and asked the hidden project orchestrator to re-plan the next collaboration step and choose who should speak next.",
         "project_group_system_kickoff" => "The project has just entered execution, and the system selected you for the kickoff confirmation or first action.",
         _ => null
     };
@@ -802,14 +862,46 @@ public class SessionRunner
         ChatSession session,
         ChatFrame frame,
         SceneType? scene,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? forcedTargetRole = null,
+        string? forcedDispatchSource = null)
     {
         var entryMessage = await GetFrameEntryMessageAsync(frame.Id, ct)
             ?? throw new InvalidOperationException($"Frame '{frame.Id}' entry message was not found.");
         var projectAgentId = await ResolveFrameProjectAgentIdAsync(frame.TaskId, ct);
-        var frameTargetRole = await ResolveFrameTargetDisplayAsync(frame, ct);
+        var taskMetadata = await ReadFrameTaskMetadataAsync(frame.TaskId, ct);
+        var frameTargetRole = !string.IsNullOrWhiteSpace(forcedTargetRole)
+            ? forcedTargetRole
+            : await ResolveFrameTargetDisplayAsync(frame, ct);
+        if (string.IsNullOrWhiteSpace(forcedTargetRole)
+            && scene == SceneType.ProjectGroup
+            && !string.IsNullOrWhiteSpace(taskMetadata?.TargetRoleName))
+        {
+            frameTargetRole = taskMetadata!.TargetRoleName!;
+        }
+        else if (string.IsNullOrWhiteSpace(forcedTargetRole)
+            && scene == SceneType.ProjectGroup
+            && string.Equals(frameTargetRole, BuiltinRoleTypes.Secretary, StringComparison.OrdinalIgnoreCase)
+            && projectAgentId.HasValue)
+        {
+            frameTargetRole = await ResolveRoleDisplayAsync(projectAgentId.Value, null, ct) ?? frameTargetRole;
+        }
         var frameInitiatorRole = await ResolveFrameInitiatorDisplayAsync(frame, ct);
         var dispatchContext = await ResolveFrameDispatchContextAsync(frame.TaskId, ct);
+        if (!string.IsNullOrWhiteSpace(forcedDispatchSource))
+        {
+            dispatchContext = (forcedDispatchSource, DescribeProjectGroupDispatchContext(forcedDispatchSource));
+        }
+
+        if (scene == SceneType.ProjectGroup
+            && string.Equals(frameTargetRole, BuiltinRoleTypes.Secretary, StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(dispatchContext.DispatchSource))
+        {
+            var derivedSource = string.Equals(entryMessage.Role, MessageRoles.Assistant, StringComparison.OrdinalIgnoreCase)
+                ? "project_group_member_replan"
+                : "project_group_user_input";
+            dispatchContext = (derivedSource, DescribeProjectGroupDispatchContext(derivedSource));
+        }
         var runtimeExtra = BuildRuntimeExtra(
             entryMessage.Content,
             frame.Purpose,
@@ -894,8 +986,8 @@ public class SessionRunner
     }
 
     /// <summary>
-    /// 尝试把项目群用户输入直接分派到目标成员；该流程会创建根帧，并视解析结果选择回秘书、立即执行或排队租约。
-    /// Attempts to dispatch project-group user input directly to the appropriate member; it creates a root frame and then either routes back to the secretary, executes immediately, or queues a lease.
+    /// 尝试处理项目群用户输入；所有新输入都会先进入隐藏项目编排器，再由统一 contract 决定可见回复与后续派工。
+    /// Handles project-group user input by sending every new message to the hidden project orchestrator first, which then decides visible replies and follow-up dispatch via the unified contract.
     /// </summary>
     private async Task<bool> TryHandleProjectGroupUserInputAsync(
         ChatSession session,
@@ -909,15 +1001,6 @@ public class SessionRunner
     {
         var dispatch = (await _projectGroupExecution.ResolveDispatchTargetAsync(session.ProjectId, input, mentions, sessionCt))
             with { UserMessageContent = displayInput };
-        var targetRole = dispatch.TargetRole;
-
-        if (string.Equals(targetRole, BuiltinRoleTypes.Secretary, StringComparison.OrdinalIgnoreCase)
-            && dispatch.ProjectAgentRoleId == null
-            && string.IsNullOrWhiteSpace(dispatch.UnresolvedMessage)
-            && !dispatch.HasExplicitMention)
-        {
-            return false;
-        }
 
         var rootFrame = await CreateFrameAsync(
             session.Id,
@@ -925,7 +1008,7 @@ public class SessionRunner
             parentFrameId: null,
             depth: 0,
             initiatorRole: "user",
-            targetRole: targetRole,
+            targetRole: dispatch.TargetRole,
             purpose: dispatch.Purpose,
             ct: sessionCt,
             userMessageContent: dispatch.UserMessageContent,
@@ -940,48 +1023,47 @@ public class SessionRunner
             return true;
         }
 
-        if (dispatch.ProjectAgentRoleId == null)
-        {
-            await ExecuteFrameAsync(session, rootFrame, SceneType.ProjectGroup, sessionCt);
-            await UpdateExecutionPackageStatusAsync(executionPackageId, ExecutionPackageStatus.Completed, complete: true, ct: CancellationToken.None);
-            return true;
-        }
-
-        var queueResult = await _projectGroupExecution.QueueTaskAsync(session.ProjectId, session.Id, rootFrame.Id, dispatch, sessionCt);
-        await PushTaskStateChangedAsync(
-            session.Id,
-            rootFrame.Id,
-            queueResult.TaskId,
-            queueResult.TargetRole,
-            queueResult.Lease == null ? TaskItemStatus.Pending : TaskItemStatus.InProgress);
-        await UpdateExecutionPackageTaskAsync(executionPackageId, queueResult.TaskId, CancellationToken.None);
-        if (!string.IsNullOrWhiteSpace(queueResult.QueueAcknowledgement))
-        {
-            await PublishAgentMessageAsync(session.Id, rootFrame, queueResult.TargetRole, queueResult.QueueAcknowledgement, success: true, sessionCt);
-            await UpdateExecutionPackageStatusAsync(
-                executionPackageId,
-                queueResult.Lease == null ? ExecutionPackageStatus.Queued : ExecutionPackageStatus.Active,
-                complete: false,
-                ct: CancellationToken.None);
-            return true;
-        }
-
-        if (queueResult.Lease != null)
-        {
-            await ExecuteProjectGroupLeaseAsync(queueResult.Lease, sessionCt);
-            await UpdateExecutionPackageStatusAsync(executionPackageId, ExecutionPackageStatus.Completed, complete: true, ct: CancellationToken.None);
-        }
-        else
-        {
-            await UpdateExecutionPackageStatusAsync(executionPackageId, ExecutionPackageStatus.Queued, complete: false, ct: CancellationToken.None);
-        }
-
+        await ExecuteFrameAsync(session, rootFrame, SceneType.ProjectGroup, sessionCt);
+        await UpdateExecutionPackageStatusAsync(executionPackageId, ExecutionPackageStatus.Completed, complete: true, ct: CancellationToken.None);
         return true;
     }
 
+    private async Task<ProjectGroupOrchestratorExecutionResult?> BuildProjectGroupOrchestratorResultAsync(
+        ChatSession session,
+        string responseContent,
+        CancellationToken ct)
+    {
+        if (!_projectGroupExecution.TryExtractOrchestratorResult(responseContent, out var result) || result == null)
+        {
+            return null;
+        }
+
+        ProjectGroupDispatchPlan? dispatchPlan = null;
+        if (result.Dispatches.Count > 0)
+        {
+            var dispatches = result.Dispatches
+                .Select(item => new ProjectGroupDispatchInstruction
+                {
+                    TargetRole = item.TargetRole,
+                    Task = item.Task
+                })
+                .ToArray();
+            dispatchPlan = await ResolveProjectGroupDispatchInstructionsAsync(
+                session,
+                dispatches,
+                "project_group_secretary_dispatch",
+                result.SecretaryReply ?? string.Empty,
+                ct);
+        }
+
+        return new ProjectGroupOrchestratorExecutionResult(
+            dispatchPlan?.DisplayContent ?? result.SecretaryReply ?? string.Empty,
+            dispatchPlan);
+    }
+
     /// <summary>
-    /// 解析秘书回复中的分派指令并解析到具体目标；无法解析的项会追加到展示内容中，而不是静默丢弃。
-    /// Extracts dispatch instructions from the secretary response and resolves them to concrete targets; unresolved items are appended to the display content instead of being dropped silently.
+    /// 解析秘书回复中的旧式分派指令并解析到具体目标；无法解析的项会追加到展示内容中，而不是静默丢弃。
+    /// Extracts legacy secretary dispatch instructions and resolves them to concrete targets; unresolved items are appended to the display content instead of being dropped silently.
     /// </summary>
     private async Task<ProjectGroupDispatchPlan?> BuildProjectGroupDispatchPlanAsync(
         ChatSession session,
@@ -994,6 +1076,16 @@ public class SessionRunner
             return null;
         }
 
+        return await ResolveProjectGroupDispatchInstructionsAsync(session, dispatches, dispatchSource, displayContent, ct);
+    }
+
+    private async Task<ProjectGroupDispatchPlan> ResolveProjectGroupDispatchInstructionsAsync(
+        ChatSession session,
+        IReadOnlyList<ProjectGroupDispatchInstruction> dispatches,
+        string dispatchSource,
+        string displayContent,
+        CancellationToken ct)
+    {
         var resolvedTargets = new List<ProjectGroupDispatchTarget>();
         var unresolvedMessages = new List<string>();
 
@@ -1079,7 +1171,8 @@ public class SessionRunner
                 messageRole: MessageRoles.Assistant,
                 messageAgentRole: parentTargetRole,
                 messageContentType: MessageContentTypes.Internal,
-                parentMessageId: parentMessageId);
+                parentMessageId: parentMessageId,
+                targetProjectAgentRoleIdOverride: target.ProjectAgentRoleId);
 
             var queueResult = await _projectGroupExecution.QueueTaskAsync(session.ProjectId, session.Id, childFrame.Id, target, sessionCt);
             await PushTaskStateChangedAsync(
@@ -1106,6 +1199,94 @@ public class SessionRunner
         }
     }
 
+    private async Task ExecuteProjectOrchestratorRelayAsync(
+        ChatSession session,
+        ChatFrame parentFrame,
+        ProjectGroupOrchestratorRelayPlan plan,
+        Guid? parentMessageId,
+        CancellationToken sessionCt)
+    {
+        await PushEventAsync(session.Id, SessionEventTypes.Routing, parentFrame.Id, new
+        {
+            from = await ResolveFrameTargetDisplayAsync(parentFrame, sessionCt),
+            to = BuiltinRoleTypes.Secretary,
+            reason = "project_group_member_replan"
+        });
+
+        var parentTargetRole = await ResolveFrameTargetDisplayAsync(parentFrame, sessionCt);
+        var childFrame = await CreateFrameAsync(
+            session.Id,
+            parentFrame.ExecutionPackageId,
+            parentFrame.Id,
+            parentFrame.Depth + 1,
+            parentTargetRole,
+            BuiltinRoleTypes.Secretary,
+            plan.Purpose,
+            sessionCt,
+            userMessageContent: plan.Purpose,
+            messageRole: MessageRoles.Assistant,
+            messageAgentRole: parentTargetRole,
+            messageContentType: MessageContentTypes.Internal,
+            parentMessageId: parentMessageId);
+
+        await ExecuteFrameAsync(
+            session,
+            childFrame,
+            SceneType.ProjectGroup,
+            sessionCt,
+            forcedTargetRole: BuiltinRoleTypes.Secretary,
+            forcedSecretaryTarget: true,
+            forcedDispatchSource: "project_group_member_replan");
+    }
+
+    private static ProjectGroupOrchestratorRelayPlan? BuildProjectGroupOrchestratorRelayPlan(
+        string? currentTargetRole,
+        string displayContent,
+        IReadOnlyList<ProjectGroupDispatchInstruction> dispatches)
+    {
+        var suggestions = dispatches
+            .Select(instruction =>
+            {
+                var target = string.IsNullOrWhiteSpace(instruction.TargetRole)
+                    ? null
+                    : instruction.TargetRole.Trim();
+                var task = string.IsNullOrWhiteSpace(instruction.Task)
+                    ? null
+                    : instruction.Task.Trim();
+                if (string.IsNullOrWhiteSpace(target) && string.IsNullOrWhiteSpace(task))
+                {
+                    return null;
+                }
+
+                return string.IsNullOrWhiteSpace(target)
+                    ? $"- {task}"
+                    : string.IsNullOrWhiteSpace(task)
+                        ? $"- {target}"
+                        : $"- {target}: {task}";
+            })
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Cast<string>()
+            .ToArray();
+        if (suggestions.Length == 0)
+        {
+            return null;
+        }
+
+        var roleName = string.IsNullOrWhiteSpace(currentTargetRole) ? "该成员" : currentTargetRole;
+        var memberSummary = string.IsNullOrWhiteSpace(displayContent)
+            ? "（成员未提供额外自然语言说明）"
+            : displayContent.Trim();
+        var purpose = string.Join(
+            $"{Environment.NewLine}{Environment.NewLine}",
+            [
+                $"{roleName} 已完成当前阶段，请你作为项目编排内核重新评估后续协作并决定下一步。",
+                $"成员反馈：{memberSummary}",
+                $"建议后续协作：{Environment.NewLine}{string.Join(Environment.NewLine, suggestions)}"
+            ]);
+
+        return new ProjectGroupOrchestratorRelayPlan(purpose);
+    }
+
     /// <summary>
     /// 执行一次项目群任务租约并回写任务状态；它会先重置帧、加载最新实体，并在需要时递归接续下一张租约。
     /// Executes a project-group task lease and reports task-state changes; it first reactivates the frame, loads fresh entities, and recursively continues with the next lease when needed.
@@ -1128,9 +1309,22 @@ public class SessionRunner
                 .AsNoTracking()
                 .FirstOrDefaultAsync(item => item.Id == lease.FrameId, sessionCt)
                 ?? throw new InvalidOperationException($"Frame {lease.FrameId} not found");
+            var leaseTargetAgent = await persistence.ProjectAgentRoles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == lease.ProjectAgentRoleId, sessionCt);
+            frame.TaskId = lease.TaskId;
+            frame.TargetProjectAgentRoleId = lease.ProjectAgentRoleId;
+            frame.TargetAgentRoleId = leaseTargetAgent?.AgentRoleId;
 
             await PushTaskStateChangedAsync(session.Id, frame.Id, lease.TaskId, lease.TargetRole, TaskItemStatus.InProgress);
-            var result = await ExecuteFrameAsync(session, frame, SceneType.ProjectGroup, leaseCts.Token);
+            var result = await ExecuteFrameAsync(
+                session,
+                frame,
+                SceneType.ProjectGroup,
+                leaseCts.Token,
+                forcedTargetRole: lease.TargetRole,
+                forcedSecretaryTarget: false,
+                forcedDispatchSource: lease.DispatchSource);
             var completion = await _projectGroupExecution.CompleteTaskAsync(
                 lease,
                 result.Success,
@@ -1312,7 +1506,8 @@ public class SessionRunner
         string? messageAgentRole = null,
         string messageContentType = MessageContentTypes.Text,
         Guid? parentMessageId = null,
-        Guid? messageId = null)
+        Guid? messageId = null,
+        Guid? targetProjectAgentRoleIdOverride = null)
     {
         using var persistence = CreatePersistenceScope();
         var sessionProjectId = await persistence.ChatSessions
@@ -1321,7 +1516,9 @@ public class SessionRunner
             .Select(item => item.ProjectId)
             .FirstOrDefaultAsync(ct);
         var initiatorIdentity = await ResolveRoleIdentityAsync(persistence, sessionProjectId, initiatorRole, ct);
-        var targetIdentity = await ResolveRoleIdentityAsync(persistence, sessionProjectId, targetRole, ct);
+        var targetIdentity = targetProjectAgentRoleIdOverride.HasValue
+            ? await ResolveProjectRoleIdentityAsync(persistence, targetProjectAgentRoleIdOverride.Value, ct)
+            : await ResolveRoleIdentityAsync(persistence, sessionProjectId, targetRole, ct);
         var messageIdentity = await ResolveRoleIdentityAsync(persistence, sessionProjectId, messageAgentRole, ct);
 
         var frame = new ChatFrame
@@ -1751,6 +1948,20 @@ public class SessionRunner
         return agentRole == null ? (null, null) : (agentRole.Id, null);
     }
 
+    private static async Task<(Guid? AgentRoleId, Guid? ProjectAgentRoleId)> ResolveProjectRoleIdentityAsync(
+        PersistenceScope persistence,
+        Guid projectAgentRoleId,
+        CancellationToken ct)
+    {
+        var projectAgentRole = await persistence.ProjectAgentRoles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == projectAgentRoleId, ct);
+
+        return projectAgentRole == null
+            ? (null, null)
+            : (projectAgentRole.AgentRoleId, projectAgentRole.Id);
+    }
+
     private static bool MatchesRoleDisplay(AgentRole role, string targetRole)
     {
         return string.Equals(role.Name, targetRole, StringComparison.OrdinalIgnoreCase)
@@ -2104,6 +2315,8 @@ public class SessionRunner
         bool RetryWithoutPenalty = false,
         bool RequiresUserInput = false);
     private sealed record ProjectGroupDispatchPlan(string DisplayContent, IReadOnlyList<ProjectGroupDispatchTarget> DispatchTargets);
+    private sealed record ProjectGroupOrchestratorExecutionResult(string VisibleReply, ProjectGroupDispatchPlan? DispatchPlan);
+    private sealed record ProjectGroupOrchestratorRelayPlan(string Purpose);
     private sealed record ProjectGroupCapabilityPlan(
         ProjectGroupCapabilityRequest Request,
         string SecretaryNotice,

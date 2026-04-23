@@ -24,25 +24,26 @@ namespace OpenStaff.Tests.Unit;
 public class SessionRunnerTests
 {
     /// <summary>
-    /// zh-CN: 验证项目群里被点名的成员如果返回分发块，SessionRunner 会继续创建并执行后续链路，而不是只把该能力保留给秘书。
-    /// en: Verifies that when a targeted ProjectGroup member emits a dispatch envelope, SessionRunner continues the orchestration chain instead of limiting that behavior to the secretary.
+    /// zh-CN: 验证成员如果试图继续分发后续工作，SessionRunner 会把协作请求回流给项目编排内核，再由秘书外壳继续派发，而不是直接成员对成员串联。
+    /// en: Verifies that when a member tries to dispatch follow-up work, SessionRunner relays the collaboration request back to the project orchestrator so the secretary facade can continue dispatching instead of allowing direct member-to-member chaining.
     /// </summary>
     [Fact]
-    public async Task ExecuteProjectGroupLeaseAsync_WhenMemberReturnsDispatch_ContinuesOrchestration()
+    public async Task ExecuteProjectGroupLeaseAsync_WhenMemberReturnsDispatch_RelaysBackToProjectOrchestrator()
     {
         var agentService = new QueueAgentService(
             [
                 CreateSummary("我先拆一下。\n\n<openstaff_project_dispatch>{\"dispatches\":[{\"targetRole\":\"architect\",\"task\":\"请补齐接口方案和边界说明\"}]}</openstaff_project_dispatch>"),
+                CreateSummary("{\"replyMode\":\"secretary_reply_and_dispatch\",\"secretaryReply\":\"收到，我来继续安排。\",\"dispatches\":[{\"targetRole\":\"architect\",\"task\":\"请补齐接口方案和边界说明\"}]}"),
                 CreateSummary("接口方案已补齐。")
             ]);
         using var context = new TestContext(agentService, TimeSpan.FromMinutes(5));
 
         var project = await context.AddProjectAsync();
-        var producer = await context.AddProjectAgentAsync(project.Id, "Ada", "producer");
-        var architect = await context.AddProjectAgentAsync(project.Id, "Bert", "architect");
-        var session = await context.AddSessionAsync(project.Id);
+        var producer = await context.AddProjectAgentAsync(project.Id, "Producer", "producer");
+        var architect = await context.AddProjectAgentAsync(project.Id, "Architect", "architect");
+        var session = await context.AddSessionAsync(project.Id, scene: SessionSceneTypes.ProjectGroup);
         var frame = await context.AddFrameAsync(session.Id, producer.Id, "请先拆一下登录 API");
-        await context.AddEntryMessageAsync(session.Id, frame.Id, "@Ada 请先拆一下登录 API");
+        await context.AddEntryMessageAsync(session.Id, frame.Id, "@Producer 请先拆一下登录 API");
 
         var queueResult = await context.ProjectGroupExecution.QueueTaskAsync(
             project.Id,
@@ -51,25 +52,31 @@ public class SessionRunnerTests
             new ProjectGroupDispatchTarget(
                 "producer",
                 "请先拆一下登录 API",
-                "@Ada 请先拆一下登录 API",
+                "@Producer 请先拆一下登录 API",
                 true,
                 producer.Id,
-                "Ada"),
+                "Producer"),
             CancellationToken.None);
 
         Assert.NotNull(queueResult.Lease);
 
         await context.ExecuteLeaseAsync(queueResult.Lease!);
 
-        Assert.Equal(2, agentService.Requests.Count);
+        Assert.Equal(3, agentService.Requests.Count);
         Assert.Equal(ChatRole.User, agentService.Requests[0].InputRole);
         Assert.Equal(ChatRole.User, agentService.Requests[1].InputRole);
-        Assert.Equal("project_group_mention", agentService.Requests[0].MessageContext.Extra?["openstaff_dispatch_source"]);
-        Assert.Equal("project_group_member_dispatch", agentService.Requests[1].MessageContext.Extra?["openstaff_dispatch_source"]);
+        Assert.Equal(ChatRole.User, agentService.Requests[2].InputRole);
+        var dispatchSources = agentService.Requests
+            .Select(request => request.MessageContext.Extra?["openstaff_dispatch_source"])
+            .ToArray();
         Assert.Equal(
-            "Another project member finished the current stage and handed the follow-up work to you.",
+            ["project_group_mention", "project_group_member_replan", "project_group_secretary_dispatch"],
+            dispatchSources);
+        Assert.Equal(
+            "Another project member reported progress and asked the hidden project orchestrator to re-plan the next collaboration step and choose who should speak next.",
             agentService.Requests[1].MessageContext.Extra?["openstaff_dispatch_context"]);
 
+        context.Db.ChangeTracker.Clear();
         var tasks = await context.Db.Tasks
             .AsNoTracking()
             .OrderBy(item => item.CreatedAt)
@@ -86,12 +93,51 @@ public class SessionRunnerTests
             .Select(message => message.Content)
             .ToListAsync();
 
-        Assert.Equal(["我先拆一下。", "接口方案已补齐。"], visibleAssistantMessages);
+        Assert.Equal(["我先拆一下。", "收到，我来继续安排。", "接口方案已补齐。"], visibleAssistantMessages);
 
         var architectTask = tasks.Single(task => task.AssignedProjectAgentRoleId == architect.Id);
         var metadata = TaskItemRuntimeMetadata.TryParse(architectTask.Metadata);
         Assert.NotNull(metadata);
-        Assert.Equal("project_group_member_dispatch", metadata!.Source);
+        Assert.Equal("project_group_secretary_dispatch", metadata!.Source);
+    }
+
+    /// <summary>
+    /// zh-CN: 验证隐藏项目模型若只输出分派包而不输出可见文案时，群聊里不会先落一条空的秘书消息，而是直接显示被选中成员的回复。
+    /// en: Verifies that when the hidden project orchestrator emits only a dispatch block, the group chat skips any empty secretary message and shows only the selected member reply.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteFrameAsync_WhenOrchestratorDispatchesWithoutVisibleText_SkipsSecretaryFacadeMessage()
+    {
+        var agentService = new QueueAgentService(
+            [
+                CreateSummary("{\"replyMode\":\"dispatch_only\",\"dispatches\":[{\"targetRole\":\"producer\",\"task\":\"直接回复：backend dispatch ok\"}]}"),
+                CreateSummary("backend dispatch ok")
+            ]);
+        using var context = new TestContext(agentService, TimeSpan.FromMinutes(5));
+
+        var project = await context.AddProjectAsync();
+        var producer = await context.AddProjectAgentAsync(project.Id, "Sophie", "producer");
+        var session = await context.AddSessionAsync(project.Id, scene: SessionSceneTypes.ProjectGroup);
+        var frame = await context.AddOrchestratorFrameAsync(session.Id, "Sophie 回复“backend dispatch ok”", "Sophie 回复“backend dispatch ok”");
+
+        await context.ExecuteFrameAsync(session, frame, SceneType.ProjectGroup);
+
+        Assert.Equal(2, agentService.Requests.Count);
+        Assert.Equal(BuiltinRoleTypes.Secretary, agentService.Requests[0].MessageContext.TargetRole);
+        Assert.Equal("producer", agentService.Requests[1].MessageContext.TargetRole);
+        Assert.Equal("project_group_secretary_dispatch", agentService.Requests[1].MessageContext.Extra?["openstaff_dispatch_source"]);
+
+        var visibleAssistantMessages = await context.Db.ChatMessages
+            .AsNoTracking()
+            .Where(message => message.SessionId == session.Id
+                && message.Role == MessageRoles.Assistant
+                && message.ContentType != MessageContentTypes.Internal)
+            .OrderBy(message => message.CreatedAt)
+            .ToListAsync();
+
+        var visibleMessage = Assert.Single(visibleAssistantMessages);
+        Assert.Equal("backend dispatch ok", visibleMessage.Content);
+        Assert.Equal(producer.Id, visibleMessage.ProjectAgentRoleId);
     }
 
     [Fact]
@@ -161,6 +207,7 @@ public class SessionRunnerTests
         private readonly SqliteConnection _connection;
         private readonly ServiceProvider _services;
         private readonly SessionRunner _runner;
+        private readonly MethodInfo _executeFrameMethod;
         private readonly MethodInfo _executeLeaseMethod;
 
         public TestContext(IReadOnlyList<MessageExecutionSummary> summaries)
@@ -233,6 +280,10 @@ public class SessionRunnerTests
                 _services.GetRequiredService<IServiceScopeFactory>(),
                 NullLogger<SessionRunner>.Instance,
                 leaseTimeout);
+            _executeFrameMethod = typeof(SessionRunner).GetMethod(
+                "ExecuteFrameAsync",
+                BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("ExecuteFrameAsync was not found.");
             _executeLeaseMethod = typeof(SessionRunner).GetMethod(
                 "ExecuteProjectGroupLeaseAsync",
                 BindingFlags.Instance | BindingFlags.NonPublic)
@@ -265,9 +316,13 @@ public class SessionRunnerTests
                 JobTitle = roleType,
                 IsActive = true
             };
+            Db.AgentRoles.Add(role);
+            await Db.SaveChangesAsync();
+
             var projectAgent = new ProjectAgentRole
             {
                 ProjectId = projectId,
+                AgentRoleId = role.Id,
                 AgentRole = role
             };
             Db.ProjectAgentRoles.Add(projectAgent);
@@ -275,12 +330,12 @@ public class SessionRunnerTests
             return projectAgent;
         }
 
-        public async Task<ChatSession> AddSessionAsync(Guid projectId)
+        public async Task<ChatSession> AddSessionAsync(Guid projectId, string scene = SessionSceneTypes.ProjectGroup)
         {
             var session = new ChatSession
             {
                 ProjectId = projectId,
-                Scene = SessionSceneTypes.ProjectGroup,
+                Scene = scene,
                 Status = SessionStatus.Active,
                 InitialInput = "dispatch"
             };
@@ -304,6 +359,46 @@ public class SessionRunnerTests
             return frame;
         }
 
+        public async Task<ChatFrame> AddOrchestratorFrameAsync(Guid sessionId, string purpose, string input)
+        {
+            var secretaryRole = await Db.AgentRoles.FirstOrDefaultAsync(role =>
+                role.IsBuiltin
+                && role.IsActive
+                && role.JobTitle == BuiltinRoleTypes.Secretary);
+            if (secretaryRole == null)
+            {
+                secretaryRole = new AgentRole
+                {
+                    IsActive = true,
+                    IsBuiltin = true,
+                    JobTitle = BuiltinRoleTypes.Secretary,
+                    Name = "Monica"
+                };
+                Db.AgentRoles.Add(secretaryRole);
+                await Db.SaveChangesAsync();
+            }
+
+            var frame = new ChatFrame
+            {
+                SessionId = sessionId,
+                Depth = 0,
+                Status = FrameStatus.Active,
+                Purpose = purpose,
+                TargetAgentRoleId = secretaryRole.Id
+            };
+            Db.ChatFrames.Add(frame);
+            Db.ChatMessages.Add(new OpenStaff.Entities.ChatMessage
+            {
+                SessionId = sessionId,
+                FrameId = frame.Id,
+                Role = MessageRoles.User,
+                Content = input,
+                SequenceNo = 0
+            });
+            await Db.SaveChangesAsync();
+            return frame;
+        }
+
         public async Task AddEntryMessageAsync(Guid sessionId, Guid frameId, string content)
         {
             Db.ChatMessages.Add(new OpenStaff.Entities.ChatMessage
@@ -320,6 +415,12 @@ public class SessionRunnerTests
         public async Task ExecuteLeaseAsync(ProjectGroupExecutionLease lease)
         {
             var task = (Task)_executeLeaseMethod.Invoke(_runner, [lease, CancellationToken.None])!;
+            await task;
+        }
+
+        public async Task ExecuteFrameAsync(ChatSession session, ChatFrame frame, SceneType scene)
+        {
+            var task = (Task)_executeFrameMethod.Invoke(_runner, [session, frame, scene, CancellationToken.None, null, null, null])!;
             await task;
         }
 
